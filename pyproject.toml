@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "report-system"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "python-dotenv>=1.0",
+    "pydantic>=2",
+    "requests>=2.31",
+    "google-analytics-data>=0.18",
+    "google-auth>=2.28",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/report_system"]
+
+[project.scripts]
+report-system = "report_system.interface.cli.main:main"
