@@ -323,7 +323,7 @@ def main() -> None:
                 f"    metrics    MAP<STRING, STRING>\n"
                 f")\n"
                 f"PARTITIONED BY (dt STRING)\n"
-                f"ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'\n"
+                f"ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'\n"
                 f"STORED AS TEXTFILE\n"
                 f"LOCATION '{location}'\n"
                 f"TBLPROPERTIES ('ignore.malformed.json' = 'true')"
