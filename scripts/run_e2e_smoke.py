@@ -62,8 +62,18 @@ from report_system.infrastructure.athena.partition_manager import AthenaPartitio
 from report_system.infrastructure.persistence.s3_key_builder import build_raw_key
 
 # ---------------------------------------------------------------------------
-# Curated table schemas (columns must match CTAS SELECT output, excl. run_id)
-# run_id is a PARTITION column, not listed here.
+# Curated table schemas (columns must match CTAS SELECT output).
+#
+# EXCLUDED from this dict (handled by PARTITIONED BY clause):
+#   dt STRING, run_id STRING
+#
+# run_id is also written as a literal data column inside Parquet by CTAS
+# (useful for direct-file inspection), but Athena uses the partition
+# metadata value — no duplicate declaration is needed here.
+#
+# KEEP IN SYNC WITH: src/report_system/infrastructure/athena/ctas.py
+#   _SELECT_REGISTRY — that file's SELECT bodies are the single source of
+#   truth for column names and types.
 # ---------------------------------------------------------------------------
 
 _CURATED_SCHEMAS: dict[str, str] = {
@@ -83,19 +93,39 @@ _CURATED_SCHEMAS: dict[str, str] = {
         "  engagement_rate DOUBLE,\n"
         "  bounce_rate     DOUBLE"
     ),
+    # Columns match ctas.py _SELECT_REGISTRY["appsflyer_installs_daily"].
+    # Raw event-level rows → COUNT(*) GROUP BY in CTAS.
+    # is_organic removed (was stub-era; organic = media_source='Organic').
     "appsflyer_installs_daily": (
-        "  media_source STRING,\n"
-        "  campaign     STRING,\n"
-        "  is_organic   BOOLEAN,\n"
-        "  installs     BIGINT"
+        "  media_source    STRING,\n"
+        "  campaign        STRING,\n"
+        "  keyword         STRING,\n"
+        "  adset           STRING,\n"
+        "  ad              STRING,\n"
+        "  channel         STRING,\n"
+        "  app_version     STRING,\n"
+        "  campaign_type   STRING,\n"
+        "  match_type      STRING,\n"
+        "  store_reinstall STRING,\n"
+        "  installs        BIGINT"
     ),
+    # Columns match ctas.py _SELECT_REGISTRY["appsflyer_events_daily"].
+    # Raw event-level rows → COUNT(*) / SUM() GROUP BY in CTAS.
+    # is_organic removed (was stub-era; organic = media_source='Organic').
     "appsflyer_events_daily": (
-        "  media_source  STRING,\n"
-        "  campaign      STRING,\n"
-        "  event_name    STRING,\n"
-        "  is_organic    BOOLEAN,\n"
-        "  event_count   BIGINT,\n"
-        "  event_revenue DOUBLE"
+        "  media_source    STRING,\n"
+        "  campaign        STRING,\n"
+        "  event_name      STRING,\n"
+        "  keyword         STRING,\n"
+        "  adset           STRING,\n"
+        "  ad              STRING,\n"
+        "  channel         STRING,\n"
+        "  app_version     STRING,\n"
+        "  campaign_type   STRING,\n"
+        "  match_type      STRING,\n"
+        "  store_reinstall STRING,\n"
+        "  event_count     BIGINT,\n"
+        "  event_revenue   DOUBLE"
     ),
     "appsflyer_retention_daily": (
         "  media_source  STRING,\n"
