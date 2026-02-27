@@ -1,37 +1,42 @@
 """
-End-to-end smoke test: mock raw records → S3 curated Parquet → Athena partition.
+End-to-end smoke test: raw S3 data → Athena CTAS → curated Parquet → Athena partition.
 
 Two modes, controlled by --dry-run:
 
   --dry-run  (safe, no credentials needed)
-      S3CuratedWriter prints what it *would* upload without calling S3.
-      Athena registration is skipped entirely.
+      Prints the CTAS SQL that *would* be submitted to Athena.
+      No AWS calls of any kind.
 
   (no --dry-run)  ← real-credentials run
-      Writes Parquet to real S3, then registers the dt-partition in Athena.
+      1. Runs Athena CTAS query (raw → curated Parquet on S3)
+      2. Registers the dt-partition on the curated table
       Requires:
         - AWS credentials (env vars, ~/.aws/credentials, or IAM role)
+        - Raw JSONL.GZ already written at the expected S3 path
+        - Raw external tables already created in Glue Catalog
         - .env.local with ATHENA_DATABASE / ATHENA_WORKGROUP
           (or pass --database / --workgroup explicitly)
-      IAM permissions needed:
-        - s3:PutObject on the curated bucket
-        - athena:StartQueryExecution, athena:GetQueryExecution
-        - glue:GetTable, glue:BatchCreatePartition on the target table
+
+IAM permissions needed (no --dry-run):
+  - s3:PutObject, s3:GetObject, s3:ListBucket  — curated bucket
+  - s3:DeleteObject                             — only when --overwrite
+  - athena:StartQueryExecution, athena:GetQueryExecution
+  - glue:GetTable, glue:BatchCreatePartition
 
 Usage:
-    # Safe check — no AWS credentials required:
+    # Safe dry-run — print CTAS SQL only:
     python scripts/e2e_curate_and_register_smoketest.py --dry-run
 
     # Real run after receiving AWS access:
     python scripts/e2e_curate_and_register_smoketest.py \\
         --bucket hyper-intern-m1c-data \\
-        --dt 2026-02-25
+        --dt 2026-02-27
 
-    # Override Athena config without .env.local:
+    # Rerun for the same dt (overwrite existing curated files):
     python scripts/e2e_curate_and_register_smoketest.py \\
         --bucket hyper-intern-m1c-data \\
-        --database my_db --workgroup my-wg \\
-        --dt 2026-02-25
+        --dt 2026-02-27 \\
+        --overwrite
 """
 from __future__ import annotations
 
@@ -39,122 +44,17 @@ import argparse
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from report_system.application.curation.transformers import REGISTRY
-from report_system.application.curation.use_cases import CurateAndRegisterUseCase
-from report_system.infrastructure.athena.partition_manager import AthenaPartitionManager
-from report_system.infrastructure.persistence.curated_writer import S3CuratedWriter
-
-
-# ---------------------------------------------------------------------------
-# Mock raw records — must use {"dimensions": ..., "metrics": ...} format
-# so the transformer functions can extract fields correctly.
-# ---------------------------------------------------------------------------
-
-_MOCK_RECORDS: dict[str, list[dict[str, Any]]] = {
-    "ga4_acquisition_daily": [
-        {
-            "dimensions": {
-                "sessionDefaultChannelGroup": "Organic Search",
-                "sessionSource": "google",
-                "sessionMedium": "organic",
-            },
-            "metrics": {
-                "sessions": "1200",
-                "totalUsers": "980",
-                "conversions": "45",
-                "totalRevenue": "1350000.0",
-            },
-        },
-        {
-            "dimensions": {
-                "sessionDefaultChannelGroup": "Paid Search",
-                "sessionSource": "google",
-                "sessionMedium": "cpc",
-            },
-            "metrics": {
-                "sessions": "540",
-                "totalUsers": "480",
-                "conversions": "28",
-                "totalRevenue": "840000.0",
-            },
-        },
-    ],
-    "ga4_engagement_daily": [
-        {
-            "dimensions": {
-                "sessionDefaultChannelGroup": "Organic Search",
-                "sessionSource": "google",
-                "sessionMedium": "organic",
-            },
-            "metrics": {
-                "engagementRate": "0.72",
-                "bounceRate": "0.28",
-            },
-        },
-    ],
-    "appsflyer_installs_daily": [
-        {
-            "dimensions": {
-                "media_source": "googleadwords_int",
-                "campaign": "brand_2026q1",
-                "is_organic": "false",
-            },
-            "metrics": {"installs": "320"},
-        },
-        {
-            "dimensions": {
-                "media_source": "organic",
-                "campaign": None,
-                "is_organic": "true",
-            },
-            "metrics": {"installs": "890"},
-        },
-    ],
-    "appsflyer_events_daily": [
-        {
-            "dimensions": {
-                "media_source": "googleadwords_int",
-                "campaign": "brand_2026q1",
-                "event_name": "purchase",
-                "is_organic": "false",
-            },
-            "metrics": {
-                "event_count": "47",
-                "event_revenue": "235000.0",
-            },
-        },
-    ],
-    "appsflyer_retention_daily": [
-        {
-            "dimensions": {
-                "media_source": "googleadwords_int",
-                "campaign": "brand_2026q1",
-                "is_organic": "false",
-            },
-            "metrics": {
-                "retention_d1": "0.45",
-                "retention_d7": "0.18",
-                "retention_d30": "0.07",
-            },
-        },
-    ],
-}
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+from report_system.infrastructure.athena.ctas import REGISTRY, build_ctas_sql
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "E2E smoke test: mock raw records → S3 Parquet → Athena partition.\n"
-            "Add --dry-run to skip actual S3 / Athena calls."
+            "E2E smoke test: raw S3 → Athena CTAS → curated Parquet → partition.\n"
+            "Add --dry-run to print the CTAS SQL without calling AWS."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -177,33 +77,62 @@ def main() -> None:
     parser.add_argument(
         "--prefix",
         default="curated",
-        help="S3 key prefix (default: curated)",
+        help="S3 key prefix for curated output (default: curated)",
     )
     parser.add_argument(
         "--database",
         default=None,
-        help="Athena database — overrides settings / ATHENA_DATABASE env var",
+        help="Athena database — overrides settings / ATHENA_DATABASE",
     )
     parser.add_argument(
         "--workgroup",
         default=None,
-        help="Athena workgroup — overrides settings / ATHENA_WORKGROUP env var",
+        help="Athena workgroup — overrides settings / ATHENA_WORKGROUP",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Delete existing curated S3 objects before running CTAS (needed for reruns)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=120,
+        help="Athena query timeout in seconds (default: 120)",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print what would be written/registered without calling S3 or Athena",
+        help="Print the CTAS SQL without calling S3 or Athena",
     )
     args = parser.parse_args()
 
     # ------------------------------------------------------------------
-    # Resolve Athena config: CLI > settings file.
-    # Only required when actually calling Athena (not dry-run).
+    # Dry-run: just print the SQL and exit
+    # ------------------------------------------------------------------
+    if args.dry_run:
+        sql, ctas_table = build_ctas_sql(
+            dataset_id=args.dataset_id,
+            dt=args.dt,
+            database=args.database or "<ATHENA_DATABASE>",
+            curated_bucket=args.bucket,
+            curated_prefix=args.prefix,
+        )
+        print("=== DRY-RUN: CTAS SQL that would be submitted ===")
+        print(f"  dataset      : {args.dataset_id}")
+        print(f"  dt           : {args.dt}")
+        print(f"  ctas_table   : {ctas_table}")
+        print()
+        print(sql)
+        return
+
+    # ------------------------------------------------------------------
+    # Resolve Athena config: CLI args > settings file
     # ------------------------------------------------------------------
     database: str | None = args.database
     workgroup: str | None = args.workgroup
 
-    if not args.dry_run and (database is None or workgroup is None):
+    if database is None or workgroup is None:
         try:
             from report_system.config.settings import get_settings  # noqa: PLC0415
             settings = get_settings()
@@ -218,54 +147,42 @@ def main() -> None:
             sys.exit(1)
 
     # ------------------------------------------------------------------
-    # Build DI components.
-    # When dry-run: registrar is None → use_case skips partition registration.
+    # Build use-case and run
     # ------------------------------------------------------------------
-    storage = S3CuratedWriter(
-        bucket=args.bucket,
-        prefix=args.prefix,
-        dry_run=args.dry_run,
-    )
-    registrar = (
-        None
-        if args.dry_run
-        else AthenaPartitionManager(database=database, workgroup=workgroup)
-    )
+    from report_system.application.curation.use_cases import CtasCurateAndRegisterUseCase  # noqa: PLC0415
+    from report_system.infrastructure.athena.ctas import AthenaCtasRunner  # noqa: PLC0415
+    from report_system.infrastructure.athena.partition_manager import AthenaPartitionManager  # noqa: PLC0415
 
-    use_case = CurateAndRegisterUseCase(storage=storage, registrar=registrar)
+    runner = AthenaCtasRunner(
+        database=database,
+        workgroup=workgroup,
+        curated_bucket=args.bucket,
+        curated_prefix=args.prefix,
+        overwrite=args.overwrite,
+    )
+    registrar = AthenaPartitionManager(database=database, workgroup=workgroup)
+    use_case = CtasCurateAndRegisterUseCase(ctas_runner=runner, registrar=registrar)
 
-    # ------------------------------------------------------------------
-    # Print run plan
-    # ------------------------------------------------------------------
-    print("=== E2E curate-and-register smoke test ===")
+    print("=== E2E curate-and-register (Athena CTAS) ===")
     print(f"  dataset   : {args.dataset_id}")
     print(f"  dt        : {args.dt}")
     print(f"  bucket    : s3://{args.bucket}/{args.prefix}")
-    if args.dry_run:
-        print("  mode      : DRY-RUN (no S3 write, no Athena call)")
-    else:
-        print(f"  database  : {database}")
-        print(f"  workgroup : {workgroup}")
+    print(f"  database  : {database}")
+    print(f"  workgroup : {workgroup}")
+    print(f"  overwrite : {args.overwrite}")
     print()
 
-    # ------------------------------------------------------------------
-    # Execute
-    # ------------------------------------------------------------------
-    records = _MOCK_RECORDS[args.dataset_id]
-
     try:
-        result = use_case.execute(args.dataset_id, args.dt, records)
+        result = use_case.execute(args.dataset_id, args.dt)
     except (ValueError, RuntimeError) as exc:
         print(f"FAILED: {exc}", file=sys.stderr)
         sys.exit(1)
 
     print("=== RESULT ===")
     print(f"  status    : {result.status}")
-    print(f"  rows      : {result.row_count}")
     print(f"  location  : {result.location}")
-    if not args.dry_run:
-        print()
-        print("Athena partition registered.")
+    print()
+    print("Athena partition registered.")
 
 
 if __name__ == "__main__":
