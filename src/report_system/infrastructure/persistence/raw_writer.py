@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, Iterator
 
-from report_system.domain.ingestion.models import ReportDataset
+from report_system.domain.ingestion.models import ReportDataset, ReportRow
+from report_system.domain.shared.time import utcnow
 from report_system.infrastructure.persistence.s3_key_builder import build_raw_key
 from report_system.infrastructure.persistence.serializer import (
     build_manifest,
+    build_stream_manifest,
     manifest_to_bytes,
     to_jsonl_gz,
+    write_jsonl_gz_stream,
 )
 
 
@@ -118,3 +123,52 @@ class S3RawWriter:
         end_date: str,
     ) -> None:
         _write_partition(self._put, self._source, dataset_id, dt, ds, start_date, end_date, writer="s3")
+
+    def write_raw_stream(
+        self,
+        dataset_id: str,
+        dt: str,
+        rows_iter: Iterator[ReportRow],
+        start_date: str,
+        end_date: str,
+    ) -> dict[str, Any]:
+        """Stream rows to a temp file then upload to S3 via ``upload_file``.
+
+        Unlike :meth:`write_raw`, the full payload is never held in memory.
+        Use this for large datasets such as in-app events.
+
+        Returns:
+            A manifest dict describing the written partition.
+
+        Raises:
+            RuntimeError: S3 upload or temp-file I/O failure.
+        """
+        generated_at = utcnow()
+
+        # Write to a temp file incrementally
+        fd, tmp_path = tempfile.mkstemp(suffix=".jsonl.gz")
+        os.close(fd)
+        try:
+            row_count = write_jsonl_gz_stream(rows_iter, tmp_path)
+
+            data_key = build_raw_key(self._source, dataset_id, dt, "data.jsonl.gz")
+            self._s3.upload_file(tmp_path, self._bucket, data_key)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+        manifest = build_stream_manifest(
+            source=self._source,
+            dataset_id=dataset_id,
+            dt=dt,
+            start_date=start_date,
+            end_date=end_date,
+            row_count=row_count,
+            generated_at_iso=generated_at.isoformat(),
+        )
+        manifest_key = build_raw_key(self._source, dataset_id, dt, "_manifest.json")
+        self._put(manifest_key, manifest_to_bytes(manifest))
+
+        return manifest

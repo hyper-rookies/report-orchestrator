@@ -36,6 +36,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -103,27 +104,45 @@ SELECT
 FROM {database}.{raw_table}
 WHERE dt = '{dt}'""",
 
+    # Raw event-level rows are stored (no Lambda aggregation).
+    # CTAS performs COUNT(*) GROUP BY to produce the curated partition.
     "appsflyer_installs_daily": """\
 SELECT
-  dimensions['media_source'] AS media_source,
-  dimensions['campaign']     AS campaign,
-  CASE WHEN LOWER(dimensions['is_organic']) = 'true'
-       THEN TRUE ELSE FALSE END AS is_organic,
-  TRY_CAST(metrics['installs'] AS BIGINT) AS installs
+  dimensions['media_source']     AS media_source,
+  dimensions['campaign']         AS campaign,
+  dimensions['keyword']          AS keyword,
+  dimensions['adset']            AS adset,
+  dimensions['ad']               AS ad,
+  dimensions['channel']          AS channel,
+  dimensions['app_version']      AS app_version,
+  dimensions['campaign_type']    AS campaign_type,
+  dimensions['match_type']       AS match_type,
+  dimensions['store_reinstall']  AS store_reinstall,
+  COUNT(*)                       AS installs
 FROM {database}.{raw_table}
-WHERE dt = '{dt}'""",
+WHERE dt = '{dt}'
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10""",
 
+    # Raw event-level rows are stored (no Lambda aggregation).
+    # CTAS performs COUNT(*) / SUM() GROUP BY to produce the curated partition.
     "appsflyer_events_daily": """\
 SELECT
-  dimensions['media_source'] AS media_source,
-  dimensions['campaign']     AS campaign,
-  dimensions['event_name']   AS event_name,
-  CASE WHEN LOWER(dimensions['is_organic']) = 'true'
-       THEN TRUE ELSE FALSE END AS is_organic,
-  TRY_CAST(metrics['event_count']   AS BIGINT) AS event_count,
-  TRY_CAST(metrics['event_revenue'] AS DOUBLE) AS event_revenue
+  dimensions['media_source']     AS media_source,
+  dimensions['campaign']         AS campaign,
+  dimensions['event_name']       AS event_name,
+  dimensions['keyword']          AS keyword,
+  dimensions['adset']            AS adset,
+  dimensions['ad']               AS ad,
+  dimensions['channel']          AS channel,
+  dimensions['app_version']      AS app_version,
+  dimensions['campaign_type']    AS campaign_type,
+  dimensions['match_type']       AS match_type,
+  dimensions['store_reinstall']  AS store_reinstall,
+  COUNT(*)                                              AS event_count,
+  SUM(TRY_CAST(metrics['event_revenue'] AS DOUBLE))    AS event_revenue
 FROM {database}.{raw_table}
-WHERE dt = '{dt}'""",
+WHERE dt = '{dt}'
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11""",
 
     "appsflyer_retention_daily": """\
 SELECT
@@ -162,8 +181,15 @@ def build_ctas_sql(
     curated_bucket: str,
     curated_prefix: str = "curated",
     ctas_table: str | None = None,
+    run_id: str | None = None,
 ) -> tuple[str, str]:
     """Build the full CTAS SQL string.
+
+    When *run_id* is provided the output is written under
+    ``curated/<dataset_id>/dt=<dt>/run=<run_id>/`` and a literal
+    ``'<run_id>' AS run_id`` column is appended to the SELECT body so the
+    run identifier is embedded directly in the Parquet files (useful for
+    debugging raw files without reading partition metadata).
 
     Returns:
         ``(sql, ctas_table_name)`` — *ctas_table_name* is the short-lived
@@ -183,16 +209,29 @@ def build_ctas_sql(
     dt_tag = dt.replace("-", "")
     ctas_table = ctas_table or f"_ctas_{dataset_id}_{dt_tag}_{suffix}"
 
-    external_location = (
-        f"s3://{curated_bucket}/{curated_prefix.rstrip('/')}"
-        f"/{dataset_id}/dt={dt}/"
-    )
+    if run_id is not None:
+        external_location = (
+            f"s3://{curated_bucket}/{curated_prefix.rstrip('/')}"
+            f"/{dataset_id}/dt={dt}/run={run_id}/"
+        )
+    else:
+        external_location = (
+            f"s3://{curated_bucket}/{curated_prefix.rstrip('/')}"
+            f"/{dataset_id}/dt={dt}/"
+        )
 
     select_body = _SELECT_REGISTRY[dataset_id].format(
         database=database,
         raw_table=spec.raw_table,
         dt=dt,
     )
+
+    if run_id is not None:
+        # Append run_id as a literal data column so it is embedded in the
+        # Parquet file — useful when inspecting raw files directly.
+        select_body = select_body.replace(
+            "\nFROM ", f",\n  '{run_id}' AS run_id\nFROM ", 1
+        )
 
     sql = _CTAS_TEMPLATE.format(
         ctas_table=f"{database}.{ctas_table}",
@@ -220,11 +259,16 @@ class AthenaCtasRunner:
         curated_bucket:  S3 bucket for curated Parquet output.
         curated_prefix:  S3 key prefix (default: ``"curated"``).
         overwrite:       When ``True`` delete existing S3 objects under the
-                         target partition prefix before running CTAS.
-                         Required for reruns; default ``False``.
+                         target run-partition prefix before running CTAS.
+                         Not needed when *run_id* is set (each run writes to
+                         a unique prefix).  Default ``False``.
         drop_ctas_table: When ``True`` (default) drop the ephemeral Glue
                          Catalog table created by CTAS after success.
                          S3 data is **never** deleted by this step.
+        run_id:          Identifies this execution run.  Used as the
+                         ``run=<run_id>`` path segment under each dt-partition
+                         and embedded as a ``run_id`` column in Parquet output.
+                         Auto-generated (UTC ``YYYYMMDDTHHMMSSz``) when ``None``.
         **boto3_kwargs:  Forwarded to both ``boto3.client("athena", …)`` and
                          ``boto3.client("s3", …)``, e.g. ``region_name``.
     """
@@ -237,6 +281,7 @@ class AthenaCtasRunner:
         curated_prefix: str = "curated",
         overwrite: bool = False,
         drop_ctas_table: bool = True,
+        run_id: str | None = None,
         **boto3_kwargs: Any,
     ) -> None:
         try:
@@ -253,8 +298,14 @@ class AthenaCtasRunner:
         self._curated_prefix = curated_prefix.rstrip("/")
         self._overwrite = overwrite
         self._drop = drop_ctas_table
+        self._run_id = run_id or datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self._athena = boto3.client("athena", **boto3_kwargs)
         self._s3 = boto3.client("s3", **boto3_kwargs)
+
+    @property
+    def run_id(self) -> str:
+        """The run identifier used for S3 path partitioning and Parquet metadata."""
+        return self._run_id
 
     # ------------------------------------------------------------------
     # Public API
@@ -286,6 +337,7 @@ class AthenaCtasRunner:
             database=self._database,
             curated_bucket=self._curated_bucket,
             curated_prefix=self._curated_prefix,
+            run_id=self._run_id,
         )
 
         resp = self._athena.start_query_execution(
@@ -354,10 +406,10 @@ class AthenaCtasRunner:
             pass  # best-effort; don't fail the pipeline on cleanup
 
     def curated_location(self, dataset_id: str, dt: str) -> str:
-        """Return the S3 directory URI of a curated partition (trailing slash)."""
+        """Return the S3 directory URI of a curated run-partition (trailing slash)."""
         return (
             f"s3://{self._curated_bucket}/{self._curated_prefix}"
-            f"/{dataset_id}/dt={dt}/"
+            f"/{dataset_id}/dt={dt}/run={self._run_id}/"
         )
 
     def run(self, dataset_id: str, dt: str) -> tuple[str, str]:
@@ -390,8 +442,8 @@ class AthenaCtasRunner:
     # ------------------------------------------------------------------
 
     def _delete_partition_objects(self, dataset_id: str, dt: str) -> None:
-        """Delete all S3 objects under the target partition prefix."""
-        prefix = f"{self._curated_prefix}/{dataset_id}/dt={dt}/"
+        """Delete all S3 objects under the target run-partition prefix."""
+        prefix = f"{self._curated_prefix}/{dataset_id}/dt={dt}/run={self._run_id}/"
         paginator = self._s3.get_paginator("list_objects_v2")
         to_delete: list[dict[str, str]] = []
 

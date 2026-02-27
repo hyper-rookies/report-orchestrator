@@ -31,6 +31,13 @@ class Settings(BaseModel):
     MMP_BACKFILL_DAYS: int = 7
     JOB_TIMEZONE: str = "Asia/Seoul"
 
+    # --- AppsFlyer Pull API settings ---
+    # IANA timezone sent as the 'timezone' query param in all Pull API calls.
+    APPSFLYER_TIMEZONE: str = "Asia/Seoul"
+    # When True, raise an error if an API response contains zero data rows.
+    # When False (default), emit a warning and continue.
+    FAIL_ON_ZERO_ROWS: bool = False
+
     # --- Athena (optional; used when registering curated partitions) ---
     ATHENA_DATABASE: str = "hyper_intern_m1c"
     ATHENA_WORKGROUP: str = "hyper-intern-m1c-wg"

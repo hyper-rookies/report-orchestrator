@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Iterator, Protocol
 
-from report_system.domain.ingestion.models import ReportDataset
+from report_system.domain.ingestion.models import ReportDataset, ReportRow
 
 
 class GA4Port(Protocol):
@@ -26,12 +26,19 @@ class AppsFlyerPort(Protocol):
     ) -> ReportDataset: ...
 
 
-class RawStoragePort(Protocol):
-    """Persistence port for writing raw ingestion results.
+class AppsFlyerStreamingPort(Protocol):
+    """Port for the streaming events path (no full payload in memory)."""
 
-    The implementation decides key layout, serialisation format, and
-    target storage backend (local filesystem, S3, …).
-    """
+    def iter_events_report(
+        self,
+        app_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> Iterator[ReportRow]: ...
+
+
+class RawStoragePort(Protocol):
+    """Persistence port for writing raw ingestion results (in-memory path)."""
 
     def write_raw(
         self,
@@ -41,3 +48,16 @@ class RawStoragePort(Protocol):
         start_date: str,
         end_date: str,
     ) -> None: ...
+
+
+class StreamingRawStoragePort(Protocol):
+    """Persistence port for the streaming write path (events)."""
+
+    def write_raw_stream(
+        self,
+        dataset_id: str,
+        dt: str,
+        rows_iter: Iterator[ReportRow],
+        start_date: str,
+        end_date: str,
+    ) -> dict[str, Any]: ...

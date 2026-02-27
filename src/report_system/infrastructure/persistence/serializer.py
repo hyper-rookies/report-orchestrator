@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import gzip
 import json
-from typing import Any
+from typing import Any, Iterator
 
 from report_system.domain.ingestion.models import ReportDataset, ReportRow
 
@@ -17,6 +17,28 @@ def _row_to_dict(row: ReportRow) -> dict[str, Any]:
         "dimensions": {d.name: d.value for d in row.dimensions},
         "metrics": {m.name: m.value for m in row.metrics},
     }
+
+
+def write_jsonl_gz_stream(rows_iter: Iterator[ReportRow], dest_path: str) -> int:
+    """Write rows from an iterator to a gzip-compressed JSONL file on disk.
+
+    Each row is serialised as one JSON line.  The file is written
+    incrementally so the full payload is never held in memory simultaneously.
+
+    Args:
+        rows_iter: Iterator of :class:`~report_system.domain.ingestion.models.ReportRow`.
+        dest_path: Destination file path (overwritten if it exists).
+
+    Returns:
+        Total number of rows written.
+    """
+    count = 0
+    with gzip.open(dest_path, "wb") as gz:
+        for row in rows_iter:
+            line = json.dumps(_row_to_dict(row), ensure_ascii=False) + "\n"
+            gz.write(line.encode("utf-8"))
+            count += 1
+    return count
 
 
 def to_jsonl_gz(ds: ReportDataset) -> bytes:
@@ -62,6 +84,37 @@ def build_manifest(
     if error_message is not None:
         manifest["error_message"] = error_message
     return manifest
+
+
+def build_stream_manifest(
+    source: str,
+    dataset_id: str,
+    dt: str,
+    start_date: str,
+    end_date: str,
+    row_count: int,
+    generated_at_iso: str,
+    writer: str = "s3_stream",
+) -> dict[str, Any]:
+    """Build a manifest dict for a streaming write (no ReportDataset available).
+
+    Args:
+        generated_at_iso: ISO-format timestamp string (UTC).
+        row_count:        Number of rows written.
+    """
+    status = "SUCCESS" if row_count > 0 else "WARN_ZERO_ROWS"
+    return {
+        "schema_version": "v1",
+        "source": source,
+        "dataset_id": dataset_id,
+        "dt": dt,
+        "start_date": start_date,
+        "end_date": end_date,
+        "generated_at": generated_at_iso,
+        "row_count": row_count,
+        "status": status,
+        "writer": writer,
+    }
 
 
 def manifest_to_bytes(manifest: dict[str, Any]) -> bytes:

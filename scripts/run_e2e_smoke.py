@@ -1,14 +1,17 @@
-"""E2E smoke test: mock raw → S3 upload → Athena CTAS → curated verify.
+"""E2E smoke test: mock raw -> S3 upload -> Athena CTAS -> curated verify.
 
-Pipeline (8 phases):
-  1) Upload local mock JSONL.GZ → S3 raw/
+Pipeline (8 phases + view creation):
+  1) Upload local mock JSONL.GZ -> S3 raw/
   2) Create raw external tables   (CREATE EXTERNAL TABLE IF NOT EXISTS)
   3) Add raw dt-partitions        (ALTER TABLE ADD IF NOT EXISTS PARTITION)
   4) Verify raw row counts        (SELECT COUNT(*) per raw table)
-  5) Run Athena CTAS              (raw → curated Parquet, all 5 datasets)
-  6) Create curated external tables (CREATE EXTERNAL TABLE IF NOT EXISTS)
-  7) Add curated dt-partitions    (ALTER TABLE ADD IF NOT EXISTS PARTITION)
-  8) Final verify                 (SELECT COUNT(*) + SELECT * LIMIT 3 per curated)
+  5) Run Athena CTAS              (raw -> curated Parquet, all 5 datasets)
+       Each run writes to: curated/<dataset>/dt=<dt>/run=<run_id>/
+       run_id is auto-generated (UTC YYYYMMDDTHHMMSSz) -- no delete needed.
+  6) Create curated external tables (PARTITIONED BY dt STRING, run_id STRING)
+  7) Add curated (dt, run_id) partitions
+  7.5) Create v_latest_<dataset> views (latest run per dt via ROW_NUMBER)
+  8) Final verify via views       (SELECT COUNT(*) + SELECT * LIMIT 3)
 
 Prerequisites:
   1. Mock raw files already generated locally:
@@ -24,8 +27,8 @@ Usage:
     # First run:
     python scripts/run_e2e_smoke.py --dt 2026-02-27
 
-    # Rerun same dt (delete curated prefix first):
-    python scripts/run_e2e_smoke.py --dt 2026-02-27 --overwrite
+    # Rerun same dt (each run gets a new run_id, no delete needed):
+    python scripts/run_e2e_smoke.py --dt 2026-02-27
 
     # Skip S3 upload (raw already in S3 from a previous run):
     python scripts/run_e2e_smoke.py --dt 2026-02-27 --skip-upload
@@ -33,10 +36,14 @@ Usage:
     # Skip raw table creation (tables already exist):
     python scripts/run_e2e_smoke.py --dt 2026-02-27 --skip-create-raw-tables
 
+    # Recreate curated tables (needed once to migrate to (dt, run_id) scheme):
+    python scripts/run_e2e_smoke.py --dt 2026-02-27 --recreate-curated-tables
+
 IAM required:
-    s3:PutObject, s3:GetObject, s3:ListBucket, s3:DeleteObject
+    s3:PutObject, s3:GetObject, s3:ListBucket
     athena:StartQueryExecution, athena:GetQueryExecution, athena:GetQueryResults
     glue:GetTable, glue:GetDatabase, glue:CreateTable, glue:BatchCreatePartition
+    glue:DeleteTable (only when --recreate-curated-tables)
 """
 from __future__ import annotations
 
@@ -55,7 +62,8 @@ from report_system.infrastructure.athena.partition_manager import AthenaPartitio
 from report_system.infrastructure.persistence.s3_key_builder import build_raw_key
 
 # ---------------------------------------------------------------------------
-# Curated table schemas (columns must match CTAS SELECT output exactly)
+# Curated table schemas (columns must match CTAS SELECT output, excl. run_id)
+# run_id is a PARTITION column, not listed here.
 # ---------------------------------------------------------------------------
 
 _CURATED_SCHEMAS: dict[str, str] = {
@@ -100,7 +108,7 @@ _CURATED_SCHEMAS: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Athena helpers (no ResultConfiguration — rely on workgroup output location)
+# Athena helpers (no ResultConfiguration -- rely on workgroup output location)
 # ---------------------------------------------------------------------------
 
 
@@ -177,7 +185,7 @@ def _run_select(
 # ---------------------------------------------------------------------------
 
 
-def _section(n: int, title: str) -> None:
+def _section(n: int | str, title: str) -> None:
     print(f"\n{'=' * 62}")
     print(f"  Phase {n}: {title}")
     print(f"{'=' * 62}")
@@ -213,7 +221,7 @@ def _print_table(rows: list[list[str]], max_col_width: int = 22) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="E2E smoke test: mock raw → CTAS → curated verify.",
+        description="E2E smoke test: mock raw -> CTAS -> curated verify.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -222,14 +230,9 @@ def main() -> None:
         help="Partition date YYYY-MM-DD (default: today)",
     )
     parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Delete curated S3 prefix for this dt before CTAS (needed for reruns)",
-    )
-    parser.add_argument(
         "--skip-upload",
         action="store_true",
-        help="Skip S3 upload — assume raw files already in S3",
+        help="Skip S3 upload -- assume raw files already in S3",
     )
     parser.add_argument(
         "--skip-create-raw-tables",
@@ -240,6 +243,14 @@ def main() -> None:
         "--skip-create-curated-tables",
         action="store_true",
         help="Skip CREATE EXTERNAL TABLE for curated tables (already exist)",
+    )
+    parser.add_argument(
+        "--recreate-curated-tables",
+        action="store_true",
+        help=(
+            "DROP + CREATE curated tables (use once to migrate from old "
+            "PARTITIONED BY (dt) scheme to new (dt, run_id) scheme)"
+        ),
     )
     parser.add_argument(
         "--mock-dir",
@@ -271,19 +282,29 @@ def main() -> None:
     datasets = sorted(REGISTRY)
     failures: list[tuple[str, str]] = []
 
+    # Build runner early so run_id is available for the banner
+    runner = AthenaCtasRunner(
+        database=database,
+        workgroup=workgroup,
+        curated_bucket=data_bucket,
+        curated_prefix="curated",
+        region_name=region,
+    )
+    run_id = runner.run_id
+
     print("E2E Smoke Test")
     print(f"  dt        : {args.dt}")
+    print(f"  run_id    : {run_id}")
     print(f"  region    : {region}")
     print(f"  workgroup : {workgroup}")
     print(f"  database  : {database}")
     print(f"  bucket    : {data_bucket}")
-    print(f"  overwrite : {args.overwrite}")
 
     # =================================================================
-    # Phase 1: Upload mock raw JSONL.GZ → S3
+    # Phase 1: Upload mock raw JSONL.GZ -> S3
     # =================================================================
     if not args.skip_upload:
-        _section(1, "Upload mock raw JSONL.GZ → S3")
+        _section(1, "Upload mock raw JSONL.GZ -> S3")
         for dataset_id in datasets:
             spec = REGISTRY[dataset_id]
             local_path = (
@@ -382,17 +403,9 @@ def main() -> None:
             failures.append((f"verify_raw_{dataset_id}", str(exc)))
 
     # =================================================================
-    # Phase 5: Run Athena CTAS (raw → curated Parquet)
+    # Phase 5: Run Athena CTAS (raw -> curated Parquet)
     # =================================================================
-    _section(5, "Run Athena CTAS  (raw → curated Parquet)")
-    runner = AthenaCtasRunner(
-        database=database,
-        workgroup=workgroup,
-        curated_bucket=data_bucket,
-        curated_prefix="curated",
-        overwrite=args.overwrite,
-        region_name=region,
-    )
+    _section(5, f"Run Athena CTAS  (raw -> curated Parquet, run_id={run_id})")
     ctas_ok: set[str] = set()
     for dataset_id in datasets:
         print(f"  [{dataset_id}]  running...", end="", flush=True)
@@ -409,17 +422,32 @@ def main() -> None:
 
     # =================================================================
     # Phase 6: Create curated external tables (IF NOT EXISTS)
+    #   PARTITIONED BY (dt STRING, run_id STRING)
     # =================================================================
     if not args.skip_create_curated_tables:
-        _section(6, "Create curated external tables")
+        title = "Recreate curated tables (dt, run_id)" if args.recreate_curated_tables \
+            else "Create curated external tables (dt, run_id)"
+        _section(6, title)
         for dataset_id in datasets:
             schema = _CURATED_SCHEMAS[dataset_id]
             location = f"s3://{data_bucket}/curated/{dataset_id}/"
+
+            if args.recreate_curated_tables:
+                drop_ddl = f"DROP TABLE IF EXISTS {database}.{dataset_id}"
+                try:
+                    _run_ddl(
+                        athena, drop_ddl, database, workgroup,
+                        label=f"DROP {dataset_id}",
+                    )
+                    print(f"  [dropped]  {database}.{dataset_id}")
+                except RuntimeError as exc:
+                    print(f"  [WARN] drop failed for {dataset_id}: {exc}")
+
             ddl = (
                 f"CREATE EXTERNAL TABLE IF NOT EXISTS {database}.{dataset_id} (\n"
                 f"{schema}\n"
                 f")\n"
-                f"PARTITIONED BY (dt STRING)\n"
+                f"PARTITIONED BY (dt STRING, run_id STRING)\n"
                 f"STORED AS PARQUET\n"
                 f"LOCATION '{location}'\n"
                 f"TBLPROPERTIES ('parquet.compress' = 'SNAPPY')"
@@ -434,33 +462,69 @@ def main() -> None:
         _section(6, "Skip curated table creation (--skip-create-curated-tables)")
 
     # =================================================================
-    # Phase 7: Add curated dt-partitions
+    # Phase 7: Add curated (dt, run_id) partitions
     # =================================================================
-    _section(7, f"Add curated dt-partitions  (dt={args.dt})")
+    _section(7, f"Add curated (dt, run_id) partitions  (dt={args.dt}, run_id={run_id})")
     for dataset_id in datasets:
-        curated_part_location = f"s3://{data_bucket}/curated/{dataset_id}/dt={args.dt}/"
+        curated_part_location = (
+            f"s3://{data_bucket}/curated/{dataset_id}"
+            f"/dt={args.dt}/run={run_id}/"
+        )
+        alter_sql = (
+            f"ALTER TABLE {database}.{dataset_id}\n"
+            f"ADD IF NOT EXISTS PARTITION (dt='{args.dt}', run_id='{run_id}')\n"
+            f"LOCATION '{curated_part_location}'"
+        )
         try:
-            partition_mgr.add_partition(
-                table=dataset_id,
-                dt=args.dt,
-                location=curated_part_location,
+            _run_ddl(
+                athena, alter_sql, database, workgroup,
+                label=f"ADD PARTITION {dataset_id}",
             )
-            print(f"  [ok]  {database}.{dataset_id}  dt={args.dt}")
+            print(f"  [ok]  {database}.{dataset_id}  dt={args.dt}  run_id={run_id}")
         except RuntimeError as exc:
             print(f"  [FAIL]  {dataset_id}: {exc}")
             failures.append((f"add_curated_partition_{dataset_id}", str(exc)))
 
     # =================================================================
-    # Phase 8: Final verification — COUNT(*) + LIMIT 3 sample
+    # Phase 7.5: Create v_latest_<dataset> views
+    #   Returns the most-recent run's rows per dt (ordered by run_id DESC).
     # =================================================================
-    _section(8, "Final verification  (SELECT COUNT(*) + LIMIT 3 per curated table)")
+    _section("7.5", "Create v_latest_<dataset> views")
     for dataset_id in datasets:
+        view_name = f"v_latest_{dataset_id}"
+        view_sql = (
+            f"CREATE OR REPLACE VIEW {database}.{view_name} AS\n"
+            f"SELECT * FROM (\n"
+            f"  SELECT *,\n"
+            f"         DENSE_RANK() OVER (\n"
+            f"           PARTITION BY dt ORDER BY run_id DESC\n"
+            f"         ) AS _run_rank\n"
+            f"  FROM {database}.{dataset_id}\n"
+            f") t\n"
+            f"WHERE t._run_rank = 1"
+        )
+        try:
+            _run_ddl(
+                athena, view_sql, database, workgroup,
+                label=f"CREATE VIEW {view_name}",
+            )
+            print(f"  [ok]  {database}.{view_name}")
+        except RuntimeError as exc:
+            print(f"  [FAIL]  {view_name}: {exc}")
+            failures.append((f"create_view_{dataset_id}", str(exc)))
+
+    # =================================================================
+    # Phase 8: Final verification via views -- COUNT(*) + LIMIT 3 sample
+    # =================================================================
+    _section(8, "Final verification via views  (COUNT(*) + LIMIT 3 per dataset)")
+    for dataset_id in datasets:
+        view_name = f"v_latest_{dataset_id}"
         print(f"\n  [{dataset_id}]")
 
         # COUNT(*)
         sql_count = (
             f"SELECT COUNT(*) AS cnt "
-            f"FROM {database}.{dataset_id} "
+            f"FROM {database}.{view_name} "
             f"WHERE dt='{args.dt}'"
         )
         try:
@@ -476,7 +540,7 @@ def main() -> None:
         # LIMIT 3 sample
         sql_sample = (
             f"SELECT * "
-            f"FROM {database}.{dataset_id} "
+            f"FROM {database}.{view_name} "
             f"WHERE dt='{args.dt}' "
             f"LIMIT 3"
         )
@@ -493,9 +557,9 @@ def main() -> None:
     print(f"\n{'=' * 62}")
     if not failures:
         print("  E2E SMOKE TEST PASSED.")
-        print(f"  All 5 datasets verified for dt={args.dt}.")
+        print(f"  All 5 datasets verified for dt={args.dt}, run_id={run_id}.")
     else:
-        print(f"  E2E SMOKE TEST FAILED — {len(failures)} error(s):")
+        print(f"  E2E SMOKE TEST FAILED -- {len(failures)} error(s):")
         for step, msg in failures:
             short = msg.split("\n")[0][:100]
             print(f"    [{step}]  {short}")
