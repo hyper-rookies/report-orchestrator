@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import uuid
 from typing import Any
 
@@ -15,11 +16,11 @@ logger = logging.getLogger(__name__)
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         payload = _parse_event_payload(event)
-        validated_payload = validate_build_sql_payload(payload)
-        result = {
-            "version": VERSION,
-            "sql": build_sql(validated_payload),
-        }
+        if "sql" in payload:
+            result = _handle_execute_athena_query(payload)
+        else:
+            validated = validate_build_sql_payload(payload)
+            result = {"version": VERSION, "sql": build_sql(validated)}
     except QueryError as exc:
         result = {
             "version": VERSION,
@@ -45,6 +46,58 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         }
 
     return {"statusCode": 200, "body": json.dumps(result)}
+
+
+def _handle_execute_athena_query(payload: dict[str, Any]) -> dict[str, Any]:
+    # Lazy imports: athena_runner imports boto3; only load when actually needed.
+    from athena_runner import run_query
+    from row_mapper import map_result_set
+
+    sql = payload.get("sql")
+    if not isinstance(sql, str) or not sql.strip():
+        raise QueryError("UNKNOWN", "sql is required and must be a non-empty string.")
+
+    timeout_seconds = payload.get("timeoutSeconds")
+    if not isinstance(timeout_seconds, int) or timeout_seconds <= 0:
+        raise QueryError("UNKNOWN", "timeoutSeconds must be a positive integer.")
+
+    max_rows = payload.get("maxRows")
+    if not isinstance(max_rows, int) or not (1 <= max_rows <= 10000):
+        raise QueryError("UNKNOWN", "maxRows must be an integer between 1 and 10000.")
+
+    poll_interval_ms = payload.get("pollIntervalMs", 500)
+    if not isinstance(poll_interval_ms, int) or poll_interval_ms < 200:
+        poll_interval_ms = 500
+
+    workgroup = payload.get("workgroup") or os.environ.get("ATHENA_WORKGROUP")
+    database = payload.get("database") or os.environ.get("ATHENA_DATABASE")
+    output_location = payload.get("outputLocation") or os.environ.get("ATHENA_OUTPUT_LOCATION")
+
+    if not workgroup or not database or not output_location:
+        raise QueryError(
+            "UNKNOWN",
+            "Athena workgroup, database, and outputLocation are required "
+            "(set in request or env ATHENA_WORKGROUP / ATHENA_DATABASE / ATHENA_OUTPUT_LOCATION).",
+        )
+
+    qid, result_set = run_query(
+        sql=sql,
+        workgroup=workgroup,
+        database=database,
+        output_location=output_location,
+        timeout_seconds=timeout_seconds,
+        max_rows=max_rows,
+        poll_interval_ms=poll_interval_ms,
+    )
+    rows, truncated = map_result_set(result_set, max_rows)
+
+    return {
+        "version": VERSION,
+        "rows": rows,
+        "rowCount": len(rows),
+        "truncated": truncated,
+        "queryExecutionId": qid,
+    }
 
 
 def _parse_event_payload(event: Any) -> dict[str, Any]:
