@@ -418,3 +418,72 @@ def test_handler_buildsql_still_works_after_routing_added():
 
     assert "sql" in body
     assert "WHERE dt BETWEEN" in body["sql"]
+
+
+# --- explicit operation routing tests ---
+
+
+def test_explicit_operation_buildsql_routes_correctly():
+    """operation='buildSQL' routes to buildSQL path regardless of other keys."""
+    event = {
+        "version": "v1",
+        "operation": "buildSQL",
+        "view": "v_latest_ga4_acquisition_daily",
+        "dateRange": {"start": "2026-01-01", "end": "2026-01-31"},
+        "dimensions": ["channel_group"],
+        "metrics": ["sessions"],
+    }
+    response = query_handler_v2.lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert "sql" in body
+    assert "WHERE dt BETWEEN" in body["sql"]
+
+
+def test_explicit_operation_executeathenaquery_routes_correctly():
+    """operation='executeAthenaQuery' routes to Athena execution path."""
+    event = _execute_event({"operation": "executeAthenaQuery"})
+    mock_client = _mock_athena_success()
+
+    with (
+        unittest.mock.patch("boto3.client", return_value=mock_client),
+        unittest.mock.patch("time.monotonic", return_value=0.0),
+        unittest.mock.patch("time.sleep"),
+    ):
+        response = query_handler_v2.lambda_handler(event, None)
+
+    body = json.loads(response["body"])
+    assert body["version"] == "v1"
+    assert "queryExecutionId" in body
+
+
+def test_unknown_operation_returns_invalid_operation_error():
+    """An unrecognised operation value must return INVALID_OPERATION."""
+    event = {"operation": "deleteAll", "version": "v1"}
+    response = query_handler_v2.lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert body["error"]["code"] == "INVALID_OPERATION"
+    assert "deleteAll" in body["error"]["message"]
+
+
+def test_ambiguous_payload_with_both_sql_and_view_returns_invalid_operation():
+    """Payload that has BOTH 'sql' and 'view' but no 'operation' is ambiguous → INVALID_OPERATION."""
+    event = {
+        "version": "v1",
+        "sql": "SELECT 1",
+        "view": "v_latest_ga4_acquisition_daily",
+    }
+    response = query_handler_v2.lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert body["error"]["code"] == "INVALID_OPERATION"
+
+
+def test_payload_with_neither_sql_nor_view_nor_operation_returns_invalid_operation():
+    """Payload with no discriminating field returns INVALID_OPERATION."""
+    event = {"version": "v1", "someRandomKey": "value"}
+    response = query_handler_v2.lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert body["error"]["code"] == "INVALID_OPERATION"

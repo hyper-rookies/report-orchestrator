@@ -12,15 +12,18 @@ from sql_builder import build_sql
 VERSION = "v1"
 logger = logging.getLogger(__name__)
 
+_ALLOWED_OPERATIONS = frozenset({"buildSQL", "executeAthenaQuery"})
+
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         payload = _parse_event_payload(event)
-        if "sql" in payload:
-            result = _handle_execute_athena_query(payload)
-        else:
+        operation = _route_operation(payload)
+        if operation == "buildSQL":
             validated = validate_build_sql_payload(payload)
             result = {"version": VERSION, "sql": build_sql(validated)}
+        else:
+            result = _handle_execute_athena_query(payload)
     except QueryError as exc:
         result = {
             "version": VERSION,
@@ -46,6 +49,44 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         }
 
     return {"statusCode": 200, "body": json.dumps(result)}
+
+
+def _route_operation(payload: dict[str, Any]) -> str:
+    """
+    Determines which operation to invoke.
+
+    Priority:
+    1. Explicit 'operation' field → validated against _ALLOWED_OPERATIONS.
+    2. Implicit backward-compat: 'view' present, 'sql' absent → 'buildSQL'.
+    3. Implicit backward-compat: 'sql' present, 'view' absent → 'executeAthenaQuery'.
+    4. All other cases (ambiguous, missing discriminator) → INVALID_OPERATION.
+
+    The implicit paths exist only for backward compatibility with callers that
+    do not yet send an 'operation' field. New callers MUST use explicit operation.
+    """
+    op = payload.get("operation")
+
+    if op is not None:
+        if op not in _ALLOWED_OPERATIONS:
+            raise QueryError(
+                "INVALID_OPERATION",
+                f"Unknown operation '{op}'. Allowed: buildSQL, executeAthenaQuery.",
+            )
+        return op
+
+    # Backward-compatible implicit routing — one discriminating key only
+    has_view = "view" in payload
+    has_sql = "sql" in payload
+
+    if has_view and not has_sql:
+        return "buildSQL"
+    if has_sql and not has_view:
+        return "executeAthenaQuery"
+
+    raise QueryError(
+        "INVALID_OPERATION",
+        "Cannot determine operation. Set 'operation' to 'buildSQL' or 'executeAthenaQuery'.",
+    )
 
 
 def _handle_execute_athena_query(payload: dict[str, Any]) -> dict[str, Any]:
