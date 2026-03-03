@@ -129,3 +129,23 @@ def test_invalid_json_policy_file_returns_unknown_with_filename(monkeypatch, tmp
 
     assert body["error"]["code"] == "UNKNOWN"
     assert "reporting_policy.json" in body["error"]["message"]
+
+
+# --- Task 2: UNKNOWN error must include debugId ---
+
+
+def test_unknown_error_response_includes_debug_id():
+    """An unexpected (non-QueryError) exception must produce UNKNOWN with a debugId field."""
+    import policy_guard as pg
+    import unittest.mock
+
+    with unittest.mock.patch.object(
+        pg, "_load_json", side_effect=RuntimeError("synthetic unexpected error")
+    ):
+        response = query_handler.lambda_handler(_base_event(), None)
+
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "UNKNOWN"
+    assert "debugId" in body["error"]
+    assert isinstance(body["error"]["debugId"], str)
+    assert len(body["error"]["debugId"]) > 0

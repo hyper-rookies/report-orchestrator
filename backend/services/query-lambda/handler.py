@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
+import logging
+import uuid
 from typing import Any
 
 from policy_guard import QueryError, validate_build_sql_payload
 from sql_builder import build_sql
 
 VERSION = "v1"
+logger = logging.getLogger(__name__)
 
 
-def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
+def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         payload = _parse_event_payload(event)
         validated_payload = validate_build_sql_payload(payload)
@@ -28,6 +31,8 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             },
         }
     except Exception:
+        debug_id = getattr(context, "aws_request_id", None) or str(uuid.uuid4())
+        logger.exception("Unexpected error in query-lambda [debugId=%s]", debug_id)
         result = {
             "version": VERSION,
             "error": {
@@ -35,6 +40,7 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
                 "message": "Unexpected query-lambda error.",
                 "retryable": False,
                 "actionGroup": "query",
+                "debugId": debug_id,
             },
         }
 
