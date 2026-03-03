@@ -12,6 +12,9 @@ DATABASE_NAME = "hyper_intern_m1c"
 ALLOWED_FILTER_OPS = {"=", "!=", ">", "<", ">=", "<=", "LIKE", "IN"}
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DML_PATTERN = re.compile(r"\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE|CREATE|ALTER)\b", re.IGNORECASE)
+SHARED_DIR = (
+    Path(__file__).resolve().parent.parent / "report-orchestrator-lambda" / "src" / "shared"
+)
 
 
 class QueryError(Exception):
@@ -183,5 +186,4 @@ def _reject_dml_tokens(value: Any) -> None:
 
 
 def _load_json(filename: str) -> dict[str, Any]:
-    shared_dir = Path(__file__).resolve().parents[1] / "report-orchestrator-lambda" / "src" / "shared"
-    return json.loads((shared_dir / filename).read_text(encoding="utf-8"))
+    return json.loads((SHARED_DIR / filename).read_text(encoding="utf-8"))

@@ -92,3 +92,10 @@ def test_build_sql_clamps_limit_to_contract_max():
     body = json.loads(response["body"])
 
     assert body["sql"].endswith("LIMIT 10000")
+
+
+def test_build_sql_accepts_proxy_event_with_dict_body():
+    response = query_handler.lambda_handler({"body": _base_event()}, None)
+    body = json.loads(response["body"])
+
+    assert body["sql"].endswith("LIMIT 1000")

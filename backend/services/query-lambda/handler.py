@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
-from policy_guard import QueryError, validate_build_sql_payload
-from sql_builder import build_sql
+import sys
+
+SERVICE_DIR = Path(__file__).resolve().parent
+if str(SERVICE_DIR) not in sys.path:
+    sys.path.insert(0, str(SERVICE_DIR))
+
+from policy_guard import QueryError, validate_build_sql_payload  # noqa: E402
+from sql_builder import build_sql  # noqa: E402
 
 VERSION = "v1"
 
@@ -51,5 +58,7 @@ def _parse_event_payload(event: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise ValueError("Request body must decode to an object.")
         return payload
+    if isinstance(body, dict):
+        return body
 
     return event
