@@ -39,7 +39,7 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
 
 def compute_delta(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("version") != VERSION:
-        raise AnalysisError("UNKNOWN", "Unsupported version.", status_code=500)
+        raise AnalysisError("UNKNOWN", "Unsupported version.", status_code=400)
 
     baseline_rows = _require_rows(payload.get("baseline"))
     comparison_rows = _require_rows(payload.get("comparison"))
@@ -71,9 +71,9 @@ def compute_delta(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _require_rows(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
-        raise AnalysisError("UNKNOWN", "Rows must be provided as arrays.", status_code=500)
+        raise AnalysisError("UNKNOWN", "Rows must be provided as arrays.", status_code=400)
     if not all(isinstance(row, dict) for row in value):
-        raise AnalysisError("UNKNOWN", "Rows must contain objects.", status_code=500)
+        raise AnalysisError("UNKNOWN", "Rows must contain objects.", status_code=400)
     return value
 
 
@@ -81,7 +81,7 @@ def _require_string_list(value: Any, field_name: str) -> list[str]:
     if not isinstance(value, list) or not value or not all(
         isinstance(item, str) and item for item in value
     ):
-        raise AnalysisError("UNKNOWN", f"{field_name} must be a non-empty string array.", status_code=500)
+        raise AnalysisError("UNKNOWN", f"{field_name} must be a non-empty string array.", status_code=400)
     return value
 
 
@@ -173,7 +173,7 @@ def _coerce_metric_value(metric: str, value: Any) -> float | int | None:
             f"Metric '{metric}' must be numeric.",
         )
     if isinstance(value, (int, float)):
-        if isinstance(value, float) and math.isnan(value):
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
             raise AnalysisError(
                 "INVALID_METRIC_VALUE",
                 f"Metric '{metric}' must be numeric.",
@@ -187,7 +187,7 @@ def _coerce_metric_value(metric: str, value: Any) -> float | int | None:
                 "INVALID_METRIC_VALUE",
                 f"Metric '{metric}' must be numeric.",
             ) from exc
-        if math.isnan(parsed):
+        if math.isnan(parsed) or math.isinf(parsed):
             raise AnalysisError(
                 "INVALID_METRIC_VALUE",
                 f"Metric '{metric}' must be numeric.",

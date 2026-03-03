@@ -141,3 +141,117 @@ def test_lambda_handler_returns_invalid_metric_value_error():
     body = json.loads(response["body"])
     assert body["error"]["code"] == "INVALID_METRIC_VALUE"
     assert body["error"]["message"] == "Metric 'sessions' must be numeric."
+
+
+# --- Blocker 2: float('inf') / float('-inf') must be rejected ---
+
+
+def test_lambda_handler_rejects_positive_infinity_float():
+    """float('inf') must raise INVALID_METRIC_VALUE, not produce bare Infinity JSON token."""
+    import math
+
+    response = analysis_app.lambda_handler(
+        {
+            "version": "v1",
+            "baseline": [{"channel_group": "organic", "sessions": math.inf}],
+            "comparison": [{"channel_group": "organic", "sessions": 10}],
+            "groupBy": ["channel_group"],
+            "metrics": ["sessions"],
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "INVALID_METRIC_VALUE"
+
+
+def test_lambda_handler_rejects_negative_infinity_float():
+    import math
+
+    response = analysis_app.lambda_handler(
+        {
+            "version": "v1",
+            "baseline": [{"channel_group": "organic", "sessions": -math.inf}],
+            "comparison": [{"channel_group": "organic", "sessions": 10}],
+            "groupBy": ["channel_group"],
+            "metrics": ["sessions"],
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "INVALID_METRIC_VALUE"
+
+
+def test_lambda_handler_rejects_inf_string():
+    """String 'inf' parses to float('inf') via float() — must be rejected."""
+    response = analysis_app.lambda_handler(
+        {
+            "version": "v1",
+            "baseline": [{"channel_group": "organic", "sessions": "inf"}],
+            "comparison": [{"channel_group": "organic", "sessions": 10}],
+            "groupBy": ["channel_group"],
+            "metrics": ["sessions"],
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "INVALID_METRIC_VALUE"
+
+
+# --- Blocker 1: input validation errors must return HTTP 400 ---
+
+
+def test_lambda_handler_returns_400_for_unsupported_version():
+    response = analysis_app.lambda_handler(
+        {
+            "version": "v99",
+            "baseline": [],
+            "comparison": [],
+            "groupBy": ["channel_group"],
+            "metrics": ["sessions"],
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "UNKNOWN"
+
+
+def test_lambda_handler_returns_400_for_non_list_rows():
+    response = analysis_app.lambda_handler(
+        {
+            "version": "v1",
+            "baseline": "not-a-list",
+            "comparison": [],
+            "groupBy": ["channel_group"],
+            "metrics": ["sessions"],
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "UNKNOWN"
+
+
+def test_lambda_handler_returns_400_for_empty_group_by():
+    response = analysis_app.lambda_handler(
+        {
+            "version": "v1",
+            "baseline": [],
+            "comparison": [],
+            "groupBy": [],
+            "metrics": ["sessions"],
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 400
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "UNKNOWN"
