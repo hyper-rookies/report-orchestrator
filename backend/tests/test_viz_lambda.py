@@ -172,3 +172,65 @@ def test_lambda_handler_returns_missing_axis_error_for_empty_y_axis():
             "actionGroup": "viz",
         },
     }
+
+
+def test_whitespace_xaxis_rejected():
+    event = {
+        "chartType": "bar",
+        "rows": [{"date": "2026-01-01", "installs": 100}],
+        "xAxis": "   ",
+        "yAxis": ["installs"],
+    }
+
+    response = viz_app.lambda_handler(event, None)
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "MISSING_AXIS"
+
+
+def test_whitespace_yaxis_rejected():
+    event = {
+        "chartType": "bar",
+        "rows": [{"date": "2026-01-01", "installs": 100}],
+        "xAxis": "date",
+        "yAxis": ["   "],
+    }
+
+    response = viz_app.lambda_handler(event, None)
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "MISSING_AXIS"
+
+
+def test_missing_chart_type():
+    event = {
+        "rows": [{"date": "2026-01-01", "installs": 100}],
+    }
+
+    response = viz_app.lambda_handler(event, None)
+    body = json.loads(response["body"])
+    assert body["error"]["code"] == "INVALID_CHART_TYPE"
+
+
+def test_lambda_handler_accepts_proxy_body_shape():
+    response = viz_app.lambda_handler(
+        {
+            "body": json.dumps(
+                {
+                    "version": "v1",
+                    "rows": [{"date": "2026-03-01", "sessions": 10}],
+                    "chartType": "line",
+                    "xAxis": "date",
+                    "yAxis": ["sessions"],
+                }
+            )
+        },
+        None,
+    )
+
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    assert body["spec"] == {
+        "type": "line",
+        "xAxis": "date",
+        "series": [{"metric": "sessions", "label": "Sessions"}],
+        "data": [{"date": "2026-03-01", "sessions": 10}],
+    }
