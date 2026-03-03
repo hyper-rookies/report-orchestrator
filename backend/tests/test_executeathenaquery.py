@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+import unittest.mock
 from pathlib import Path
+
+import pytest
 
 
 def _add_service_path() -> None:
@@ -131,9 +135,6 @@ def test_row_mapper_slices_to_max_rows():
 
 
 # --- athena_runner tests (mock boto3) ---
-
-import pytest
-import unittest.mock
 
 
 def _mock_client_succeeded(query_execution_id: str = "qid-test-001") -> unittest.mock.MagicMock:
@@ -285,10 +286,6 @@ def test_athena_runner_success_returns_execution_id_and_result_set():
 
 
 # --- handler routing + env fallback tests ---
-
-import importlib.util
-import json
-import os
 
 
 def _load_handler_module():
