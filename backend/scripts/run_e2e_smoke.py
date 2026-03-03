@@ -442,11 +442,11 @@ def main() -> None:
         try:
             query_id, location = runner.run(dataset_id, args.dt)
             ctas_ok.add(dataset_id)
-            print(f"  SUCCEEDED")
+            print("  SUCCEEDED")
             print(f"    query_id : {query_id}")
             print(f"    location : {location}")
         except (ValueError, RuntimeError) as exc:
-            print(f"  FAILED")
+            print("  FAILED")
             print(f"    error    : {exc}")
             failures.append((f"ctas_{dataset_id}", str(exc)))
 

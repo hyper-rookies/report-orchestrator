@@ -5,8 +5,6 @@ fully offline.
 """
 from __future__ import annotations
 
-import csv
-import io
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +12,6 @@ import pytest
 from report_system.infrastructure.connectors.appsflyer.appsflyer_connector import (
     AppsFlyerConnector,
     _INSTALLS_ANCHOR,
-    _EVENTS_ANCHOR,
     _parse_header,
 )
 
