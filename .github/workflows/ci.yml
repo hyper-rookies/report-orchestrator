@@ -28,7 +28,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
           cache: "pip"
 
       - name: Install dependencies
@@ -41,6 +41,9 @@ jobs:
           else
             echo "No pyproject.toml or requirements.txt in $PWD" && exit 1
           fi
+
+      - name: Preflight checks
+        run: bash scripts/preflight_ci.sh
 
       - name: Lint (ruff)
         run: |
