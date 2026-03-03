@@ -68,3 +68,7 @@ htmlcov/
 # Local smoketest output
 # =========================
 tmp/
+
+
+!backend/services/report-orchestrator-lambda/src/shared/catalog_discovered.json
+!backend/services/report-orchestrator-lambda/src/shared/reporting_policy.json

@@ -186,4 +186,9 @@ def _reject_dml_tokens(value: Any) -> None:
 
 
 def _load_json(filename: str) -> dict[str, Any]:
-    return json.loads((SHARED_DIR / filename).read_text(encoding="utf-8"))
+    try:
+        return json.loads((SHARED_DIR / filename).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise QueryError("UNKNOWN", f"Configuration file '{filename}' is missing.")
+    except json.JSONDecodeError:
+        raise QueryError("UNKNOWN", f"Configuration file '{filename}' is invalid JSON.")

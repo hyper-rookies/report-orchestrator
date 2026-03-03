@@ -99,3 +99,33 @@ def test_build_sql_accepts_proxy_event_with_dict_body():
     body = json.loads(response["body"])
 
     assert body["sql"].endswith("LIMIT 1000")
+
+
+# --- Task 1: _load_json errors must surface as QueryError with filename ---
+
+
+def test_missing_policy_file_returns_unknown_with_filename(monkeypatch):
+    import policy_guard as pg  # available on sys.path after _load_handler_module()
+    from pathlib import Path
+
+    monkeypatch.setattr(pg, "SHARED_DIR", Path("/nonexistent/__test__"))
+
+    response = query_handler.lambda_handler(_base_event(), None)
+    body = json.loads(response["body"])
+
+    assert body["error"]["code"] == "UNKNOWN"
+    assert "reporting_policy.json" in body["error"]["message"]
+
+
+def test_invalid_json_policy_file_returns_unknown_with_filename(monkeypatch, tmp_path):
+    import policy_guard as pg
+
+    (tmp_path / "reporting_policy.json").write_text("{ invalid json", encoding="utf-8")
+    (tmp_path / "catalog_discovered.json").write_text("{ invalid json", encoding="utf-8")
+    monkeypatch.setattr(pg, "SHARED_DIR", tmp_path)
+
+    response = query_handler.lambda_handler(_base_event(), None)
+    body = json.loads(response["body"])
+
+    assert body["error"]["code"] == "UNKNOWN"
+    assert "reporting_policy.json" in body["error"]["message"]
