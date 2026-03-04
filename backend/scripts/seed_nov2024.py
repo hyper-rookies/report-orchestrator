@@ -760,7 +760,7 @@ def run_pipeline(
     # ================================================================
     print(f"\n{'=' * 66}")
     if not failures:
-        print(f"  PIPELINE SUCCEEDED.")
+        print("  PIPELINE SUCCEEDED.")
         print(f"  {len(all_dates)} days × {len(datasets)} datasets seeded.  run_id={run_id}")
     else:
         print(f"  PIPELINE FINISHED WITH {len(failures)} ERROR(S):")

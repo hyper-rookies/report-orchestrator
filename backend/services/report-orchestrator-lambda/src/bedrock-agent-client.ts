@@ -141,7 +141,7 @@ export class BedrockAgentClient implements IBedrockAgentClient {
   private async invokeAction(input: InvocationInputMember): Promise<ActionInvocationResult> {
     if ("functionInvocationInput" in input && input.functionInvocationInput) {
       return this.actionInvoker.invoke({
-        actionGroup: input.functionInvocationInput.actionGroup,
+        actionGroup: input.functionInvocationInput.actionGroup ?? "",
         functionName: input.functionInvocationInput.function ?? "",
         parameters: input.functionInvocationInput.parameters,
       });
