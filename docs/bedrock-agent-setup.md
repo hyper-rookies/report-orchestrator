@@ -38,6 +38,17 @@ zip -r ../../../dist/query-lambda.zip \
   reporting_policy.json catalog_discovered.json
 ```
 
+```powershell
+# PowerShell
+Set-Location backend/services/query-lambda
+New-Item -ItemType Directory -Force -Path ../../../dist | Out-Null
+Compress-Archive -Force `
+  -Path handler.py, policy_guard.py, sql_builder.py, `
+        athena_runner.py, row_mapper.py, `
+        reporting_policy.json, catalog_discovered.json `
+  -DestinationPath ../../../dist/query-lambda.zip
+```
+
 콘솔 설정:
 - Runtime: **Python 3.12**
 - Handler: `handler.lambda_handler`
@@ -55,6 +66,12 @@ cd backend/services/analysis-lambda
 zip analysis-lambda.zip app.py
 ```
 
+```powershell
+# PowerShell
+Set-Location backend/services/analysis-lambda
+Compress-Archive -Force -Path app.py -DestinationPath analysis-lambda.zip
+```
+
 콘솔 설정:
 - Runtime: **Python 3.12**
 - Handler: `app.lambda_handler`
@@ -66,6 +83,12 @@ zip analysis-lambda.zip app.py
 ```bash
 cd backend/services/viz-lambda
 zip viz-lambda.zip app.py
+```
+
+```powershell
+# PowerShell
+Set-Location backend/services/viz-lambda
+Compress-Archive -Force -Path app.py -DestinationPath viz-lambda.zip
 ```
 
 콘솔 설정:
@@ -80,6 +103,16 @@ zip viz-lambda.zip app.py
 cd backend/services/report-orchestrator-lambda
 npm ci --omit=dev
 zip -r ../../../dist/orchestrator-lambda.zip src/ node_modules/ package.json
+```
+
+```powershell
+# PowerShell
+Set-Location backend/services/report-orchestrator-lambda
+npm ci --omit=dev
+New-Item -ItemType Directory -Force -Path ../../../dist | Out-Null
+Compress-Archive -Force `
+  -Path src, node_modules, package.json `
+  -DestinationPath ../../../dist/orchestrator-lambda.zip
 ```
 
 콘솔 설정:
@@ -403,6 +436,14 @@ Lambda 콘솔 → report-orchestrator-lambda → **Configuration** → **Environ
 curl -N -X POST \
   -H "Content-Type: application/json" \
   -d '{"question": "지난 달 채널별 세션 수를 보여줘"}' \
+  https://<FUNCTION_URL>/
+```
+
+```powershell
+# PowerShell — curl.exe 사용 (Windows 10/11 기본 포함; PS의 curl 별칭 아님)
+curl.exe -N -X POST `
+  -H "Content-Type: application/json" `
+  -d '{"question": "지난 달 채널별 세션 수를 보여줘"}' `
   https://<FUNCTION_URL>/
 
 # 정상 흐름의 예상 이벤트 순서:
