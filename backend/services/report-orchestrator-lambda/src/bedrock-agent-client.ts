@@ -45,6 +45,10 @@ export class BedrockAgentClient implements IBedrockAgentClient {
     const response = await this.sdk.send(command);
     if (!response.completion) return;
 
+    // AWS SDK puts actionGroupName in invocationInput (before the call),
+    // not in actionGroupInvocationOutput (after the call).  Carry it forward.
+    let pendingActionGroupName = "unknown";
+
     for await (const event of response.completion) {
       if (event.chunk?.bytes) {
         const text = Buffer.from(event.chunk.bytes).toString("utf-8");
@@ -58,15 +62,19 @@ export class BedrockAgentClient implements IBedrockAgentClient {
         yield { type: "step", step: "agentThinking" };
       }
 
+      const agName = oTrace.invocationInput?.actionGroupInvocationInput?.actionGroupName;
+      if (agName) {
+        pendingActionGroupName = agName;
+      }
+
       const obs = oTrace.observation;
       if (obs?.actionGroupInvocationOutput) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ag = obs.actionGroupInvocationOutput as any;
         yield {
           type: "actionGroupOutput",
-          actionGroup: ag.actionGroupName ?? "unknown",
-          output: ag.text ?? "",
+          actionGroup: pendingActionGroupName,
+          output: obs.actionGroupInvocationOutput.text ?? "",
         };
+        pendingActionGroupName = "unknown";
       }
 
       if (obs?.finalResponse?.text) {
