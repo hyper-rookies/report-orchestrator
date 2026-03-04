@@ -31,6 +31,7 @@ secrets/
 # Logs
 # =========================
 logs/
+docs/plans/
 *.log
 
 # =========================
@@ -51,6 +52,7 @@ Thumbs.db
 build/
 dist/
 *.zip
+node_modules/
 
 # =========================
 # Coverage / Test
@@ -72,3 +74,6 @@ tmp/
 
 !backend/services/report-orchestrator-lambda/src/shared/catalog_discovered.json
 !backend/services/report-orchestrator-lambda/src/shared/reporting_policy.json
+!backend/services/report-orchestrator-lambda/package.json
+!backend/services/report-orchestrator-lambda/tsconfig.json
+
