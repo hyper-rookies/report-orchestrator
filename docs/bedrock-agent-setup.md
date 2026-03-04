@@ -50,6 +50,7 @@ Compress-Archive -Force `
 ```
 
 콘솔 설정:
+- 함수 이름 : hyper-intern-m1c-query-lambda
 - Runtime: **Python 3.12**
 - Handler: `handler.lambda_handler`
 - Memory: 256 MB / Timeout: 60s
@@ -73,6 +74,7 @@ Compress-Archive -Force -Path app.py -DestinationPath analysis-lambda.zip
 ```
 
 콘솔 설정:
+- 함수 이름 : hyper-intern-m1c-analysis-lambda
 - Runtime: **Python 3.12**
 - Handler: `app.lambda_handler`
 - Memory: 128 MB / Timeout: 30s
@@ -92,6 +94,7 @@ Compress-Archive -Force -Path app.py -DestinationPath viz-lambda.zip
 ```
 
 콘솔 설정:
+- 함수 이름 : hyper-intern-m1c-viz-lambda
 - Runtime: **Python 3.12**
 - Handler: `app.lambda_handler`
 - Memory: 128 MB / Timeout: 30s
@@ -116,6 +119,7 @@ Compress-Archive -Force `
 ```
 
 콘솔 설정:
+- 함수 이름: hyper-intern-m1c-orchestrator-lambda
 - Runtime: **Node.js 22.x**
 - Handler: `src/lambda-handler.handler`
 - Memory: 256 MB / Timeout: 120s
@@ -130,11 +134,12 @@ Compress-Archive -Force `
 
 **[기록]**
 ```
-query-lambda ARN:       arn:aws:lambda:ap-northeast-2:ACCOUNT:function:___________
-analysis-lambda ARN:    arn:aws:lambda:ap-northeast-2:ACCOUNT:function:___________
-viz-lambda ARN:         arn:aws:lambda:ap-northeast-2:ACCOUNT:function:___________
-orchestrator ARN:       arn:aws:lambda:ap-northeast-2:ACCOUNT:function:___________
-orchestrator URL:       https://___________.lambda-url.ap-northeast-2.on.aws/
+query-lambda ARN:       arn:aws:lambda:ap-northeast-2:148761639846:function:hyper-intern-m1c-analysis-lambda
+analysis-lambda ARN:    arn:aws:lambda:ap-northeast-2:148761639846:function:hyper-intern-m1c-analysis-lambda
+viz-lambda ARN:         arn:aws:lambda:ap-northeast-2:148761639846:function:hyper-intern-m1c-viz-lambda
+orchestrator ARN:       arn:aws:lambda:ap-northeast-2:148761639846:function:hyper-intern-m1c-orchestrator-lambda
+orchestrator URL:
+https://p2ci72n4le6v2ge3ni4ehwp7ce0eztwy.lambda-url.ap-northeast-2.on.aws/
 ```
 
 ---
@@ -175,9 +180,9 @@ orchestrator URL:       https://___________.lambda-url.ap-northeast-2.on.aws/
     "Effect": "Allow",
     "Action": "lambda:InvokeFunction",
     "Resource": [
-      "arn:aws:lambda:ap-northeast-2:ACCOUNT:function:query-lambda",
-      "arn:aws:lambda:ap-northeast-2:ACCOUNT:function:analysis-lambda",
-      "arn:aws:lambda:ap-northeast-2:ACCOUNT:function:viz-lambda"
+      "arn:aws:lambda:ap-northeast-2:ACCOUNT:function:hyper-intern-m1c-query-lambda",
+      "arn:aws:lambda:ap-northeast-2:ACCOUNT:function:hyper-intern-m1c-analysis-lambda",
+      "arn:aws:lambda:ap-northeast-2:ACCOUNT:function:hyper-intern-m1c-viz-lambda"
     ]
   }]
 }
@@ -185,7 +190,8 @@ orchestrator URL:       https://___________.lambda-url.ap-northeast-2.on.aws/
 
 **[기록]**
 ```
-Bedrock Agent Role ARN: arn:aws:iam::ACCOUNT:role/___________
+Bedrock Agent Role ARN:
+arn:aws:iam::148761639846:role/report-orchestrator-bedrock-agent-role
 ```
 
 ### 2-2. Lambda 실행 역할 (query-lambda)
@@ -254,10 +260,10 @@ Agent Builder 화면에서 설정:
 
 | 항목 | 값 |
 |------|-----|
-| Agent name | `report-orchestrator-agent` |
+| Agent name | `hyper-intern-m1c-report-orchestrator-agent` |
 | Description | `마케팅 데이터 분석 리포트 생성 에이전트` |
 | Agent resource role | 2-1에서 만든 역할 선택 |
-| Model | `Claude 3.7 Sonnet` → Model ID: `apac.anthropic.claude-3-7-sonnet-20250219-v1:0` |
+| Model | `Claude 3.5 Sonnet` → Model ID: `anthropic.claude-3-5-sonnet-20240620-v1:0` |
 | Session timeout | 600초 (10분) |
 
 > **모델 선택 팁:** Agent Builder에서 모델 선택 시 "agents-optimized models" 필터가 기본 체크되어 있습니다. 전체 모델을 보려면 체크 해제 후 Claude 3.7 Sonnet 선택.
@@ -299,7 +305,7 @@ Agent Builder 화면에서 설정:
 
 **[기록]**
 ```
-Agent ID: ___________
+Agent ID: VZQUAJZVHC
 ```
 
 ---
@@ -329,11 +335,15 @@ Description: `SQL 쿼리를 생성합니다. 반드시 executeAthenaQuery로 실
 |---------|------|:----:|-------------|
 | version | String | ✓ | 항상 "v1" |
 | view | String | ✓ | 조회할 뷰 이름 (allowed_views 중 하나) |
-| dateRange | Object | ✓ | {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} |
+| dateRangeStart | String | ✓ | 조회 시작일 (YYYY-MM-DD) |
+| dateRangeEnd | String | ✓ | 조회 종료일 (YYYY-MM-DD) |
 | dimensions | Array | ✓ | 그룹핑 컬럼 목록 (예: ["channel_group"]) |
 | metrics | Array | ✓ | 집계 컬럼 목록 (예: ["sessions", "conversions"]) |
 | filters | Array | | [{column, op, value}] 형태의 필터 (op: =, !=, >, <, >=, <=, LIKE, IN) |
 | limit | Integer | | 최대 반환 행 수. 기본값 1000, 최대 10000 |
+
+> **참고:** Bedrock 함수 스키마는 `object` 타입을 지원하지 않습니다 (허용: string, integer, number, boolean, array).
+> dateRange를 두 String 파라미터로 분리하며, Lambda 어댑터가 내부적으로 `{"start": ..., "end": ...}` dict로 재조립합니다.
 
 **Function 2: executeAthenaQuery**
 
