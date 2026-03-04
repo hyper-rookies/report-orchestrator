@@ -194,15 +194,21 @@ def _handle_execute_athena_query(payload: dict[str, Any]) -> dict[str, Any]:
             "(set in request or env ATHENA_WORKGROUP / ATHENA_DATABASE / ATHENA_OUTPUT_LOCATION).",
         )
 
-    qid, result_set = run_query(
-        sql=sql,
-        workgroup=workgroup,
-        database=database,
-        output_location=output_location,
-        timeout_seconds=timeout_seconds,
-        max_rows=max_rows,
-        poll_interval_ms=poll_interval_ms,
-    )
+    try:
+        qid, result_set = run_query(
+            sql=sql,
+            workgroup=workgroup,
+            database=database,
+            output_location=output_location,
+            timeout_seconds=timeout_seconds,
+            max_rows=max_rows,
+            poll_interval_ms=poll_interval_ms,
+        )
+    except Exception as exc:
+        # Wrap unexpected boto3/botocore errors (e.g. AccessDeniedException) so
+        # they produce a structured error instead of leaking a raw traceback.
+        exc_name = type(exc).__name__
+        raise QueryError("ATHENA_ERROR", f"{exc_name}: {exc}") from exc
     rows, truncated = map_result_set(result_set, max_rows)
 
     return {
