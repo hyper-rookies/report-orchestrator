@@ -26,6 +26,8 @@ def _parse_bedrock_params(event: dict[str, Any]) -> dict[str, Any]:
     for p in event.get("parameters", []):
         parser = _BEDROCK_TYPE_PARSERS.get(p.get("type", "string"), lambda v: v)
         params[p["name"]] = parser(p["value"])
+    # Inject version so the agent doesn't need to include it as a parameter
+    params.setdefault("version", VERSION)
     return params
 
 
