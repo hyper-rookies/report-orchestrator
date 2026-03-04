@@ -204,6 +204,8 @@ def _handle_execute_athena_query(payload: dict[str, Any]) -> dict[str, Any]:
             max_rows=max_rows,
             poll_interval_ms=poll_interval_ms,
         )
+    except QueryError:
+        raise
     except Exception as exc:
         # Wrap unexpected boto3/botocore errors (e.g. AccessDeniedException) so
         # they produce a structured error instead of leaking a raw traceback.

@@ -69,7 +69,7 @@ export class SignedActionLambdaInvoker implements IActionLambdaInvoker {
       body: payload,
     });
 
-    const signedRequest = await this.signer.sign(unsignedRequest);
+    const signedRequest = (await this.signer.sign(unsignedRequest)) as HttpRequest;
     const { response } = await this.httpHandler.handle(signedRequest);
     const rawBody = await streamToString(response.body);
 
