@@ -105,6 +105,26 @@ def test_query_buildsql_bedrock_respects_date_range():
     assert "2026-02-28" in body["sql"]
 
 
+def test_query_buildsql_bedrock_unquoted_array_values():
+    """Bedrock sometimes sends [sessions] instead of valid JSON ["sessions"].
+    The handler must accept both forms."""
+    event = {
+        "actionGroup": "query",
+        "function": "buildSQL",
+        "parameters": [
+            _param("view", "string", "v_latest_ga4_acquisition_daily"),
+            _param("dateRange", "string", "2024-11-01,2024-11-15"),
+            _param("dimensions", "array", "[channel_group]"),   # unquoted — real Bedrock format
+            _param("metrics", "array", "[sessions]"),           # unquoted — real Bedrock format
+        ],
+    }
+    response = query_handler.lambda_handler(event, None)
+    body = _assert_bedrock_envelope(response, "query", "buildSQL")
+    assert "sql" in body, f"Expected sql, got: {body}"
+    assert "channel_group" in body["sql"]
+    assert "sessions" in body["sql"]
+
+
 def test_query_buildsql_bedrock_invalid_view_returns_error_in_envelope():
     event = {
         "actionGroup": "query",

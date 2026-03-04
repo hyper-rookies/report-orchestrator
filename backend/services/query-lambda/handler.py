@@ -16,8 +16,25 @@ _ALLOWED_OPERATIONS = frozenset({"buildSQL", "executeAthenaQuery"})
 
 # ── Bedrock Action Group adapter ──────────────────────────────────────────────
 
+def _parse_bedrock_array(v: str) -> list:
+    """Parse a Bedrock array parameter value.
+
+    Bedrock agents sometimes omit quotes around string elements, sending
+    ``[sessions]`` instead of valid JSON ``["sessions"]``.  Fall back to
+    bracket-stripped comma-split when strict JSON parsing fails.
+    """
+    try:
+        return json.loads(v)
+    except (json.JSONDecodeError, ValueError):
+        stripped = v.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            inner = stripped[1:-1]
+            return [item.strip() for item in inner.split(",") if item.strip()]
+        return [v]
+
+
 _BEDROCK_TYPE_PARSERS = {
-    "array": json.loads,
+    "array": _parse_bedrock_array,
     "object": json.loads,
     "integer": int,
     "number": float,
