@@ -45,7 +45,14 @@ export async function* buildSseEvents(
     let tableEmitted = false;
     let chartEmitted = false;
     let totalRows = 0;
+    let agentSummary = "";
     const sessionId = randomUUID();
+
+    // Maps Bedrock agent step names to SSE progress step labels.
+    const STEP_LABEL: Record<string, string> = {
+      agentThinking: "buildSQL",
+      finalResponse: "finalizing",
+    };
 
     for await (const agentEvent of client.stream({
       agentId: AGENT_ID,
@@ -53,8 +60,12 @@ export async function* buildSseEvents(
       sessionId,
       inputText: question,
     })) {
+      if (agentEvent.type === "chunk") {
+        agentSummary += agentEvent.text;
+      }
+
       if (agentEvent.type === "step") {
-        const stepLabel = agentEvent.step === "agentThinking" ? "buildSQL" : "buildChart";
+        const stepLabel = STEP_LABEL[agentEvent.step] ?? "buildChart";
         yield formatSseEvent("progress", {
           version: "v1",
           step: stepLabel,
@@ -68,7 +79,13 @@ export async function* buildSseEvents(
         try {
           parsed = JSON.parse(agentEvent.output) as Record<string, unknown>;
         } catch {
-          continue;
+          yield formatSseEvent("error", {
+            version: "v1",
+            code: "PARSE_ERROR",
+            message: `Action group "${agentEvent.actionGroup}" returned non-JSON output.`,
+            retryable: false,
+          });
+          return;
         }
 
         if (ag.includes("query") && parsed.rows && !tableEmitted) {
@@ -97,12 +114,24 @@ export async function* buildSseEvents(
       }
     }
 
+    // Agent completed without ever emitting query results — report is incomplete.
+    if (!tableEmitted) {
+      yield formatSseEvent("error", {
+        version: "v1",
+        code: "NO_DATA",
+        message: "Agent completed without returning query results.",
+        retryable: false,
+      });
+      return;
+    }
+
     // final - always last on success
     yield formatSseEvent("final", {
       version: "v1",
       reportId,
       totalRows,
       completedAt: utcNow(),
+      ...(agentSummary ? { agentSummary } : {}),
     });
   } catch (err: unknown) {
     const message =
