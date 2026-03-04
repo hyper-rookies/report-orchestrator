@@ -298,6 +298,7 @@ Agent Builder 화면에서 설정:
 - 차트가 의미없는 경우(단일 값, 텍스트 응답)에는 buildChartSpec을 호출하지 않아도 됨.
 - 오류(retryable: false)가 발생하면 사용자에게 한국어로 명확히 설명하고 재시도하지 말 것.
 - 모든 응답은 한국어로 작성할 것.
+- dateRange 파라미터는 반드시 "YYYY-MM-DD,YYYY-MM-DD" 형식(시작,종료)으로 전달할 것.
 - 날짜를 명시하지 않으면 최근 30일을 기본 dateRange로 사용할 것.
 ```
 
@@ -331,19 +332,16 @@ Lambda에 리소스 기반 정책 추가 확인 팝업이 뜨면 **Add** 클릭.
 
 Description: `SQL 쿼리를 생성합니다. 반드시 executeAthenaQuery로 실행하세요.`
 
+> **제약:** Bedrock 함수당 파라미터 최대 **5개**. `object` 타입 미지원 (허용: string, integer, number, boolean, array).
+> `version`은 Lambda가 자동 주입하므로 에이전트가 전달 불필요. `limit`은 Lambda 기본값(1000) 사용.
+
 | 파라미터 | 타입 | 필수 | Description |
 |---------|------|:----:|-------------|
-| version | String | ✓ | 항상 "v1" |
 | view | String | ✓ | 조회할 뷰 이름 (allowed_views 중 하나) |
-| dateRangeStart | String | ✓ | 조회 시작일 (YYYY-MM-DD) |
-| dateRangeEnd | String | ✓ | 조회 종료일 (YYYY-MM-DD) |
+| dateRange | String | ✓ | `"YYYY-MM-DD,YYYY-MM-DD"` 형식 (시작,종료). Lambda가 내부적으로 분리. |
 | dimensions | Array | ✓ | 그룹핑 컬럼 목록 (예: ["channel_group"]) |
 | metrics | Array | ✓ | 집계 컬럼 목록 (예: ["sessions", "conversions"]) |
 | filters | Array | | [{column, op, value}] 형태의 필터 (op: =, !=, >, <, >=, <=, LIKE, IN) |
-| limit | Integer | | 최대 반환 행 수. 기본값 1000, 최대 10000 |
-
-> **참고:** Bedrock 함수 스키마는 `object` 타입을 지원하지 않습니다 (허용: string, integer, number, boolean, array).
-> dateRange를 두 String 파라미터로 분리하며, Lambda 어댑터가 내부적으로 `{"start": ..., "end": ...}` dict로 재조립합니다.
 
 **Function 2: executeAthenaQuery**
 
@@ -351,7 +349,6 @@ Description: `buildSQL이 생성한 SQL을 Athena에서 실행하고 결과 rows
 
 | 파라미터 | 타입 | 필수 | Description |
 |---------|------|:----:|-------------|
-| version | String | ✓ | 항상 "v1" |
 | sql | String | ✓ | buildSQL 응답의 sql 필드 그대로 전달 |
 | timeoutSeconds | Integer | ✓ | 권장: 30 |
 | maxRows | Integer | ✓ | 권장: 10000 |

@@ -70,14 +70,13 @@ def _assert_bedrock_envelope(response: dict, action_group: str, function: str) -
 # ── query-lambda: buildSQL ────────────────────────────────────────────────────
 
 def test_query_buildsql_bedrock_returns_bedrock_envelope():
+    # Bedrock limit: 5 params/function. version injected by Lambda; dateRange as "start,end" string.
     event = {
         "actionGroup": "query",
         "function": "buildSQL",
         "parameters": [
-            _param("version", "string", "v1"),
             _param("view", "string", "v_latest_ga4_acquisition_daily"),
-            _param("dateRangeStart", "string", "2026-01-01"),
-            _param("dateRangeEnd", "string", "2026-01-31"),
+            _param("dateRange", "string", "2026-01-01,2026-01-31"),
             _param("dimensions", "array", json.dumps(["channel_group"])),
             _param("metrics", "array", json.dumps(["sessions"])),
         ],
@@ -95,10 +94,8 @@ def test_query_buildsql_bedrock_respects_date_range():
         "actionGroup": "query",
         "function": "buildSQL",
         "parameters": [
-            _param("version", "string", "v1"),
             _param("view", "string", "v_latest_ga4_acquisition_daily"),
-            _param("dateRangeStart", "string", "2026-02-01"),
-            _param("dateRangeEnd", "string", "2026-02-28"),
+            _param("dateRange", "string", "2026-02-01,2026-02-28"),
             _param("dimensions", "array", json.dumps(["channel_group"])),
             _param("metrics", "array", json.dumps(["sessions"])),
         ],
@@ -113,10 +110,8 @@ def test_query_buildsql_bedrock_invalid_view_returns_error_in_envelope():
         "actionGroup": "query",
         "function": "buildSQL",
         "parameters": [
-            _param("version", "string", "v1"),
             _param("view", "string", "raw_table_not_allowed"),
-            _param("dateRangeStart", "string", "2026-01-01"),
-            _param("dateRangeEnd", "string", "2026-01-31"),
+            _param("dateRange", "string", "2026-01-01,2026-01-31"),
             _param("dimensions", "array", json.dumps(["col"])),
             _param("metrics", "array", json.dumps(["val"])),
         ],

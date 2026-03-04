@@ -32,10 +32,11 @@ def _is_bedrock_event(event: Any) -> bool:
 def _parse_bedrock_params(event: dict[str, Any]) -> dict[str, Any]:
     """Convert Bedrock parameter list to a payload dict. Sets 'operation' from function name.
 
-    Bedrock function schemas do not support the 'object' type — allowed types are:
-    string, integer, number, boolean, array.  dateRange is therefore split into two
-    string parameters (dateRangeStart / dateRangeEnd) and reassembled here into the
-    {'start': ..., 'end': ...} dict that validate_build_sql_payload expects.
+    Bedrock function schemas are limited to 5 parameters per function and do not support
+    the 'object' type.  Two adaptations applied here:
+    - version: not sent by the agent; injected automatically as VERSION ("v1").
+    - dateRange: passed as a single "YYYY-MM-DD,YYYY-MM-DD" string and split into the
+      {'start': ..., 'end': ...} dict that validate_build_sql_payload expects.
     """
     params: dict[str, Any] = {}
     for p in event.get("parameters", []):
@@ -44,12 +45,13 @@ def _parse_bedrock_params(event: dict[str, Any]) -> dict[str, Any]:
     function_name = event.get("function", "")
     if function_name in _ALLOWED_OPERATIONS:
         params["operation"] = function_name
-    # Reassemble dateRange from flat string params (Bedrock schema doesn't support object type)
-    if "dateRangeStart" in params or "dateRangeEnd" in params:
-        params["dateRange"] = {
-            "start": params.pop("dateRangeStart", ""),
-            "end": params.pop("dateRangeEnd", ""),
-        }
+    # Inject version so the agent doesn't need to include it as a parameter
+    params.setdefault("version", VERSION)
+    # Parse "YYYY-MM-DD,YYYY-MM-DD" string → {"start": ..., "end": ...}
+    date_range = params.get("dateRange")
+    if isinstance(date_range, str) and "," in date_range:
+        start, end = date_range.split(",", 1)
+        params["dateRange"] = {"start": start.strip(), "end": end.strip()}
     return params
 
 
