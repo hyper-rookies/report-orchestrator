@@ -54,3 +54,31 @@ jobs:
         run: |
           python -m pip install pytest
           pytest -q
+
+  orchestrator_lambda:
+    name: Orchestrator Lambda (Node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend/services/report-orchestrator-lambda
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: backend/services/report-orchestrator-lambda/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests (jest)
+        run: npm test
+
+      - name: Type check
+        run: npm run build

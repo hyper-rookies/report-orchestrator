@@ -75,5 +75,6 @@ tmp/
 !backend/services/report-orchestrator-lambda/src/shared/catalog_discovered.json
 !backend/services/report-orchestrator-lambda/src/shared/reporting_policy.json
 !backend/services/report-orchestrator-lambda/package.json
+!backend/services/report-orchestrator-lambda/package-lock.json
 !backend/services/report-orchestrator-lambda/tsconfig.json
 
