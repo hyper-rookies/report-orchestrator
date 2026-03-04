@@ -70,7 +70,7 @@ zip analysis-lambda.zip app.py
 ```powershell
 # PowerShell
 Set-Location backend/services/analysis-lambda
-Compress-Archive -Force -Path app.py -DestinationPath analysis-lambda.zip
+Compress-Archive -Force -Path app.py -DestinationPath ../../../dist/analysis-lambda.zip
 ```
 
 콘솔 설정:
@@ -90,7 +90,7 @@ zip viz-lambda.zip app.py
 ```powershell
 # PowerShell
 Set-Location backend/services/viz-lambda
-Compress-Archive -Force -Path app.py -DestinationPath viz-lambda.zip
+Compress-Archive -Force -Path app.py -DestinationPath ../../../dist/viz-lambda.zip
 ```
 
 콘솔 설정:
@@ -172,7 +172,23 @@ https://p2ci72n4le6v2ge3ni4ehwp7ce0eztwy.lambda-url.ap-northeast-2.on.aws/
 }
 ```
 
-**권한 정책 — Lambda 호출:**
+**권한 정책 1 — Claude 모델 호출 (필수!):**
+
+> ⚠️ 이 정책이 없으면 Agent 실행 시 즉시 403 오류 발생.
+> ARN에 계정 ID가 없는 것이 정상 (`::foundation-model/`).
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "bedrock:InvokeModel",
+    "Resource": "arn:aws:bedrock:ap-northeast-2::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0"
+  }]
+}
+```
+
+**권한 정책 2 — Lambda 호출:**
 ```json
 {
   "Version": "2012-10-17",
@@ -187,6 +203,8 @@ https://p2ci72n4le6v2ge3ni4ehwp7ce0eztwy.lambda-url.ap-northeast-2.on.aws/
   }]
 }
 ```
+
+> 정책 추가 후 **Bedrock Agent 콘솔 → Agent → Prepare** 버튼을 눌러야 변경이 반영됨.
 
 **[기록]**
 ```
@@ -419,8 +437,8 @@ Agent 상세 페이지 → **Aliases** 탭 → **Create alias**
 
 **[기록]**
 ```
-Agent Alias ID:  ___________
-Agent Alias ARN: arn:aws:bedrock:ap-northeast-2:ACCOUNT:agent-alias/AGENTID/ALIASID
+Agent Alias ID:  XEIIPPGOXH
+Agent Alias ARN: arn:aws:bedrock:ap-northeast-2:148761639846:agent-alias/VZQUAJZVHC/XEIIPPGOXH
 ```
 
 ---
