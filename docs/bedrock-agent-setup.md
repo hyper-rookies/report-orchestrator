@@ -26,25 +26,17 @@ IaC 자동화 전 콘솔로 먼저 구성하는 절차입니다.
 
 > **주의:** `policy_guard.py`가 `reporting_policy.json`과 `catalog_discovered.json`을 읽습니다.
 > 배포 패키지에 이 두 JSON 파일을 함께 포함해야 합니다.
+> (`SHARED_DIR`은 `Path(__file__).resolve().parent`로 설정되어 있으므로 같은 디렉터리에 두기만 하면 됩니다.)
 
 ```bash
 cd backend/services/query-lambda
 
-# shared JSON 파일을 임시로 복사
-cp ../report-orchestrator-lambda/src/shared/reporting_policy.json .
-cp ../report-orchestrator-lambda/src/shared/catalog_discovered.json .
-
-# 패키징
+# 패키징 (JSON 파일은 이미 같은 디렉터리에 있음)
 zip -r ../../../dist/query-lambda.zip \
   handler.py policy_guard.py sql_builder.py \
   athena_runner.py row_mapper.py \
   reporting_policy.json catalog_discovered.json
-
-# 임시 파일 정리
-rm reporting_policy.json catalog_discovered.json
 ```
-
-> **참고:** Lambda 실행 환경에서 `policy_guard.py`의 `SHARED_DIR`은 현재 `Path(__file__).parent.parent / "report-orchestrator-lambda/src/shared"`로 되어 있어 배포 시 경로가 맞지 않습니다. 위 방법으로 JSON 파일을 같은 디렉터리에 두면 동작하지 않으므로, **IaC 구성 전에 `policy_guard.py`의 `SHARED_DIR`을 `Path(__file__).resolve().parent`로 수정해야 합니다.** (별도 티켓)
 
 콘솔 설정:
 - Runtime: **Python 3.12**
@@ -431,7 +423,7 @@ curl -N -X POST \
 
 | 항목 | 내용 | 우선순위 |
 |------|------|---------|
-| `policy_guard.py` 경로 문제 | `SHARED_DIR`이 로컬 개발 환경 경로로 하드코딩됨. Lambda 배포 시 깨짐. `Path(__file__).resolve().parent`로 변경 필요. | 🔴 High (배포 전 필수) |
+| ~~`policy_guard.py` 경로 문제~~ | ~~`SHARED_DIR`이 로컬 개발 환경 경로로 하드코딩됨. Lambda 배포 시 깨짐.~~ **수정 완료** — `SHARED_DIR = Path(__file__).resolve().parent`, JSON 파일을 `query-lambda/` 에 복사. | ✅ 해결 |
 | query-lambda 의존성 레이어 | boto3, botocore 버전이 Lambda 기본 런타임보다 낮을 수 있음. AWS SDK Layer 추가 권장. | 🟡 Medium |
 | Function URL 인증 | 현재 NONE으로 설정하면 공개 접근 가능. 프로덕션에서는 Cognito token 검증 필요. | 🟡 Medium |
 
