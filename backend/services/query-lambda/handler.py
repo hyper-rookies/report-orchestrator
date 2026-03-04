@@ -14,10 +14,50 @@ logger = logging.getLogger(__name__)
 
 _ALLOWED_OPERATIONS = frozenset({"buildSQL", "executeAthenaQuery"})
 
+# ── Bedrock Action Group adapter ──────────────────────────────────────────────
+
+_BEDROCK_TYPE_PARSERS = {
+    "array": json.loads,
+    "object": json.loads,
+    "integer": int,
+    "number": float,
+    "boolean": lambda v: v.lower() == "true",
+}
+
+
+def _is_bedrock_event(event: Any) -> bool:
+    return isinstance(event, dict) and "actionGroup" in event and "function" in event
+
+
+def _parse_bedrock_params(event: dict[str, Any]) -> dict[str, Any]:
+    """Convert Bedrock parameter list to a payload dict. Sets 'operation' from function name."""
+    params: dict[str, Any] = {}
+    for p in event.get("parameters", []):
+        parser = _BEDROCK_TYPE_PARSERS.get(p.get("type", "string"), lambda v: v)
+        params[p["name"]] = parser(p["value"])
+    function_name = event.get("function", "")
+    if function_name in _ALLOWED_OPERATIONS:
+        params["operation"] = function_name
+    return params
+
+
+def _format_bedrock_response(event: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "messageVersion": "1.0",
+        "response": {
+            "actionGroup": event["actionGroup"],
+            "function": event["function"],
+            "functionResponse": {
+                "responseBody": {"TEXT": {"body": json.dumps(result)}},
+            },
+        },
+    }
+
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    bedrock = _is_bedrock_event(event)
     try:
-        payload = _parse_event_payload(event)
+        payload = _parse_bedrock_params(event) if bedrock else _parse_event_payload(event)
         operation = _route_operation(payload)
         if operation == "buildSQL":
             validated = validate_build_sql_payload(payload)
@@ -48,6 +88,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             },
         }
 
+    if bedrock:
+        return _format_bedrock_response(event, result)
     return {"statusCode": 200, "body": json.dumps(result)}
 
 

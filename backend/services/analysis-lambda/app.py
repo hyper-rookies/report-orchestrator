@@ -6,6 +6,44 @@ from typing import Any
 
 VERSION = "v1"
 
+# ── Bedrock Action Group adapter ──────────────────────────────────────────────
+
+_BEDROCK_TYPE_PARSERS = {
+    "array": json.loads,
+    "object": json.loads,
+    "integer": int,
+    "number": float,
+    "boolean": lambda v: v.lower() == "true",
+}
+
+
+def _is_bedrock_event(event: Any) -> bool:
+    return isinstance(event, dict) and "actionGroup" in event and "function" in event
+
+
+def _parse_bedrock_params(event: dict[str, Any]) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    for p in event.get("parameters", []):
+        parser = _BEDROCK_TYPE_PARSERS.get(p.get("type", "string"), lambda v: v)
+        params[p["name"]] = parser(p["value"])
+    return params
+
+
+def _format_bedrock_response(event: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "messageVersion": "1.0",
+        "response": {
+            "actionGroup": event["actionGroup"],
+            "function": event["function"],
+            "functionResponse": {
+                "responseBody": {"TEXT": {"body": json.dumps(result)}},
+            },
+        },
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 class AnalysisError(Exception):
     def __init__(self, code: str, message: str, *, status_code: int = 400) -> None:
@@ -16,25 +54,26 @@ class AnalysisError(Exception):
 
 
 def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
+    bedrock = _is_bedrock_event(event)
+    status_code = 200
     try:
-        payload = event if isinstance(event, dict) else {}
+        payload = _parse_bedrock_params(event) if bedrock else (event if isinstance(event, dict) else {})
         result = compute_delta(payload)
-        return {"statusCode": 200, "body": json.dumps(result)}
     except AnalysisError as exc:
-        return {
-            "statusCode": exc.status_code,
-            "body": json.dumps(
-                {
-                    "version": VERSION,
-                    "error": {
-                        "code": exc.code,
-                        "message": exc.message,
-                        "retryable": False,
-                        "actionGroup": "analysis",
-                    },
-                }
-            ),
+        status_code = exc.status_code
+        result = {
+            "version": VERSION,
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "retryable": False,
+                "actionGroup": "analysis",
+            },
         }
+
+    if bedrock:
+        return _format_bedrock_response(event, result)
+    return {"statusCode": status_code, "body": json.dumps(result)}
 
 
 def compute_delta(payload: dict[str, Any]) -> dict[str, Any]:

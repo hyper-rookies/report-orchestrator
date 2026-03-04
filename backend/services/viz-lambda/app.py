@@ -6,6 +6,44 @@ from typing import Any
 VERSION = "v1"
 ALLOWED_CHART_TYPES = {"bar", "line", "table"}
 
+# ── Bedrock Action Group adapter ──────────────────────────────────────────────
+
+_BEDROCK_TYPE_PARSERS = {
+    "array": json.loads,
+    "object": json.loads,
+    "integer": int,
+    "number": float,
+    "boolean": lambda v: v.lower() == "true",
+}
+
+
+def _is_bedrock_event(event: Any) -> bool:
+    return isinstance(event, dict) and "actionGroup" in event and "function" in event
+
+
+def _parse_bedrock_params(event: dict[str, Any]) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    for p in event.get("parameters", []):
+        parser = _BEDROCK_TYPE_PARSERS.get(p.get("type", "string"), lambda v: v)
+        params[p["name"]] = parser(p["value"])
+    return params
+
+
+def _format_bedrock_response(event: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "messageVersion": "1.0",
+        "response": {
+            "actionGroup": event["actionGroup"],
+            "function": event["function"],
+            "functionResponse": {
+                "responseBody": {"TEXT": {"body": json.dumps(result)}},
+            },
+        },
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 class VizError(Exception):
     def __init__(self, code: str, message: str) -> None:
@@ -15,8 +53,9 @@ class VizError(Exception):
 
 
 def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
+    bedrock = _is_bedrock_event(event)
     try:
-        payload = _parse_event_payload(event)
+        payload = _parse_bedrock_params(event) if bedrock else _parse_event_payload(event)
         result = build_chart_spec(payload)
     except VizError as exc:
         result = {
@@ -39,6 +78,8 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             },
         }
 
+    if bedrock:
+        return _format_bedrock_response(event, result)
     return {"statusCode": 200, "body": json.dumps(result)}
 
 
