@@ -32,9 +32,14 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await signIn({ username: email.trim(), password });
-      router.push("/");
-    } catch {
+      const result = await signIn({ username: email.trim(), password });
+      if (result.isSignedIn) {
+        router.push("/");
+      } else {
+        setError("추가 인증이 필요합니다. 관리자에게 문의해주세요.");
+      }
+    } catch (err) {
+      console.error("signIn error:", err);
       setError("로그인에 실패했습니다. 이메일/비밀번호를 확인해주세요.");
     } finally {
       setLoading(false);
@@ -45,7 +50,8 @@ export default function LoginPage() {
     setError(null);
     try {
       await signInWithRedirect({ provider: "Google" });
-    } catch {
+    } catch (err) {
+      console.error("signInWithRedirect error:", err);
       setError("Google 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };

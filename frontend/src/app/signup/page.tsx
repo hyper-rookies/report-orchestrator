@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { confirmSignUp, signUp } from "aws-amplify/auth";
+import { confirmSignUp, resendSignUpCode, signUp } from "aws-amplify/auth";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -50,7 +50,8 @@ export default function SignupPage() {
       } else {
         setStep(2);
       }
-    } catch {
+    } catch (err) {
+      console.error("signUp error:", err);
       setError("회원가입에 실패했습니다. 입력값을 확인하고 다시 시도해주세요.");
     } finally {
       setLoading(false);
@@ -68,7 +69,8 @@ export default function SignupPage() {
     try {
       await confirmSignUp({ username: email.trim(), confirmationCode: code.trim() });
       router.push("/login");
-    } catch {
+    } catch (err) {
+      console.error("confirmSignUp error:", err);
       setError("인증 코드 확인에 실패했습니다. 코드를 다시 확인해주세요.");
     } finally {
       setLoading(false);
@@ -124,6 +126,22 @@ export default function SignupPage() {
               />
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "확인 중..." : "확인"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={loading}
+                onClick={async () => {
+                  try {
+                    await resendSignUpCode({ username: email.trim() });
+                  } catch (err) {
+                    console.error("resendSignUpCode error:", err);
+                    setError("코드 재발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+                  }
+                }}
+              >
+                코드 재발송
               </Button>
             </form>
           )}

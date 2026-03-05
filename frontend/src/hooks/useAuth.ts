@@ -43,7 +43,8 @@ export function useAuth(): UseAuthResult {
         ]);
         setUser({ username: cognitoUser.username });
         setIdToken(session.tokens?.idToken?.toString() ?? null);
-      } catch {
+      } catch (err) {
+        console.error("fetchAuthSession error:", err);
         setUser(null);
         setIdToken(null);
       } finally {

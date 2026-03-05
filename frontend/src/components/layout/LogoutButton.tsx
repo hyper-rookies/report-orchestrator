@@ -1,20 +1,14 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 
-const HIDDEN_PATHS = ["/login", "/signup", "/auth/callback"];
-
 export default function LogoutButton() {
   const router = useRouter();
-  const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
 
-  if (HIDDEN_PATHS.some((path) => pathname.startsWith(path))) {
-    return null;
-  }
   if (loading || !user) {
     return null;
   }

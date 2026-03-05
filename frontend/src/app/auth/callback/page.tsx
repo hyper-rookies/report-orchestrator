@@ -1,6 +1,5 @@
 ﻿"use client";
 
-import "@/lib/amplify";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { fetchAuthSession } from "aws-amplify/auth";
@@ -11,7 +10,7 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     fetchAuthSession()
       .then(() => router.replace("/"))
-      .catch(() => router.replace("/login"));
+      .catch((err) => { console.error("auth callback error:", err); router.replace("/login"); });
   }, [router]);
 
   return (
