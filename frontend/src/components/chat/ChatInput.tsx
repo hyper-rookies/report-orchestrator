@@ -32,7 +32,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
         rows={1}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             handleSubmit(e as unknown as React.FormEvent);
           }

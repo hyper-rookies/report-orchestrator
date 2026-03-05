@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import MessageList from "@/components/chat/MessageList";
 import ChatInput from "@/components/chat/ChatInput";
@@ -15,8 +15,12 @@ export interface Message {
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const { frames, streaming, error, ask, reset } = useSse();
+  const { frames, streaming, error, ask } = useSse();
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, frames]);
 
   const handleSubmit = async (question: string) => {
     const userMsg: Message = {
@@ -25,7 +29,6 @@ export default function ChatPage() {
       content: question,
     };
     setMessages((prev) => [...prev, userMsg]);
-    reset();
     const completedFrames = await ask(question);
     setMessages((prev) => [
       ...prev,
@@ -36,7 +39,6 @@ export default function ChatPage() {
         frames: completedFrames,
       },
     ]);
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (

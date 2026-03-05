@@ -31,7 +31,7 @@ export default function ReportBarChart({ rows, spec }: Props) {
           <XAxis dataKey={spec.xKey} tick={{ fontSize: 11 }} />
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip />
-          <Bar dataKey={spec.yKey} fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+          <Bar dataKey={spec.yKey} fill="var(--chart-1)" radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

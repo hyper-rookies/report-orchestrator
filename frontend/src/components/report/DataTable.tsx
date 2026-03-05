@@ -27,7 +27,7 @@ export default function DataTable({ rows }: Props) {
 
   const columns = useMemo(
     () =>
-      Object.keys(rows[0]).map((key) => ({
+      Object.keys(rows[0] ?? {}).map((key) => ({
         accessorKey: key,
         header: key,
       })),
