@@ -1,6 +1,8 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
 import AmplifyProvider from "@/components/AmplifyProvider";
+import LogoutButton from "@/components/layout/LogoutButton";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,11 +27,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <AmplifyProvider>{children}</AmplifyProvider>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <AmplifyProvider>
+          <div className="relative min-h-screen">
+            <div className="absolute right-4 top-4 z-20">
+              <LogoutButton />
+            </div>
+            {children}
+          </div>
+        </AmplifyProvider>
       </body>
     </html>
   );
 }
+

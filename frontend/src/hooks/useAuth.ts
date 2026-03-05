@@ -1,7 +1,11 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
-import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import {
+  fetchAuthSession,
+  getCurrentUser,
+  signOut as amplifySignOut,
+} from "aws-amplify/auth";
 
 interface AuthUser {
   username: string;
@@ -12,6 +16,7 @@ interface UseAuthResult {
   user: AuthUser | null;
   idToken: string | null;
   loading: boolean;
+  signOut: () => Promise<void>;
 }
 
 const MOCK_USER: AuthUser = { username: "mock-user", email: "dev@example.com" };
@@ -47,5 +52,16 @@ export function useAuth(): UseAuthResult {
     })();
   }, []);
 
-  return { user, idToken, loading };
+  const signOut = async () => {
+    if (process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true") {
+      setUser(null);
+      setIdToken(null);
+      return;
+    }
+    await amplifySignOut();
+    setUser(null);
+    setIdToken(null);
+  };
+
+  return { user, idToken, loading, signOut };
 }
