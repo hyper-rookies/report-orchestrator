@@ -18,9 +18,18 @@ async function fetchReport(token: string): Promise<ReportData> {
   if (process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true") {
     return MOCK_REPORT;
   }
-  const url = `${process.env.NEXT_PUBLIC_REPORT_API_URL}?token=${encodeURIComponent(token)}`;
-  const res = await fetch(url, { cache: "force-cache" });
-  return res.json();
+  const apiUrl = process.env.NEXT_PUBLIC_REPORT_API_URL;
+  if (!apiUrl) {
+    return { title: "", created_at: 0, sections: [], error: "리포트 API가 설정되지 않았습니다." };
+  }
+  try {
+    const res = await fetch(`${apiUrl}?token=${encodeURIComponent(token)}`, {
+      cache: "force-cache",
+    });
+    return res.json();
+  } catch {
+    return { title: "", created_at: 0, sections: [], error: "리포트를 불러오지 못했습니다." };
+  }
 }
 
 export default async function SharedReportPage({
