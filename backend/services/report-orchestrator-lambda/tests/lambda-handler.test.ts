@@ -144,12 +144,25 @@ test("invalid JSON from action group emits PARSE_ERROR and no final", async () =
   expect(frames.find((f) => f.type === "error")?.data.code).toBe("PARSE_ERROR");
 });
 
-test("stream with no table data emits NO_DATA error and no final", async () => {
-  const frames = await collect("q", [{ type: "chunk", text: "sorry, no data" }]);
+test("stream with no table data and no agent summary emits NO_DATA error and no final", async () => {
+  const frames = await collect("q", []);
   const types = frames.map((f) => f.type);
   expect(types[types.length - 1]).toBe("error");
   expect(types).not.toContain("final");
   expect(frames.find((f) => f.type === "error")?.data.code).toBe("NO_DATA");
+});
+
+test("stream with no table data but with agent summary emits UNSUPPORTED_METRIC error and no final", async () => {
+  const frames = await collect("q", [{ type: "chunk", text: "sorry, unsupported metric request" }]);
+  const types = frames.map((f) => f.type);
+  const error = frames.find((f) => f.type === "error");
+  expect(types[types.length - 1]).toBe("error");
+  expect(types).not.toContain("final");
+  expect(error?.data.code).toBe("UNSUPPORTED_METRIC");
+  expect(typeof error?.data.message).toBe("string");
+  expect((error?.data.message as string).startsWith("Agent responded without querying data:")).toBe(
+    true
+  );
 });
 
 test("chunk text is accumulated in final.agentSummary", async () => {
