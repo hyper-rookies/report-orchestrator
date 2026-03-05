@@ -13,6 +13,7 @@ from mock_generators.appsflyer import (
     generate_appsflyer_events,
     generate_appsflyer_installs,
 )
+from mock_generators.cohort import generate_appsflyer_cohort
 from mock_generators.ga4 import generate_ga4_acquisition, generate_ga4_engagement
 
 
@@ -82,6 +83,7 @@ def lambda_handler(event, context):  # noqa: ARG001
         "ga4_engagement_daily": generate_ga4_engagement,
         "appsflyer_installs_daily": generate_appsflyer_installs,
         "appsflyer_events_daily": generate_appsflyer_events,
+        "appsflyer_cohort_daily": generate_appsflyer_cohort,
     }
 
     datasets: list[str] = []

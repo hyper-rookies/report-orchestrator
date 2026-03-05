@@ -21,6 +21,10 @@ def _load_appsflyer_module():
     return _load_module("appsflyer.py", "batch_lambda_appsflyer")
 
 
+def _load_cohort_module():
+    return _load_module("cohort.py", "batch_lambda_cohort")
+
+
 def test_generate_acquisition_schema():
     ga4 = _load_ga4_module()
     rows = ga4.generate_ga4_acquisition("2024-11-05")
@@ -123,3 +127,44 @@ def test_generate_events_revenue_zero_for_non_purchase():
     assert non_purchase_rows
     assert all(row["event_revenue"] == 0.0 for row in non_purchase_rows)
 
+
+def test_generate_cohort_schema():
+    cohort = _load_cohort_module()
+    rows = cohort.generate_appsflyer_cohort("2024-11-30")
+    assert rows
+    assert set(rows[0].keys()) == {
+        "media_source",
+        "campaign",
+        "cohort_date",
+        "cohort_day",
+        "retained_users",
+        "cohort_size",
+        "dt",
+    }
+
+
+def test_generate_cohort_row_count():
+    cohort = _load_cohort_module()
+    rows = cohort.generate_appsflyer_cohort("2024-11-30")
+    assert len(rows) == 50
+
+
+def test_generate_cohort_days():
+    cohort = _load_cohort_module()
+    rows = cohort.generate_appsflyer_cohort("2024-11-30")
+    days = {row["cohort_day"] for row in rows}
+    assert days == {0, 1, 7, 14, 30}
+
+
+def test_generate_cohort_retained_lte_cohort_size():
+    cohort = _load_cohort_module()
+    rows = cohort.generate_appsflyer_cohort("2024-11-30")
+    assert all(row["retained_users"] <= row["cohort_size"] for row in rows)
+
+
+def test_generate_cohort_deterministic():
+    cohort = _load_cohort_module()
+    date_str = "2024-11-30"
+    first = cohort.generate_appsflyer_cohort(date_str)
+    second = cohort.generate_appsflyer_cohort(date_str)
+    assert first == second
