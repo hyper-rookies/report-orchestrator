@@ -38,7 +38,7 @@ export async function verifyIdToken(
     const payload = await jwtVerifier.verify(token);
     return {
       sub: payload.sub,
-      email: (payload.email as string) ?? "",
+      email: typeof payload.email === "string" ? payload.email : "",
     };
   } catch (err) {
     console.warn("JWT verification failed:", err);

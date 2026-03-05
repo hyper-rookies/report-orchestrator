@@ -200,8 +200,8 @@ export const handler =
     async (event: unknown, responseStream: NodeJS.WritableStream) => {
       const headers = (event as { headers?: Record<string, string | undefined> })?.headers ?? {};
       const authHeader = headers.authorization ?? headers.Authorization;
-      const caller = await verifyIdToken(authHeader);
-      if (!caller) {
+      const _caller = await verifyIdToken(authHeader);
+      if (!_caller) {
         const errStream = runtimeAwsLambda.awslambda!.HttpResponseStream.from(responseStream, {
           statusCode: 401,
           headers: { "Content-Type": "application/json" },
@@ -210,7 +210,6 @@ export const handler =
         errStream.end();
         return;
       }
-      void caller;
 
       const body = (event as { body?: string })?.body;
       const parsed = body
