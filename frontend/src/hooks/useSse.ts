@@ -12,7 +12,7 @@ interface UseSseResult {
   frames: SseFrame[];
   streaming: boolean;
   error: string | null;
-  ask: (question: string) => Promise<void>;
+  ask: (question: string) => Promise<SseFrame[]>;
   reset: () => void;
 }
 
@@ -66,6 +66,7 @@ export function useSse(): UseSseResult {
     async (question: string) => {
       reset();
       setStreaming(true);
+      const collected: SseFrame[] = [];
 
       const idToken = await getIdToken();
       const headers: Record<string, string> = {
@@ -105,6 +106,7 @@ export function useSse(): UseSseResult {
 
           const newFrames = parseSseChunk(toProcess);
           if (newFrames.length > 0) {
+            collected.push(...newFrames);
             setFrames((prev) => [...prev, ...newFrames]);
           }
         }
@@ -115,6 +117,7 @@ export function useSse(): UseSseResult {
       } finally {
         setStreaming(false);
       }
+      return collected;
     },
     [reset]
   );
