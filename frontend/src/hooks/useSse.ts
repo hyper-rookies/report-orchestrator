@@ -39,8 +39,8 @@ function parseSseChunk(chunk: string): SseFrame[] {
     if (!typeLine || !dataLine) continue;
     try {
       frames.push({
-        type: typeLine.replace("event: ", "").trim(),
-        data: JSON.parse(dataLine.replace("data: ", "").trim()),
+        type: typeLine.slice(typeLine.indexOf(":") + 1).trim(),
+        data: JSON.parse(dataLine.slice(dataLine.indexOf(":") + 1).trim()),
       });
     } catch {
       // malformed frame - skip
