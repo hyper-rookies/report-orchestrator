@@ -7,7 +7,12 @@ from datetime import datetime, timedelta
 from typing import Callable
 
 import boto3
+from botocore.exceptions import ClientError
 
+from mock_generators.appsflyer import (
+    generate_appsflyer_events,
+    generate_appsflyer_installs,
+)
 from mock_generators.ga4 import generate_ga4_acquisition, generate_ga4_engagement
 
 
@@ -43,18 +48,22 @@ def _register_partition(
     target_date: str,
 ) -> None:
     location = f"s3://{bucket}/raw/{dataset_name}/dt={target_date}/"
-    glue_client.batch_create_partition(
-        DatabaseName=DATABASE_NAME,
-        TableName=dataset_name,
-        PartitionInputList=[
-            {
-                "Values": [target_date],
-                "StorageDescriptor": {
-                    "Location": location,
-                },
-            }
-        ],
-    )
+    try:
+        glue_client.batch_create_partition(
+            DatabaseName=DATABASE_NAME,
+            TableName=dataset_name,
+            PartitionInputList=[
+                {
+                    "Values": [target_date],
+                    "StorageDescriptor": {
+                        "Location": location,
+                    },
+                }
+            ],
+        )
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "AlreadyExistsException":
+            raise
 
 
 def lambda_handler(event, context):  # noqa: ARG001
@@ -71,6 +80,8 @@ def lambda_handler(event, context):  # noqa: ARG001
     generators: dict[str, Callable[[str], list[dict]]] = {
         "ga4_acquisition_daily": generate_ga4_acquisition,
         "ga4_engagement_daily": generate_ga4_engagement,
+        "appsflyer_installs_daily": generate_appsflyer_installs,
+        "appsflyer_events_daily": generate_appsflyer_events,
     }
 
     datasets: list[str] = []
@@ -96,4 +107,3 @@ def lambda_handler(event, context):  # noqa: ARG001
         "dates": [target_date],
         "datasets": datasets,
     }
-
