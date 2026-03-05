@@ -138,10 +138,14 @@ export async function* buildSseEvents(
 
     // Agent completed without ever emitting query results — report is incomplete.
     if (!tableEmitted) {
+      const code = agentSummary ? "UNSUPPORTED_METRIC" : "NO_DATA";
+      const message = agentSummary
+        ? `Agent responded without querying data: ${agentSummary.slice(0, 200)}`
+        : "Agent completed without returning query results.";
       yield formatSseEvent("error", {
         version: "v1",
-        code: "NO_DATA",
-        message: "Agent completed without returning query results.",
+        code,
+        message,
         retryable: false,
       });
       return;
