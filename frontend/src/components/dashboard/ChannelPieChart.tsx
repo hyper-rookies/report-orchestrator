@@ -14,7 +14,7 @@ const COLORS = [
 
 export default function ChannelPieChart({ data }: { data: ChannelShare[] }) {
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    <ResponsiveContainer width="100%" height={260}>
       <PieChart>
         <Pie
           data={data}
@@ -22,7 +22,7 @@ export default function ChannelPieChart({ data }: { data: ChannelShare[] }) {
           nameKey="name"
           cx="50%"
           cy="50%"
-          outerRadius={80}
+          outerRadius={70}
           label={({ name, value }) => `${name} ${value}%`}
           labelLine={false}
         >
