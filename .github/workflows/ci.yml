@@ -39,8 +39,10 @@ jobs:
           elif [ -f "requirements.txt" ]; then
             pip install -r requirements.txt
           else
-            echo "No pyproject.toml or requirements.txt in $PWD" && exit 1
+            echo "No top-level pyproject.toml or requirements.txt — skipping"
           fi
+          # Install per-service dependencies
+          find services -name "requirements.txt" | xargs -I{} pip install -r {}
 
       - name: Preflight checks
         run: bash scripts/preflight_ci.sh
@@ -82,3 +84,36 @@ jobs:
 
       - name: Type check
         run: npm run build
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (type-check)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: placeholder
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: placeholder
+          NEXT_PUBLIC_SSE_URL: https://placeholder.example.com/
+          NEXT_PUBLIC_USE_MOCK_AUTH: "true"
