@@ -31,8 +31,12 @@ secrets/
 # Logs
 # =========================
 logs/
-docs/plans/
 *.log
+
+# =========================
+# Docs (로컬 문서 — 저장소 추적 불필요)
+# =========================
+docs/
 
 # =========================
 # OS
@@ -74,6 +78,8 @@ tmp/
 
 !backend/services/report-orchestrator-lambda/src/shared/catalog_discovered.json
 !backend/services/report-orchestrator-lambda/src/shared/reporting_policy.json
+!backend/services/query-lambda/catalog_discovered.json
+!backend/services/query-lambda/reporting_policy.json
 !backend/services/report-orchestrator-lambda/package.json
 !backend/services/report-orchestrator-lambda/package-lock.json
 !backend/services/report-orchestrator-lambda/tsconfig.json

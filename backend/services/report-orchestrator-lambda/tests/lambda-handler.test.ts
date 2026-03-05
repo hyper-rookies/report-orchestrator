@@ -157,3 +157,37 @@ test("chunk text is accumulated in final.agentSummary", async () => {
   const final = frames.find((f) => f.type === "final");
   expect(final?.data.agentSummary).toBe("Here are your results.");
 });
+
+test("returnControl without auto-approve emits APPROVAL_REQUIRED", async () => {
+  const frames = await collect("q", [
+    { type: "returnControl", invocationId: "inv-1", inputCount: 1 },
+  ]);
+  const error = frames.find((f) => f.type === "error");
+  expect(error?.data.code).toBe("APPROVAL_REQUIRED");
+  expect(frames.map((f) => f.type)).not.toContain("final");
+});
+
+test("returnControl with auto-approve emits approval progress and succeeds", async () => {
+  const mockClient: IBedrockAgentClient = {
+    async *stream() {
+      yield { type: "returnControl", invocationId: "inv-1", inputCount: 1 };
+      yield {
+        type: "actionGroupOutput",
+        actionGroup: "query",
+        output: JSON.stringify({ rows: [{ a: 1 }], rowCount: 1, truncated: false }),
+      };
+    },
+  };
+  const frames: Array<{ type: string; data: Record<string, unknown> }> = [];
+  for await (const raw of buildSseEvents("q", "rpt-auto-000000", mockClient, true)) {
+    const lines = raw.trimEnd().split("\n");
+    frames.push({
+      type: lines[0].replace("event: ", ""),
+      data: JSON.parse(lines[1].replace("data: ", "")) as Record<string, unknown>,
+    });
+  }
+  expect(
+    frames.find((f) => f.type === "progress" && f.data.step === "approval")?.data.message
+  ).toBe("Auto-approved 1 action(s).");
+  expect(frames.map((f) => f.type)).toContain("final");
+});

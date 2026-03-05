@@ -25,7 +25,8 @@ function getClient(): IBedrockAgentClient {
 export async function* buildSseEvents(
   question: string,
   reportId: string,
-  client: IBedrockAgentClient
+  client: IBedrockAgentClient,
+  autoApproveActions = false
 ): AsyncGenerator<string> {
   // meta - always first, unconditional
   yield formatSseEvent("meta", {
@@ -59,6 +60,7 @@ export async function* buildSseEvents(
       agentAliasId: AGENT_ALIAS_ID,
       sessionId,
       inputText: question,
+      autoApproveActions,
     })) {
       if (agentEvent.type === "chunk") {
         agentSummary += agentEvent.text;
@@ -71,6 +73,26 @@ export async function* buildSseEvents(
           step: stepLabel,
           message: `Agent: ${agentEvent.step}`,
         });
+      }
+
+      if (agentEvent.type === "returnControl") {
+        yield formatSseEvent("progress", {
+          version: "v1",
+          step: "approval",
+          message: autoApproveActions
+            ? `Auto-approved ${agentEvent.inputCount} action(s).`
+            : `Approval required for ${agentEvent.inputCount} action(s).`,
+        });
+
+        if (!autoApproveActions) {
+          yield formatSseEvent("error", {
+            version: "v1",
+            code: "APPROVAL_REQUIRED",
+            message: "Agent requested approval before executing an action.",
+            retryable: false,
+          });
+          return;
+        }
       }
 
       if (agentEvent.type === "actionGroupOutput") {
@@ -173,9 +195,10 @@ export const handler =
     async (event: unknown, responseStream: NodeJS.WritableStream) => {
       const body = (event as { body?: string })?.body;
       const parsed = body
-        ? (JSON.parse(body) as { question?: string })
-        : (event as { question?: string });
+        ? (JSON.parse(body) as { question?: string; autoApproveActions?: boolean })
+        : (event as { question?: string; autoApproveActions?: boolean });
       const question: string = parsed?.question ?? "";
+      const autoApproveActions = parsed?.autoApproveActions === true;
 
       const httpStream = runtimeAwsLambda.awslambda!.HttpResponseStream.from(responseStream, {
         statusCode: 200,
@@ -187,7 +210,12 @@ export const handler =
       });
 
       const reportId = generateReportId();
-      for await (const chunk of buildSseEvents(question, reportId, getClient())) {
+      for await (const chunk of buildSseEvents(
+        question,
+        reportId,
+        getClient(),
+        autoApproveActions
+      )) {
         httpStream.write(chunk);
       }
       httpStream.end();

@@ -1,0 +1,90 @@
+{
+  "_meta": {
+    "note": "HAND-MANAGED — edit intentionally. Controls what the LLM may query.",
+    "schema_version": "v1",
+    "phase": "Phase 1"
+  },
+
+  "allowed_views": [
+    "v_latest_appsflyer_installs_daily",
+    "v_latest_appsflyer_events_daily",
+    "v_latest_ga4_acquisition_daily",
+    "v_latest_ga4_engagement_daily"
+  ],
+
+  "denied_columns_global": {
+    "reason": "Internal versioning / view implementation details. Must never appear in SELECT, GROUP BY, WHERE, or LLM output.",
+    "columns": ["_run_rank", "run_id"]
+  },
+
+  "date_filter_policy": {
+    "column": "dt",
+    "required": true,
+    "format": "YYYY-MM-DD",
+    "max_lookback_days": 90,
+    "note": "dt MUST always appear in WHERE; orchestrator injects it automatically. LLM must not construct free-form dt predicates."
+  },
+
+  "dimensions": {
+    "v_latest_ga4_acquisition_daily": {
+      "allowed": ["channel_group", "source", "medium"],
+      "phase_deferred": []
+    },
+    "v_latest_ga4_engagement_daily": {
+      "allowed": ["channel_group", "source", "medium"],
+      "phase_deferred": []
+    },
+    "v_latest_appsflyer_installs_daily": {
+      "allowed": ["media_source", "campaign", "store_reinstall"],
+      "phase_deferred": ["keyword", "adset", "ad", "channel", "app_version", "campaign_type", "match_type"],
+      "note_store_reinstall": "Primary guardrail for installs_new_like KPI. Value is string 'true'/'false', not boolean."
+    },
+    "v_latest_appsflyer_events_daily": {
+      "allowed": ["media_source", "campaign", "event_name", "store_reinstall"],
+      "phase_deferred": ["keyword", "adset", "ad", "channel", "app_version", "campaign_type", "match_type"]
+    }
+  },
+
+  "metrics": {
+    "v_latest_ga4_acquisition_daily": {
+      "allowed": ["sessions", "total_users", "conversions", "total_revenue"]
+    },
+    "v_latest_ga4_engagement_daily": {
+      "allowed": ["engagement_rate", "bounce_rate"]
+    },
+    "v_latest_appsflyer_installs_daily": {
+      "allowed": ["installs"],
+      "derived": {
+        "installs_new_like": {
+          "definition": "COUNT(*) WHERE store_reinstall != 'true'",
+          "note": "Orchestrator injects this as a WHERE filter, not a column reference."
+        }
+      }
+    },
+    "v_latest_appsflyer_events_daily": {
+      "allowed": ["event_count", "event_revenue"]
+    }
+  },
+
+  "query_constraints": {
+    "max_output_rows": 500,
+    "aggregation_required": true,
+    "note": "LLM must always produce a GROUP BY query. Raw row-level SELECT is not permitted.",
+    "llm_output_format": "QueryPlan JSON only — LLM must NEVER output raw SQL strings directly."
+  },
+
+  "pii_flags": {
+    "note": "Curated layer contains no user-level identifiers (data is pre-aggregated by CTAS GROUP BY). These flags exist as a future reference.",
+    "potentially_sensitive": [],
+    "confirmed_safe": ["media_source", "campaign", "keyword", "adset", "ad", "channel", "app_version", "campaign_type", "match_type", "store_reinstall", "event_name", "channel_group", "source", "medium"]
+  },
+
+  "allowlist_enforcement_strategy": {
+    "step_1": "Validate requested view against allowed_views",
+    "step_2": "Validate all GROUP BY columns against dimensions.allowed for that view",
+    "step_3": "Validate all SELECT expressions against metrics.allowed or derived",
+    "step_4": "Inject dt WHERE predicate automatically (no LLM control)",
+    "step_5": "Strip any column in denied_columns_global before executing",
+    "step_6": "Enforce max_output_rows via LIMIT injection"
+  }
+}

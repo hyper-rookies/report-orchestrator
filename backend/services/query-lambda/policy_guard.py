@@ -12,9 +12,7 @@ DATABASE_NAME = "hyper_intern_m1c"
 ALLOWED_FILTER_OPS = {"=", "!=", ">", "<", ">=", "<=", "LIKE", "IN"}
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DML_PATTERN = re.compile(r"\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE|CREATE|ALTER)\b", re.IGNORECASE)
-SHARED_DIR = (
-    Path(__file__).resolve().parent.parent / "report-orchestrator-lambda" / "src" / "shared"
-)
+SHARED_DIR = Path(__file__).resolve().parent
 
 
 class QueryError(Exception):
