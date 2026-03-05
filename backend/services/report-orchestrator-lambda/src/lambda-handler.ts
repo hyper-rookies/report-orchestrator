@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { BedrockAgentClient, IBedrockAgentClient } from "./bedrock-agent-client";
+import { verifyIdToken } from "./auth";
 import { formatSseEvent, generateReportId, utcNow } from "./sse-formatter";
 
 const AGENT_ID = process.env.BEDROCK_AGENT_ID ?? "";
@@ -197,6 +198,20 @@ const streamifyResponse =
 export const handler =
   streamifyResponse?.(
     async (event: unknown, responseStream: NodeJS.WritableStream) => {
+      const headers = (event as { headers?: Record<string, string | undefined> })?.headers ?? {};
+      const authHeader = headers.authorization ?? headers.Authorization;
+      const caller = await verifyIdToken(authHeader);
+      if (!caller) {
+        const errStream = runtimeAwsLambda.awslambda!.HttpResponseStream.from(responseStream, {
+          statusCode: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+        errStream.write(JSON.stringify({ error: "Unauthorized" }));
+        errStream.end();
+        return;
+      }
+      void caller;
+
       const body = (event as { body?: string })?.body;
       const parsed = body
         ? (JSON.parse(body) as { question?: string; autoApproveActions?: boolean })
