@@ -19,6 +19,15 @@ from mock_generators.ga4 import generate_ga4_acquisition, generate_ga4_engagemen
 
 DATABASE_NAME = "hyper_intern_m1c"
 
+# Glue LOCATION이 기본 raw/{name}/ 패턴과 다른 데이터셋의 S3 prefix 재정의
+S3_PREFIX_OVERRIDES: dict[str, str] = {
+    "appsflyer_cohort_daily": "raw/source=appsflyer/report=appsflyer_cohort_daily",
+}
+
+
+def _s3_prefix(dataset_name: str) -> str:
+    return S3_PREFIX_OVERRIDES.get(dataset_name, f"raw/{dataset_name}")
+
 
 def _to_jsonl_gz(rows: list[dict]) -> bytes:
     payload = "\n".join(json.dumps(row, ensure_ascii=False) for row in rows).encode("utf-8")
@@ -32,7 +41,7 @@ def _upload_dataset(
     target_date: str,
     rows: list[dict],
 ) -> str:
-    key = f"raw/{dataset_name}/dt={target_date}/data.jsonl.gz"
+    key = f"{_s3_prefix(dataset_name)}/dt={target_date}/data.jsonl.gz"
     s3_client.put_object(
         Bucket=bucket,
         Key=key,
@@ -48,7 +57,7 @@ def _register_partition(
     bucket: str,
     target_date: str,
 ) -> None:
-    location = f"s3://{bucket}/raw/{dataset_name}/dt={target_date}/"
+    location = f"s3://{bucket}/{_s3_prefix(dataset_name)}/dt={target_date}/"
     try:
         glue_client.batch_create_partition(
             DatabaseName=DATABASE_NAME,

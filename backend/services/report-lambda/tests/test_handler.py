@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +15,6 @@ import jwt  # noqa: E402 - must come after env var setup
 
 from handler import (  # noqa: E402
     _build_queries,
-    _generate_weekly_report,
     _get_report,
     lambda_handler,
 )
