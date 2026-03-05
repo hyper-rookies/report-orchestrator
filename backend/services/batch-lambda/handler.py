@@ -3,7 +3,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 import boto3
@@ -69,11 +69,10 @@ def _register_partition(
 
 def lambda_handler(event, context):  # noqa: ARG001
     target_date = event.get("target_date") or (
-        datetime.utcnow().date() - timedelta(days=1)
+        datetime.now(timezone.utc).date() - timedelta(days=1)
     ).isoformat()
 
     data_bucket = os.environ["DATA_BUCKET"]
-    _ = os.environ.get("ATHENA_OUTPUT_S3")
 
     s3_client = boto3.client("s3")
     glue_client = boto3.client("glue")
