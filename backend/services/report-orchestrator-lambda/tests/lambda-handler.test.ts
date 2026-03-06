@@ -257,3 +257,39 @@ test("returnControl with auto-approve emits approval progress and succeeds", asy
   ).toBe("Auto-approved 1 action(s).");
   expect(frames.map((f) => f.type)).toContain("final");
 });
+
+test("SCHEMA_VIOLATION from query emits progress and does NOT terminate stream", async () => {
+  // Simulates: buildSQL called with malformed filters → SCHEMA_VIOLATION
+  // Bedrock receives the error and responds with an explanation (chunk text)
+  const frames = await collect("q", [
+    {
+      type: "actionGroupOutput",
+      actionGroup: "query",
+      output: JSON.stringify({
+        version: "v1",
+        error: {
+          code: "SCHEMA_VIOLATION",
+          message: "Each filter must be an object.",
+          retryable: false,
+          actionGroup: "query",
+        },
+      }),
+    },
+    { type: "chunk", text: "필터 형식이 올바르지 않아 조회할 수 없습니다." },
+  ]);
+
+  // 1. SCHEMA_VIOLATION must NOT appear as an SSE error event
+  expect(frames.some((f) => f.type === "error" && f.data.code === "SCHEMA_VIOLATION")).toBe(false);
+
+  // 2. A progress event must carry the error detail
+  const errorProgress = frames.find(
+    (f) => f.type === "progress" && typeof f.data.message === "string" &&
+      f.data.message.includes("Each filter must be an object.")
+  );
+  expect(errorProgress).toBeDefined();
+
+  // 3. Stream ends with UNSUPPORTED_METRIC (no table data, but agent summary present)
+  const lastFrame = frames[frames.length - 1];
+  expect(lastFrame.type).toBe("error");
+  expect(lastFrame.data.code).toBe("UNSUPPORTED_METRIC");
+});

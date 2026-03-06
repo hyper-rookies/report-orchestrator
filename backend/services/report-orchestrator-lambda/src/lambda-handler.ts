@@ -115,18 +115,35 @@ export async function* buildSseEvents(
           return;
         }
 
-        // Surface structured errors from action group Lambdas
+        // Surface structured errors from action group Lambdas.
+        // SCHEMA_VIOLATION = Bedrock sent invalid params → emit as progress and let
+        // Bedrock see the error and retry or respond naturally.
+        // All other errors (ATHENA_ERROR, UNKNOWN, DML_REJECTED …) = hard failure →
+        // terminate immediately so the user gets a clear infra error.
         if ((ag.includes("query") || ag.includes("analysis")) && parsed.error) {
           const err = parsed.error as Record<string, unknown>;
-          yield formatSseEvent("error", {
-            version: "v1",
-            code: (err.code as string) ?? "ACTION_GROUP_ERROR",
-            message:
-              (err.message as string) ??
-              `Action group "${agentEvent.actionGroup}" returned an error.`,
-            retryable: err.retryable ?? false,
-          });
-          return;
+          const errCode = (err.code as string) ?? "ACTION_GROUP_ERROR";
+          const errMessage =
+            (err.message as string) ??
+            `Action group "${agentEvent.actionGroup}" returned an error.`;
+
+          if (errCode === "SCHEMA_VIOLATION") {
+            yield formatSseEvent("progress", {
+              version: "v1",
+              step: "actionError",
+              message: `Query validation error: ${errMessage}`,
+            });
+            // Do NOT return — Bedrock will receive this error response and can
+            // retry with corrected parameters or provide a natural-language explanation.
+          } else {
+            yield formatSseEvent("error", {
+              version: "v1",
+              code: errCode,
+              message: errMessage,
+              retryable: err.retryable ?? false,
+            });
+            return;
+          }
         }
 
         if (ag.includes("query") && parsed.rows) {
