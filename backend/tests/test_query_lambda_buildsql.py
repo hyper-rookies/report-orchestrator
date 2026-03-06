@@ -102,6 +102,22 @@ def test_build_sql_accepts_proxy_event_with_dict_body():
     assert body["sql"].endswith("LIMIT 1000")
 
 
+def test_build_sql_normalizes_aggregate_metric_expressions():
+    event = _base_event()
+    event["metrics"] = ["SUM(sessions) as total_sessions", "SUM(conversions)"]
+
+    response = query_handler.lambda_handler(event, None)
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 200
+    assert body["sql"] == (
+        "SELECT channel_group, source, SUM(sessions) AS sessions, SUM(conversions) AS conversions "
+        "FROM hyper_intern_m1c.v_latest_ga4_acquisition_daily "
+        "WHERE dt BETWEEN '2026-01-01' AND '2026-01-31' "
+        "GROUP BY 1, 2 ORDER BY sessions DESC LIMIT 1000"
+    )
+
+
 # --- Task 1: _load_json errors must surface as QueryError with filename ---
 
 

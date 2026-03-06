@@ -12,6 +12,11 @@ DATABASE_NAME = "hyper_intern_m1c"
 ALLOWED_FILTER_OPS = {"=", "!=", ">", "<", ">=", "<=", "LIKE", "IN"}
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DML_PATTERN = re.compile(r"\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE|CREATE|ALTER)\b", re.IGNORECASE)
+AGGREGATE_METRIC_PATTERN = re.compile(
+    r"^(?P<func>SUM|AVG|MIN|MAX|COUNT)\s*\(\s*(?P<column>[A-Za-z_][A-Za-z0-9_]*)\s*\)"
+    r"(?:\s+AS\s+[A-Za-z_][A-Za-z0-9_]*)?$",
+    re.IGNORECASE,
+)
 SHARED_DIR = Path(__file__).resolve().parent
 
 
@@ -102,13 +107,24 @@ def _validate_selected_columns(
     for column in value:
         if not isinstance(column, str) or not column:
             raise QueryError("SCHEMA_VIOLATION", f"{field_name} must contain only strings.")
-        if column in denied_columns:
-            raise QueryError("SCHEMA_VIOLATION", f"Column '{column}' is denied.")
-        if column not in dataset_columns:
-            raise QueryError("SCHEMA_VIOLATION", f"Column '{column}' is not in catalog_discovered.")
-        if column not in allowed_columns:
-            raise QueryError("SCHEMA_VIOLATION", f"Column '{column}' is not allowed for {field_name}.")
-        normalized.append(column)
+
+        normalized_column = (
+            _normalize_metric_column(column) if field_name == "metrics" else column
+        )
+
+        if normalized_column in denied_columns:
+            raise QueryError("SCHEMA_VIOLATION", f"Column '{normalized_column}' is denied.")
+        if normalized_column not in dataset_columns:
+            raise QueryError(
+                "SCHEMA_VIOLATION",
+                f"Column '{normalized_column}' is not in catalog_discovered.",
+            )
+        if normalized_column not in allowed_columns:
+            raise QueryError(
+                "SCHEMA_VIOLATION",
+                f"Column '{normalized_column}' is not allowed for {field_name}.",
+            )
+        normalized.append(normalized_column)
     return normalized
 
 
@@ -190,3 +206,10 @@ def _load_json(filename: str) -> dict[str, Any]:
         raise QueryError("UNKNOWN", f"Configuration file '{filename}' is missing.")
     except json.JSONDecodeError:
         raise QueryError("UNKNOWN", f"Configuration file '{filename}' is invalid JSON.")
+
+
+def _normalize_metric_column(metric: str) -> str:
+    match = AGGREGATE_METRIC_PATTERN.match(metric.strip())
+    if match:
+        return match.group("column")
+    return metric
