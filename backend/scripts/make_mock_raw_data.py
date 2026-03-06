@@ -206,43 +206,43 @@ _MOCK_ROWS: dict[str, list[ReportRow]] = {
         ),
     ],
 
-    # CTAS reads: dimensions['media_source'], ['campaign'], ['is_organic']
-    #             metrics['retention_d1'], ['retention_d7'], ['retention_d30']
-    "appsflyer_retention_daily": [
+    # CTAS reads: dimensions['media_source'], ['campaign'], ['cohort_date'], ['cohort_day']
+    #             metrics['retained_users'], ['cohort_size']
+    "appsflyer_cohort_daily": [
         ReportRow(
             dimensions=[
                 DimensionValue("media_source", "Facebook Ads"),
                 DimensionValue("campaign", "spring_promo"),
-                DimensionValue("is_organic", "false"),
+                DimensionValue("cohort_date", "2024-11-01"),
+                DimensionValue("cohort_day", "7"),
             ],
             metrics=[
-                MetricValue("retention_d1", "0.41"),
-                MetricValue("retention_d7", "0.22"),
-                MetricValue("retention_d30", "0.08"),
+                MetricValue("retained_users", "82"),
+                MetricValue("cohort_size", "200"),
             ],
         ),
         ReportRow(
             dimensions=[
                 DimensionValue("media_source", "Organic"),
                 DimensionValue("campaign", ""),
-                DimensionValue("is_organic", "true"),
+                DimensionValue("cohort_date", "2024-11-01"),
+                DimensionValue("cohort_day", "7"),
             ],
             metrics=[
-                MetricValue("retention_d1", "0.55"),
-                MetricValue("retention_d7", "0.33"),
-                MetricValue("retention_d30", "0.15"),
+                MetricValue("retained_users", "132"),
+                MetricValue("cohort_size", "300"),
             ],
         ),
         ReportRow(
             dimensions=[
                 DimensionValue("media_source", "Google Ads"),
                 DimensionValue("campaign", "brand_awareness"),
-                DimensionValue("is_organic", "false"),
+                DimensionValue("cohort_date", "2024-11-01"),
+                DimensionValue("cohort_day", "7"),
             ],
             metrics=[
-                MetricValue("retention_d1", "0.38"),
-                MetricValue("retention_d7", "0.19"),
-                MetricValue("retention_d30", "0.06"),
+                MetricValue("retained_users", "60"),
+                MetricValue("cohort_size", "250"),
             ],
         ),
     ],

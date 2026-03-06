@@ -70,9 +70,9 @@ REGISTRY: dict[str, CtasDatasetSpec] = {
         source="appsflyer",
         raw_table="raw_appsflyer_events_daily",
     ),
-    "appsflyer_retention_daily": CtasDatasetSpec(
+    "appsflyer_cohort_daily": CtasDatasetSpec(
         source="appsflyer",
-        raw_table="raw_appsflyer_retention_daily",
+        raw_table="raw_appsflyer_cohort_daily",
     ),
 }
 
@@ -144,15 +144,14 @@ FROM {database}.{raw_table}
 WHERE dt = '{dt}'
 GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11""",
 
-    "appsflyer_retention_daily": """\
+    "appsflyer_cohort_daily": """\
 SELECT
   dimensions['media_source'] AS media_source,
   dimensions['campaign']     AS campaign,
-  CASE WHEN LOWER(dimensions['is_organic']) = 'true'
-       THEN TRUE ELSE FALSE END AS is_organic,
-  TRY_CAST(metrics['retention_d1']  AS DOUBLE) AS retention_d1,
-  TRY_CAST(metrics['retention_d7']  AS DOUBLE) AS retention_d7,
-  TRY_CAST(metrics['retention_d30'] AS DOUBLE) AS retention_d30
+  dimensions['cohort_date']  AS cohort_date,
+  TRY_CAST(dimensions['cohort_day']    AS BIGINT) AS cohort_day,
+  TRY_CAST(metrics['retained_users']   AS BIGINT) AS retained_users,
+  TRY_CAST(metrics['cohort_size']      AS BIGINT) AS cohort_size
 FROM {database}.{raw_table}
 WHERE dt = '{dt}'""",
 }
