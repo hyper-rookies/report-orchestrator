@@ -171,6 +171,14 @@ test("chunk text is accumulated in final.agentSummary", async () => {
   expect(final?.data.agentSummary).toBe("Here are your results.");
 });
 
+test("chunk events from agent are forwarded as SSE chunk frames", async () => {
+  const frames = await collect("test", [{ type: "chunk", text: "Here is the analysis." }]);
+  const chunkFrame = frames.find((f) => f.type === "chunk");
+  expect(chunkFrame).toBeDefined();
+  expect(chunkFrame?.data.text).toBe("Here is the analysis.");
+  expect(chunkFrame?.data.version).toBe("v1");
+});
+
 test("returnControl without auto-approve emits APPROVAL_REQUIRED", async () => {
   const frames = await collect("q", [
     { type: "returnControl", invocationId: "inv-1", inputCount: 1 },

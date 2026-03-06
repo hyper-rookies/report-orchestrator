@@ -65,6 +65,10 @@ export async function* buildSseEvents(
     })) {
       if (agentEvent.type === "chunk") {
         agentSummary += agentEvent.text;
+        yield formatSseEvent("chunk" as unknown as Parameters<typeof formatSseEvent>[0], {
+          version: "v1",
+          text: agentEvent.text,
+        });
       }
 
       if (agentEvent.type === "step") {
