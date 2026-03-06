@@ -4,7 +4,10 @@ from typing import Any
 
 
 def build_sql(validated_payload: dict[str, Any]) -> str:
-    select_columns = validated_payload["dimensions"] + validated_payload["metrics"]
+    dimensions = validated_payload["dimensions"]
+    metrics = validated_payload["metrics"]
+
+    select_columns = list(dimensions) + [_aggregate_metric(metric) for metric in metrics]
     select_clause = ", ".join(select_columns)
     where_clauses = [
         (
@@ -17,10 +20,15 @@ def build_sql(validated_payload: dict[str, Any]) -> str:
         where_clauses.append(_build_filter_clause(filter_item))
 
     where_sql = " AND ".join(where_clauses)
+    group_by_sql = f" GROUP BY {', '.join(str(idx + 1) for idx in range(len(dimensions)))}"
+    order_by_sql = f" ORDER BY {metrics[0]} DESC"
+
     return (
         f"SELECT {select_clause} "
         f"FROM {validated_payload['database']}.{validated_payload['view']} "
-        f"WHERE {where_sql} "
+        f"WHERE {where_sql}"
+        f"{group_by_sql}"
+        f"{order_by_sql} "
         f"LIMIT {validated_payload['limit']}"
     )
 
@@ -41,3 +49,9 @@ def _format_literal(value: Any) -> str:
         escaped = value.replace("'", "''")
         return f"'{escaped}'"
     return str(value)
+
+
+def _aggregate_metric(metric: str) -> str:
+    if metric.endswith("_rate"):
+        return f"AVG({metric}) AS {metric}"
+    return f"SUM({metric}) AS {metric}"

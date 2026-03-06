@@ -14,11 +14,18 @@ type ChartSpec = Parameters<typeof ReportBarChart>[0]["spec"];
 export default function AssistantMessage({ frames, streaming }: Props) {
   const progressFrames = frames.filter((f) => f.type === "progress");
   const chunkFrames = frames.filter((f) => f.type === "chunk");
-  const tableFrame = frames.find((f) => f.type === "table");
-  const chartFrame = frames.find((f) => f.type === "chart");
-  const errorFrame = frames.find((f) => f.type === "error");
+  const tableFrame = [...frames].reverse().find((f) => f.type === "table");
+  const chartFrame = [...frames].reverse().find((f) => f.type === "chart");
+  const errorFrame = [...frames].reverse().find((f) => f.type === "error");
+  const finalFrame = [...frames].reverse().find((f) => f.type === "final");
 
   const streamingText = chunkFrames.map((f) => (f.data.text as string) ?? "").join("");
+  const finalSummary =
+    ((finalFrame?.data.agentSummary as string | undefined) ??
+      (finalFrame?.data.summary as string | undefined) ??
+      "")
+      .toString()
+      .trim();
   const tableRows = ((tableFrame?.data.rows as Record<string, unknown>[] | undefined) ?? []).filter(
     (row) => typeof row === "object" && row !== null
   );
@@ -50,6 +57,7 @@ export default function AssistantMessage({ frames, streaming }: Props) {
       <div className="max-w-[85%] space-y-3">
         {streaming && progressFrames.length > 0 && <ProgressIndicator frames={progressFrames} />}
         {streamingText && <p className="whitespace-pre-wrap text-sm">{streamingText}</p>}
+        {!streamingText && finalSummary && <p className="whitespace-pre-wrap text-sm">{finalSummary}</p>}
         {tableFrame && <DataTable rows={tableRows} />}
         {chartFrame && chartSpec && chartRows.length > 0 && (
           <ReportBarChart rows={chartRows} spec={chartSpec} />

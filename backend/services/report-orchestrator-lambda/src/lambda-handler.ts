@@ -129,7 +129,7 @@ export async function* buildSseEvents(
           return;
         }
 
-        if (ag.includes("query") && parsed.rows && !tableEmitted) {
+        if (ag.includes("query") && parsed.rows) {
           tableEmitted = true;
           totalRows = (parsed.rowCount as number) ?? (parsed.rows as unknown[]).length;
           yield formatSseEvent("table", {
@@ -145,7 +145,7 @@ export async function* buildSseEvents(
           });
         }
 
-        if (ag.includes("viz") && parsed.spec && !chartEmitted) {
+        if (ag.includes("viz") && parsed.spec) {
           chartEmitted = true;
           yield formatSseEvent("chart", {
             version: "v1",

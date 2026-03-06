@@ -39,9 +39,10 @@ def test_build_sql_success_injects_dt_and_default_limit():
     assert body == {
         "version": "v1",
         "sql": (
-            "SELECT channel_group, source, sessions, conversions "
+            "SELECT channel_group, source, SUM(sessions) AS sessions, SUM(conversions) AS conversions "
             "FROM hyper_intern_m1c.v_latest_ga4_acquisition_daily "
-            "WHERE dt BETWEEN '2026-01-01' AND '2026-01-31' LIMIT 1000"
+            "WHERE dt BETWEEN '2026-01-01' AND '2026-01-31' "
+            "GROUP BY 1, 2 ORDER BY sessions DESC LIMIT 1000"
         ),
     }
 
