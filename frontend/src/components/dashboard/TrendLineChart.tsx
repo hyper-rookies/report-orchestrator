@@ -11,9 +11,11 @@ import {
   YAxis,
 } from "recharts";
 
-import { DailyTrend } from "@/lib/dashboard-data";
-
-export default function TrendLineChart({ data }: { data: DailyTrend[] }) {
+export default function TrendLineChart({
+  data,
+}: {
+  data: Array<{ date: string; sessions: number; installs: number }>;
+}) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <LineChart data={data} margin={{ top: 6, right: 12, left: 0, bottom: 6 }}>
