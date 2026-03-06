@@ -154,30 +154,30 @@ def _make_appsflyer_events_dataset() -> ReportDataset:
     return ReportDataset(source="appsflyer", rows=rows, generated_at=datetime.now(tz=timezone.utc))
 
 
-def _make_appsflyer_retention_dataset() -> ReportDataset:
+def _make_appsflyer_cohort_dataset() -> ReportDataset:
     rows = [
         ReportRow(
             dimensions=[
                 DimensionValue("media_source", "googleadwords_int"),
                 DimensionValue("campaign", "brand_search_ko"),
-                DimensionValue("is_organic", "false"),
+                DimensionValue("cohort_date", "2024-11-01"),
+                DimensionValue("cohort_day", "7"),
             ],
             metrics=[
-                MetricValue("retention_d1", 0.45),
-                MetricValue("retention_d7", 0.18),
-                MetricValue("retention_d30", 0.07),
+                MetricValue("retained_users", 90),
+                MetricValue("cohort_size", 250),
             ],
         ),
         ReportRow(
             dimensions=[
                 DimensionValue("media_source", "organic"),
                 DimensionValue("campaign", ""),
-                DimensionValue("is_organic", "true"),
+                DimensionValue("cohort_date", "2024-11-01"),
+                DimensionValue("cohort_day", "7"),
             ],
             metrics=[
-                MetricValue("retention_d1", 0.38),
-                MetricValue("retention_d7", 0.14),
-                MetricValue("retention_d30", 0.05),
+                MetricValue("retained_users", 140),
+                MetricValue("cohort_size", 350),
             ],
         ),
     ]
@@ -231,8 +231,8 @@ def main() -> None:
         },
         {
             "source": "appsflyer",
-            "dataset_id": "appsflyer_retention_daily",
-            "ds": _make_appsflyer_retention_dataset(),
+            "dataset_id": "appsflyer_cohort_daily",
+            "ds": _make_appsflyer_cohort_dataset(),
         },
     ]
 

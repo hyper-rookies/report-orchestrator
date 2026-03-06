@@ -171,11 +171,11 @@ def _handle_execute_athena_query(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(sql, str) or not sql.strip():
         raise QueryError("UNKNOWN", "sql is required and must be a non-empty string.")
 
-    timeout_seconds = payload.get("timeoutSeconds")
+    timeout_seconds = payload.get("timeoutSeconds") or 30
     if not isinstance(timeout_seconds, int) or timeout_seconds <= 0:
         raise QueryError("UNKNOWN", "timeoutSeconds must be a positive integer.")
 
-    max_rows = payload.get("maxRows")
+    max_rows = payload.get("maxRows") or 500
     if not isinstance(max_rows, int) or not (1 <= max_rows <= 10000):
         raise QueryError("UNKNOWN", "maxRows must be an integer between 1 and 10000.")
 

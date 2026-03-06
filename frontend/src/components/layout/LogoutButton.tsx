@@ -19,9 +19,13 @@ export default function LogoutButton() {
   };
 
   return (
-    <Button variant="outline" size="sm" onClick={handleClick}>
+    <Button
+      variant="outline"
+      size="sm"
+      className="border-primary/40 bg-card/90 text-primary hover:bg-accent hover:text-accent-foreground"
+      onClick={handleClick}
+    >
       로그아웃
     </Button>
   );
 }
-

@@ -42,8 +42,10 @@ export default async function SharedReportPage({
 
   if (report.error) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">{report.error}</p>
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <p className="rounded-xl border border-border/80 bg-card/95 px-4 py-3 text-muted-foreground">
+          {report.error}
+        </p>
       </div>
     );
   }
@@ -51,17 +53,17 @@ export default async function SharedReportPage({
   const createdDate = new Date(report.created_at * 1000).toLocaleDateString("ko-KR");
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
-      <div>
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+      <div className="nhn-panel px-6 py-5">
         <h1 className="text-2xl font-bold">{report.title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">생성일: {createdDate}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">읽기 전용 공유 링크</p>
       </div>
 
       {report.sections.map((section) => (
-        <Card key={section.title}>
+        <Card key={section.title} className="nhn-panel">
           <CardHeader>
-            <CardTitle className="text-base">{section.title}</CardTitle>
+            <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
           </CardHeader>
           <CardContent>
             {section.rows.length > 0 ? (
@@ -75,4 +77,3 @@ export default async function SharedReportPage({
     </div>
   );
 }
-

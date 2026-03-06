@@ -144,6 +144,51 @@ test("invalid JSON from action group emits PARSE_ERROR and no final", async () =
   expect(frames.find((f) => f.type === "error")?.data.code).toBe("PARSE_ERROR");
 });
 
+test("query action group structured error is surfaced as SSE error and stream stops", async () => {
+  const frames = await collect("q", [
+    {
+      type: "actionGroupOutput",
+      actionGroup: "query",
+      output: JSON.stringify({
+        version: "v1",
+        error: {
+          code: "ATHENA_FAILED",
+          message: "Access denied to Athena output bucket.",
+          retryable: false,
+          actionGroup: "query",
+        },
+      }),
+    },
+  ]);
+  const types = frames.map((f) => f.type);
+  const error = frames.find((f) => f.type === "error");
+  expect(types[0]).toBe("meta");
+  expect(types[types.length - 1]).toBe("error");
+  expect(types).not.toContain("final");
+  expect(error?.data.code).toBe("ATHENA_FAILED");
+});
+
+test("analysis action group structured error forwards code and message", async () => {
+  const frames = await collect("q", [
+    {
+      type: "actionGroupOutput",
+      actionGroup: "analysis",
+      output: JSON.stringify({
+        version: "v1",
+        error: {
+          code: "DELTA_INVALID_INPUT",
+          message: "baseline and comparison dimensions mismatch",
+          retryable: false,
+          actionGroup: "analysis",
+        },
+      }),
+    },
+  ]);
+  const error = frames.find((f) => f.type === "error");
+  expect(error?.data.code).toBe("DELTA_INVALID_INPUT");
+  expect(error?.data.message).toBe("baseline and comparison dimensions mismatch");
+});
+
 test("stream with no table data and no agent summary emits NO_DATA error and no final", async () => {
   const frames = await collect("q", []);
   const types = frames.map((f) => f.type);
@@ -169,6 +214,14 @@ test("chunk text is accumulated in final.agentSummary", async () => {
   const frames = await collect("q", FULL_MOCK_EVENTS);
   const final = frames.find((f) => f.type === "final");
   expect(final?.data.agentSummary).toBe("Here are your results.");
+});
+
+test("chunk events from agent are forwarded as SSE chunk frames", async () => {
+  const frames = await collect("test", [{ type: "chunk", text: "Here is the analysis." }]);
+  const chunkFrame = frames.find((f) => f.type === "chunk");
+  expect(chunkFrame).toBeDefined();
+  expect(chunkFrame?.data.text).toBe("Here is the analysis.");
+  expect(chunkFrame?.data.version).toBe("v1");
 });
 
 test("returnControl without auto-approve emits APPROVAL_REQUIRED", async () => {
@@ -203,4 +256,40 @@ test("returnControl with auto-approve emits approval progress and succeeds", asy
     frames.find((f) => f.type === "progress" && f.data.step === "approval")?.data.message
   ).toBe("Auto-approved 1 action(s).");
   expect(frames.map((f) => f.type)).toContain("final");
+});
+
+test("SCHEMA_VIOLATION from query emits progress and does NOT terminate stream", async () => {
+  // Simulates: buildSQL called with malformed filters → SCHEMA_VIOLATION
+  // Bedrock receives the error and responds with an explanation (chunk text)
+  const frames = await collect("q", [
+    {
+      type: "actionGroupOutput",
+      actionGroup: "query",
+      output: JSON.stringify({
+        version: "v1",
+        error: {
+          code: "SCHEMA_VIOLATION",
+          message: "Each filter must be an object.",
+          retryable: false,
+          actionGroup: "query",
+        },
+      }),
+    },
+    { type: "chunk", text: "필터 형식이 올바르지 않아 조회할 수 없습니다." },
+  ]);
+
+  // 1. SCHEMA_VIOLATION must NOT appear as an SSE error event
+  expect(frames.some((f) => f.type === "error" && f.data.code === "SCHEMA_VIOLATION")).toBe(false);
+
+  // 2. A progress event must carry the error detail
+  const errorProgress = frames.find(
+    (f) => f.type === "progress" && typeof f.data.message === "string" &&
+      f.data.message.includes("Each filter must be an object.")
+  );
+  expect(errorProgress).toBeDefined();
+
+  // 3. Stream ends with UNSUPPORTED_METRIC (no table data, but agent summary present)
+  const lastFrame = frames[frames.length - 1];
+  expect(lastFrame.type).toBe("error");
+  expect(lastFrame.data.code).toBe("UNSUPPORTED_METRIC");
 });

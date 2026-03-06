@@ -31,16 +31,22 @@ async function getIdToken(): Promise<string | null> {
 
 function parseSseChunk(chunk: string): SseFrame[] {
   const frames: SseFrame[] = [];
-  const events = chunk.split("\n\n").filter(Boolean);
+  const normalized = chunk.replace(/\r\n/g, "\n");
+  const events = normalized.split(/\n{2,}/).filter(Boolean);
   for (const event of events) {
     const lines = event.split("\n");
     const typeLine = lines.find((l) => l.startsWith("event:"));
-    const dataLine = lines.find((l) => l.startsWith("data:"));
-    if (!typeLine || !dataLine) continue;
+    const dataLines = lines.filter((l) => l.startsWith("data:"));
+    if (!typeLine || dataLines.length === 0) continue;
     try {
       frames.push({
         type: typeLine.slice(typeLine.indexOf(":") + 1).trim(),
-        data: JSON.parse(dataLine.slice(dataLine.indexOf(":") + 1).trim()),
+        data: JSON.parse(
+          dataLines
+            .map((line) => line.slice(line.indexOf(":") + 1).trimStart())
+            .join("\n")
+            .trim()
+        ),
       });
     } catch {
       // malformed frame - skip
@@ -81,7 +87,7 @@ export function useSse(): UseSseResult {
         const res = await fetch(SSE_URL, {
           method: "POST",
           headers,
-          body: JSON.stringify({ question }),
+          body: JSON.stringify({ question, autoApproveActions: true }),
           signal: controller.signal,
         });
 
@@ -97,6 +103,7 @@ export function useSse(): UseSseResult {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
+          buffer = buffer.replace(/\r\n/g, "\n");
 
           const lastDoubleNewline = buffer.lastIndexOf("\n\n");
           if (lastDoubleNewline === -1) continue;
@@ -110,9 +117,29 @@ export function useSse(): UseSseResult {
             setFrames((prev) => [...prev, ...newFrames]);
           }
         }
+
+        if (buffer.trim().length > 0) {
+          const trailingFrames = parseSseChunk(buffer);
+          if (trailingFrames.length > 0) {
+            collected.push(...trailingFrames);
+            setFrames((prev) => [...prev, ...trailingFrames]);
+          }
+        }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
-          setError((err as Error).message);
+          const message = (err as Error).message;
+          setError(message);
+          const errorFrame: SseFrame = {
+            type: "error",
+            data: {
+              version: "v1",
+              code: "FETCH_ERROR",
+              message,
+              retryable: false,
+            },
+          };
+          collected.push(errorFrame);
+          setFrames((prev) => [...prev, errorFrame]);
         }
       } finally {
         setStreaming(false);

@@ -93,10 +93,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Card className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <Card className="nhn-panel w-full max-w-md py-5">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">AI 리포트</CardTitle>
+          <p className="text-xs font-semibold tracking-[0.18em] text-primary/80">NHN AD</p>
+          <CardTitle className="mt-2 text-2xl">AI 리포트</CardTitle>
           <CardDescription>마케팅 데이터 AI 분석 서비스</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -128,7 +129,7 @@ export default function LoginPage() {
               </form>
               <p className="text-center text-sm text-muted-foreground">
                 계정이 없나요?{" "}
-                <Link href="/signup" className="font-medium text-foreground underline">
+                <Link href="/signup" className="font-medium text-primary underline underline-offset-4">
                   회원가입
                 </Link>
               </p>
@@ -142,13 +143,13 @@ export default function LoginPage() {
           </Tabs>
 
           {USE_MOCK_AUTH && (
-            <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-700">
+            <p className="rounded-lg border border-[#EBB528]/40 bg-[#EBB528]/15 p-2 text-xs text-foreground">
               현재 mock auth 모드입니다. 실제 Cognito 인증 없이 메인 화면으로 이동합니다.
             </p>
           )}
 
           {error && (
-            <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
               {error}
             </p>
           )}

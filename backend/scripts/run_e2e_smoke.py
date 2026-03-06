@@ -127,13 +127,13 @@ _CURATED_SCHEMAS: dict[str, str] = {
         "  event_count     BIGINT,\n"
         "  event_revenue   DOUBLE"
     ),
-    "appsflyer_retention_daily": (
-        "  media_source  STRING,\n"
-        "  campaign      STRING,\n"
-        "  is_organic    BOOLEAN,\n"
-        "  retention_d1  DOUBLE,\n"
-        "  retention_d7  DOUBLE,\n"
-        "  retention_d30 DOUBLE"
+    "appsflyer_cohort_daily": (
+        "  media_source    STRING,\n"
+        "  campaign        STRING,\n"
+        "  cohort_date     STRING,\n"
+        "  cohort_day      BIGINT,\n"
+        "  retained_users  BIGINT,\n"
+        "  cohort_size     BIGINT"
     ),
 }
 
