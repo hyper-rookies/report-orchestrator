@@ -107,10 +107,11 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <Card className="nhn-panel w-full max-w-md py-5">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">회원가입</CardTitle>
+          <p className="text-xs font-semibold tracking-[0.18em] text-primary/80">NHN AD</p>
+          <CardTitle className="mt-2 text-2xl">회원가입</CardTitle>
           <CardDescription>
             {step === 1 ? "이메일 계정을 생성합니다." : "이메일 인증 코드를 입력해 주세요."}
           </CardDescription>
@@ -176,13 +177,13 @@ export default function SignupPage() {
           )}
 
           {USE_MOCK_AUTH && (
-            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-700">
+            <p className="mt-3 rounded-lg border border-[#EBB528]/40 bg-[#EBB528]/15 p-2 text-xs text-foreground">
               현재 mock auth 모드입니다. 실제 회원가입/인증 요청은 전송되지 않습니다.
             </p>
           )}
 
           {error && (
-            <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
+            <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
               {error}
             </p>
           )}

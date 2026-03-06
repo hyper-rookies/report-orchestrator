@@ -54,15 +54,21 @@ export default function AssistantMessage({ frames, streaming }: Props) {
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[85%] space-y-3">
+      <div className="nhn-panel max-w-[88%] space-y-3 px-4 py-3">
         {streaming && progressFrames.length > 0 && <ProgressIndicator frames={progressFrames} />}
-        {streamingText && <p className="whitespace-pre-wrap text-sm">{streamingText}</p>}
-        {!streamingText && finalSummary && <p className="whitespace-pre-wrap text-sm">{finalSummary}</p>}
+        {streamingText && <p className="whitespace-pre-wrap text-sm leading-6">{streamingText}</p>}
+        {!streamingText && finalSummary && (
+          <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{finalSummary}</p>
+        )}
         {tableFrame && <DataTable rows={tableRows} />}
         {chartFrame && chartSpec && chartRows.length > 0 && (
           <ReportBarChart rows={chartRows} spec={chartSpec} />
         )}
-        {errorFrame && <p className="text-sm text-destructive">{errorFrame.data.message as string}</p>}
+        {errorFrame && (
+          <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {errorFrame.data.message as string}
+          </p>
+        )}
       </div>
     </div>
   );

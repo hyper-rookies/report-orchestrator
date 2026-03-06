@@ -21,12 +21,12 @@ export default function ProgressIndicator({ frames }: Props) {
   const label = STEP_LABELS[step] ?? (latest?.data.message as string) ?? "처리 중";
 
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="flex items-center gap-2 rounded-lg bg-muted/70 px-2.5 py-1.5 text-sm text-muted-foreground">
       <div className="flex items-end gap-0.5 pb-0.5">
         {[0, 1, 2].map((i) => (
           <span
             key={i}
-            className="inline-block h-1.5 w-1.5 rounded-full bg-primary animate-bounce"
+            className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-primary"
             style={{ animationDelay: `${i * 160}ms`, animationDuration: "0.8s" }}
           />
         ))}

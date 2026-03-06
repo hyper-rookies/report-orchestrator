@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   Bar,
@@ -55,23 +55,38 @@ export default function ReportBarChart(props: Props) {
   }
 
   return (
-    <div className="space-y-1">
-      {normalized.title && <p className="text-sm font-medium">{normalized.title}</p>}
-      <ResponsiveContainer width="100%" height={240}>
-        <BarChart data={normalized.data} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey={normalized.xAxis} tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} />
-          <Tooltip />
+    <div className="space-y-2 rounded-xl border border-border/90 bg-background p-3 shadow-[0_12px_30px_-22px_rgba(25,25,25,0.45)]">
+      {normalized.title && <p className="text-sm font-semibold text-foreground">{normalized.title}</p>}
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={normalized.data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis
+            dataKey={normalized.xAxis}
+            tick={{ fontSize: 11, fill: "var(--foreground)" }}
+            tickLine={{ stroke: "var(--border)" }}
+            axisLine={{ stroke: "var(--border)" }}
+          />
+          <YAxis
+            tick={{ fontSize: 11, fill: "var(--foreground)" }}
+            tickLine={{ stroke: "var(--border)" }}
+            axisLine={{ stroke: "var(--border)" }}
+          />
+          <Tooltip
+            contentStyle={{
+              borderRadius: 12,
+              border: "1px solid var(--border)",
+              background: "var(--card)",
+              color: "var(--foreground)",
+            }}
+          />
           <Bar
             dataKey={firstSeries.dataKey}
             name={firstSeries.label ?? firstSeries.dataKey}
-            fill="var(--chart-1)"
-            radius={[3, 3, 0, 0]}
+            fill="var(--chart-3)"
+            radius={[4, 4, 0, 0]}
           />
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
 }
-
