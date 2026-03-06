@@ -5,14 +5,21 @@ import { useRouter } from "next/navigation";
 import { confirmSignUp, resendSignUpCode, signUp } from "aws-amplify/auth";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+
+const USE_MOCK_AUTH = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
+const USER_POOL_ID = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID ?? "";
+const CLIENT_ID = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID ?? "";
+
+function isConfigured(value: string): boolean {
+  if (!value) return false;
+  if (value.includes("XXXXX")) return false;
+  if (value.includes("YOUR_")) return false;
+  return true;
+}
+
+const HAS_CORE_AUTH_CONFIG = isConfigured(USER_POOL_ID) && isConfigured(CLIENT_ID);
 
 export default function SignupPage() {
   const router = useRouter();
@@ -27,11 +34,23 @@ export default function SignupPage() {
   const handleSignUp = async (e: FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
-      setError("이메일과 비밀번호를 모두 입력해주세요.");
+      setError("이메일과 비밀번호를 모두 입력해 주세요.");
       return;
     }
     if (password !== confirmPassword) {
-      setError("비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+      setError("비밀번호와 비밀번호 확인 값이 일치하지 않습니다.");
+      return;
+    }
+
+    if (USE_MOCK_AUTH) {
+      router.push("/login");
+      return;
+    }
+
+    if (!HAS_CORE_AUTH_CONFIG) {
+      setError(
+        "Cognito 설정이 비어 있습니다. .env.local의 NEXT_PUBLIC_COGNITO_USER_POOL_ID, NEXT_PUBLIC_COGNITO_CLIENT_ID를 확인해 주세요."
+      );
       return;
     }
 
@@ -45,6 +64,7 @@ export default function SignupPage() {
           userAttributes: { email: email.trim() },
         },
       });
+
       if (result.isSignUpComplete) {
         router.push("/login");
       } else {
@@ -52,7 +72,7 @@ export default function SignupPage() {
       }
     } catch (err) {
       console.error("signUp error:", err);
-      setError("회원가입에 실패했습니다. 입력값을 확인하고 다시 시도해주세요.");
+      setError("회원가입에 실패했습니다. 비밀번호 정책 또는 User Pool 설정을 확인해 주세요.");
     } finally {
       setLoading(false);
     }
@@ -61,17 +81,26 @@ export default function SignupPage() {
   const handleConfirm = async (e: FormEvent) => {
     e.preventDefault();
     if (!code.trim()) {
-      setError("이메일 인증 코드를 입력해주세요.");
+      setError("이메일 인증 코드를 입력해 주세요.");
       return;
     }
+
+    if (USE_MOCK_AUTH) {
+      router.push("/login");
+      return;
+    }
+
     setError(null);
     setLoading(true);
     try {
-      await confirmSignUp({ username: email.trim(), confirmationCode: code.trim() });
+      await confirmSignUp({
+        username: email.trim(),
+        confirmationCode: code.trim(),
+      });
       router.push("/login");
     } catch (err) {
       console.error("confirmSignUp error:", err);
-      setError("인증 코드 확인에 실패했습니다. 코드를 다시 확인해주세요.");
+      setError("인증 코드 확인에 실패했습니다. 코드를 다시 확인해 주세요.");
     } finally {
       setLoading(false);
     }
@@ -83,7 +112,7 @@ export default function SignupPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">회원가입</CardTitle>
           <CardDescription>
-            {step === 1 ? "이메일 계정을 생성합니다." : "이메일 인증 코드를 입력해주세요."}
+            {step === 1 ? "이메일 계정을 생성합니다." : "이메일 인증 코드를 입력해 주세요."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -137,13 +166,19 @@ export default function SignupPage() {
                     await resendSignUpCode({ username: email.trim() });
                   } catch (err) {
                     console.error("resendSignUpCode error:", err);
-                    setError("코드 재발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+                    setError("코드 재발송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
                   }
                 }}
               >
                 코드 재발송
               </Button>
             </form>
+          )}
+
+          {USE_MOCK_AUTH && (
+            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-700">
+              현재 mock auth 모드입니다. 실제 회원가입/인증 요청은 전송되지 않습니다.
+            </p>
           )}
 
           {error && (
@@ -156,4 +191,3 @@ export default function SignupPage() {
     </div>
   );
 }
-

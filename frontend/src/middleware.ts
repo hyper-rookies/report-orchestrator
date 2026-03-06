@@ -14,8 +14,11 @@ export default function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasSession = Array.from(request.cookies.getAll()).some((c) =>
-    c.name.includes("CognitoIdentityServiceProvider")
+  const hasSession = Array.from(request.cookies.getAll()).some(
+    (c) =>
+      c.name.includes("CognitoIdentityServiceProvider") ||
+      c.name.includes("amplify-signin") ||
+      c.name.includes("amplify")
   );
 
   if (!hasSession) {
@@ -28,4 +31,3 @@ export default function middleware(request: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"],
 };
-

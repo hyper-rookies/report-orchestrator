@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   fetchAuthSession,
-  getCurrentUser,
   signOut as amplifySignOut,
 } from "aws-amplify/auth";
 
@@ -37,14 +36,35 @@ export function useAuth(): UseAuthResult {
 
     (async () => {
       try {
-        const [cognitoUser, session] = await Promise.all([
-          getCurrentUser(),
-          fetchAuthSession(),
-        ]);
-        setUser({ username: cognitoUser.username });
-        setIdToken(session.tokens?.idToken?.toString() ?? null);
+        const session = await fetchAuthSession();
+        const idToken = session.tokens?.idToken;
+        const accessToken = session.tokens?.accessToken;
+
+        if (!idToken || !accessToken) {
+          setUser(null);
+          setIdToken(null);
+          return;
+        }
+
+        const usernameClaim = idToken.payload["cognito:username"];
+        const emailClaim = idToken.payload.email;
+        const username =
+          typeof usernameClaim === "string"
+            ? usernameClaim
+            : typeof emailClaim === "string"
+              ? emailClaim
+              : "authenticated-user";
+
+        setUser({
+          username,
+          ...(typeof emailClaim === "string" ? { email: emailClaim } : {}),
+        });
+        setIdToken(idToken.toString());
       } catch (err) {
-        console.error("fetchAuthSession error:", err);
+        const errorName = err instanceof Error ? err.name : "";
+        if (errorName !== "UserUnAuthenticatedException") {
+          console.error("fetchAuthSession error:", err);
+        }
         setUser(null);
         setIdToken(null);
       } finally {
