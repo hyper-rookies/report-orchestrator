@@ -115,6 +115,20 @@ export async function* buildSseEvents(
           return;
         }
 
+        // Surface structured errors from action group Lambdas
+        if ((ag.includes("query") || ag.includes("analysis")) && parsed.error) {
+          const err = parsed.error as Record<string, unknown>;
+          yield formatSseEvent("error", {
+            version: "v1",
+            code: (err.code as string) ?? "ACTION_GROUP_ERROR",
+            message:
+              (err.message as string) ??
+              `Action group "${agentEvent.actionGroup}" returned an error.`,
+            retryable: err.retryable ?? false,
+          });
+          return;
+        }
+
         if (ag.includes("query") && parsed.rows && !tableEmitted) {
           tableEmitted = true;
           totalRows = (parsed.rowCount as number) ?? (parsed.rows as unknown[]).length;

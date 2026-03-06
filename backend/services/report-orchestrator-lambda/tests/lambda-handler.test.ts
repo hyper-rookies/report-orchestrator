@@ -144,6 +144,51 @@ test("invalid JSON from action group emits PARSE_ERROR and no final", async () =
   expect(frames.find((f) => f.type === "error")?.data.code).toBe("PARSE_ERROR");
 });
 
+test("query action group structured error is surfaced as SSE error and stream stops", async () => {
+  const frames = await collect("q", [
+    {
+      type: "actionGroupOutput",
+      actionGroup: "query",
+      output: JSON.stringify({
+        version: "v1",
+        error: {
+          code: "ATHENA_FAILED",
+          message: "Access denied to Athena output bucket.",
+          retryable: false,
+          actionGroup: "query",
+        },
+      }),
+    },
+  ]);
+  const types = frames.map((f) => f.type);
+  const error = frames.find((f) => f.type === "error");
+  expect(types[0]).toBe("meta");
+  expect(types[types.length - 1]).toBe("error");
+  expect(types).not.toContain("final");
+  expect(error?.data.code).toBe("ATHENA_FAILED");
+});
+
+test("analysis action group structured error forwards code and message", async () => {
+  const frames = await collect("q", [
+    {
+      type: "actionGroupOutput",
+      actionGroup: "analysis",
+      output: JSON.stringify({
+        version: "v1",
+        error: {
+          code: "DELTA_INVALID_INPUT",
+          message: "baseline and comparison dimensions mismatch",
+          retryable: false,
+          actionGroup: "analysis",
+        },
+      }),
+    },
+  ]);
+  const error = frames.find((f) => f.type === "error");
+  expect(error?.data.code).toBe("DELTA_INVALID_INPUT");
+  expect(error?.data.message).toBe("baseline and comparison dimensions mismatch");
+});
+
 test("stream with no table data and no agent summary emits NO_DATA error and no final", async () => {
   const frames = await collect("q", []);
   const types = frames.map((f) => f.type);

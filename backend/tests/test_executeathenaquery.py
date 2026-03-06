@@ -343,6 +343,46 @@ def test_handler_execute_athena_query_success():
     assert isinstance(body["truncated"], bool)
 
 
+def test_handler_execute_athena_query_missing_timeout_uses_default_30():
+    """If timeoutSeconds is omitted, handler should default to 30."""
+    event = {k: v for k, v in _execute_event().items() if k != "timeoutSeconds"}
+    result_set = _make_result_set(
+        columns=[("channel_group", "VARCHAR"), ("sessions", "BIGINT")],
+        data_rows=[["organic", "10000"]],
+    )
+
+    with unittest.mock.patch(
+        "athena_runner.run_query",
+        return_value=("qid-default-timeout", result_set),
+    ) as run_query_mock:
+        response = query_handler_v2.lambda_handler(event, None)
+
+    body = json.loads(response["body"])
+    assert response["statusCode"] == 200
+    assert body["queryExecutionId"] == "qid-default-timeout"
+    assert run_query_mock.call_args.kwargs["timeout_seconds"] == 30
+
+
+def test_handler_execute_athena_query_missing_maxrows_uses_default_500():
+    """If maxRows is omitted, handler should default to 500."""
+    event = {k: v for k, v in _execute_event().items() if k != "maxRows"}
+    result_set = _make_result_set(
+        columns=[("channel_group", "VARCHAR"), ("sessions", "BIGINT")],
+        data_rows=[["organic", "10000"]],
+    )
+
+    with unittest.mock.patch(
+        "athena_runner.run_query",
+        return_value=("qid-default-maxrows", result_set),
+    ) as run_query_mock:
+        response = query_handler_v2.lambda_handler(event, None)
+
+    body = json.loads(response["body"])
+    assert response["statusCode"] == 200
+    assert body["queryExecutionId"] == "qid-default-maxrows"
+    assert run_query_mock.call_args.kwargs["max_rows"] == 500
+
+
 def test_handler_env_defaults_for_workgroup_database_output(monkeypatch):
     """workgroup/database/outputLocation resolve from env when not in payload."""
     monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
