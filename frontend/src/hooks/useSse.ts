@@ -81,7 +81,7 @@ export function useSse(): UseSseResult {
         const res = await fetch(SSE_URL, {
           method: "POST",
           headers,
-          body: JSON.stringify({ question }),
+          body: JSON.stringify({ question, autoApproveActions: true }),
           signal: controller.signal,
         });
 
