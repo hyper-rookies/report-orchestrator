@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import os
@@ -24,18 +25,47 @@ def _parse_bedrock_array(v: str) -> list:
     bracket-stripped comma-split when strict JSON parsing fails.
     """
     try:
-        return json.loads(v)
+        parsed = json.loads(v)
+        if isinstance(parsed, list):
+            return parsed
     except (json.JSONDecodeError, ValueError):
-        stripped = v.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            inner = stripped[1:-1]
-            return [item.strip() for item in inner.split(",") if item.strip()]
-        return [v]
+        pass
+
+    try:
+        parsed = ast.literal_eval(v)
+        if isinstance(parsed, list):
+            return parsed
+    except (SyntaxError, ValueError):
+        pass
+
+    stripped = v.strip()
+    if stripped.startswith("[") and stripped.endswith("]"):
+        inner = stripped[1:-1]
+        return [item.strip() for item in inner.split(",") if item.strip()]
+    return [v]
+
+
+def _parse_bedrock_object(v: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(v)
+        if isinstance(parsed, dict):
+            return parsed
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    try:
+        parsed = ast.literal_eval(v)
+        if isinstance(parsed, dict):
+            return parsed
+    except (SyntaxError, ValueError):
+        pass
+
+    raise ValueError("Object parameter must be a JSON object.")
 
 
 _BEDROCK_TYPE_PARSERS = {
     "array": _parse_bedrock_array,
-    "object": json.loads,
+    "object": _parse_bedrock_object,
     "integer": int,
     "number": float,
     "boolean": lambda v: v.lower() == "true",

@@ -189,6 +189,26 @@ test("analysis action group structured error forwards code and message", async (
   expect(error?.data.message).toBe("baseline and comparison dimensions mismatch");
 });
 
+test("query action group lambda crash payload is surfaced as ACTION_GROUP_CRASH", async () => {
+  const frames = await collect("q", [
+    {
+      type: "actionGroupOutput",
+      actionGroup: "query",
+      output: JSON.stringify({
+        errorMessage: "Task timed out after 30.03 seconds",
+        errorType: "Sandbox.TimedOut",
+      }),
+    },
+  ]);
+  const types = frames.map((f) => f.type);
+  const error = frames.find((f) => f.type === "error");
+  expect(types[0]).toBe("meta");
+  expect(types[types.length - 1]).toBe("error");
+  expect(types).not.toContain("final");
+  expect(error?.data.code).toBe("ACTION_GROUP_CRASH");
+  expect(error?.data.message).toBe("Sandbox.TimedOut: Task timed out after 30.03 seconds");
+});
+
 test("stream with no table data and no agent summary emits NO_DATA error and no final", async () => {
   const frames = await collect("q", []);
   const types = frames.map((f) => f.type);
