@@ -173,6 +173,7 @@ export function useDashboardData(): DashboardData {
       let sessionRows: Record<string, unknown>[] = [];
       let installRows: Record<string, unknown>[] = [];
       let engagementRows: Record<string, unknown>[] = [];
+      let trendRows: Record<string, unknown>[] = [];
 
       try {
         sessionRows = await runSseQuery("24년 11월 채널별 총 세션수를 보여줘");
@@ -192,6 +193,12 @@ export function useDashboardData(): DashboardData {
         errors.push(`참여율: ${(err as Error).message}`);
       }
 
+      try {
+        trendRows = await runSseQuery("24년 11월 일자별 세션수와 설치건수 트렌드를 보여줘");
+      } catch (err) {
+        errors.push(`트렌드: ${(err as Error).message}`);
+      }
+
       const sessionsByChannel = new Map<string, number>();
       const installsBySource = new Map<string, number>();
       const trendMap = new Map<string, { sessions: number; installs: number }>();
@@ -200,26 +207,21 @@ export function useDashboardData(): DashboardData {
         const channel = String(row.channel_group ?? row.channel ?? "기타");
         const sessions = parseNumber(row.sessions);
         sessionsByChannel.set(channel, (sessionsByChannel.get(channel) ?? 0) + sessions);
-
-        const dt = normalizeDateLabel(row.dt);
-        if (dt) {
-          const curr = trendMap.get(dt) ?? { sessions: 0, installs: 0 };
-          curr.sessions += sessions;
-          trendMap.set(dt, curr);
-        }
       }
 
       for (const row of installRows) {
         const source = String(row.media_source ?? row.source ?? "기타");
         const installs = parseNumber(row.installs);
         installsBySource.set(source, (installsBySource.get(source) ?? 0) + installs);
+      }
 
+      for (const row of trendRows) {
         const dt = normalizeDateLabel(row.dt);
-        if (dt) {
-          const curr = trendMap.get(dt) ?? { sessions: 0, installs: 0 };
-          curr.installs += installs;
-          trendMap.set(dt, curr);
-        }
+        if (!dt) continue;
+        const curr = trendMap.get(dt) ?? { sessions: 0, installs: 0 };
+        curr.sessions += parseNumber(row.sessions);
+        curr.installs += parseNumber(row.installs);
+        trendMap.set(dt, curr);
       }
 
       const engagementValues: number[] = [];
