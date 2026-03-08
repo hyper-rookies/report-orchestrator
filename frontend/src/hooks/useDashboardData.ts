@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 interface DashboardData {
-  totalSessions: number;
-  totalInstalls: number;
-  avgEngagementRate: number;
+  totalSessions: number | null;
+  totalInstalls: number | null;
+  avgEngagementRate: number | null;
   channelShare: Array<{ name: string; value: number }>;
   trend: Array<{ date: string; sessions: number; installs: number }>;
   loading: boolean;
@@ -22,9 +22,9 @@ const SSE_URL = process.env.NEXT_PUBLIC_SSE_URL ?? "";
 const USE_MOCK_AUTH = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
 
 const INITIAL_DATA: DashboardData = {
-  totalSessions: 0,
-  totalInstalls: 0,
-  avgEngagementRate: 0,
+  totalSessions: null,
+  totalInstalls: null,
+  avgEngagementRate: null,
   channelShare: [],
   trend: [],
   loading: true,
@@ -168,8 +168,9 @@ export function useDashboardData(): DashboardData {
     let cancelled = false;
 
     const load = async () => {
-      const errors: string[] = [];
-
+      let sessionError: string | null = null;
+      let installError: string | null = null;
+      let engagementError: string | null = null;
       let sessionRows: Record<string, unknown>[] = [];
       let installRows: Record<string, unknown>[] = [];
       let engagementRows: Record<string, unknown>[] = [];
@@ -178,25 +179,25 @@ export function useDashboardData(): DashboardData {
       try {
         sessionRows = await runSseQuery("24년 11월 채널별 총 세션수를 보여줘");
       } catch (err) {
-        errors.push(`세션: ${(err as Error).message}`);
+        sessionError = (err as Error).message;
       }
 
       try {
         installRows = await runSseQuery("24년 11월 미디어소스별 총 설치건수를 보여줘");
       } catch (err) {
-        errors.push(`설치: ${(err as Error).message}`);
+        installError = (err as Error).message;
       }
 
       try {
         engagementRows = await runSseQuery("24년 11월 채널별 engagement_rate를 보여줘");
       } catch (err) {
-        errors.push(`참여율: ${(err as Error).message}`);
+        engagementError = (err as Error).message;
       }
 
       try {
         trendRows = await runSseQuery("24년 11월 일자별 세션수와 설치건수 트렌드를 보여줘");
-      } catch (err) {
-        errors.push(`트렌드: ${(err as Error).message}`);
+      } catch {
+        // trend silent fail, trend stays []
       }
 
       const sessionsByChannel = new Map<string, number>();
@@ -256,14 +257,20 @@ export function useDashboardData(): DashboardData {
 
       if (cancelled) return;
 
+      const errorParts = [
+        sessionError && `세션: ${sessionError}`,
+        installError && `설치: ${installError}`,
+        engagementError && `참여율: ${engagementError}`,
+      ].filter(Boolean);
+
       setData({
-        totalSessions: Math.round(totalSessions),
-        totalInstalls: Math.round(totalInstalls),
-        avgEngagementRate,
+        totalSessions: sessionError ? null : Math.round(totalSessions),
+        totalInstalls: installError ? null : Math.round(totalInstalls),
+        avgEngagementRate: engagementError ? null : avgEngagementRate,
         channelShare,
         trend,
         loading: false,
-        error: errors.length > 0 ? errors.join(" | ") : null,
+        error: errorParts.length > 0 ? (errorParts as string[]).join(" | ") : null,
       });
     };
 

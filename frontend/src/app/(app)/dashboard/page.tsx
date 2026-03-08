@@ -25,17 +25,20 @@ export default function DashboardPage() {
     error,
   } = useDashboardData();
 
-  const kpis: DashboardKpi[] = error && !loading
-    ? [
-        { label: "총 세션", value: "데이터 로드 실패" },
-        { label: "총 설치", value: "데이터 로드 실패" },
-        { label: "평균 참여율", value: "데이터 로드 실패" },
-      ]
-    : [
-        { label: "총 세션", value: formatInt(totalSessions) },
-        { label: "총 설치", value: formatInt(totalInstalls) },
-        { label: "평균 참여율", value: formatRate(avgEngagementRate) },
-      ];
+  const kpis: DashboardKpi[] = [
+    {
+      label: "총 세션",
+      value: totalSessions !== null ? formatInt(totalSessions) : "데이터 로드 실패",
+    },
+    {
+      label: "총 설치",
+      value: totalInstalls !== null ? formatInt(totalInstalls) : "데이터 로드 실패",
+    },
+    {
+      label: "평균 참여율",
+      value: avgEngagementRate !== null ? formatRate(avgEngagementRate) : "데이터 로드 실패",
+    },
+  ];
 
   return (
     <div className="flex-1 space-y-6 overflow-y-auto px-6 py-8">
