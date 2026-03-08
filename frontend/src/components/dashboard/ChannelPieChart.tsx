@@ -2,8 +2,6 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
-import { ChannelShare } from "@/lib/dashboard-data";
-
 const COLORS = [
   "var(--chart-1)",
   "var(--chart-3)",
@@ -12,7 +10,7 @@ const COLORS = [
   "var(--chart-5)",
 ];
 
-export default function ChannelPieChart({ data }: { data: ChannelShare[] }) {
+export default function ChannelPieChart({ data }: { data: Array<{ name: string; value: number }> }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
