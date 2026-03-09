@@ -2,7 +2,7 @@
   "_note": "Codex: 태스크 완료 시 status를 'done'으로, 막히면 'blocked'로 변경하라.",
   "tasks": {
     "DA-01": { "status": "done", "title": "WeekSelector + ChannelRevenueChart 컴포넌트", "completedAt": "2026-03-09T11:21:01.0417894+09:00" },
-    "DA-02": { "status": "pending", "title": "ConversionChart + CampaignInstallsChart 컴포넌트", "completedAt": null },
+    "DA-02": { "status": "done", "title": "ConversionChart + CampaignInstallsChart 컴포넌트", "completedAt": "2026-03-09T11:26:01.0020914+09:00" },
     "DA-03": { "status": "pending", "title": "InstallFunnelChart + RetentionCohortChart 컴포넌트", "completedAt": null },
     "DA-04": { "status": "pending", "title": "useDashboardData.ts 확장", "completedAt": null },
     "DA-05": { "status": "pending", "title": "dashboard/page.tsx 통합", "completedAt": null }
