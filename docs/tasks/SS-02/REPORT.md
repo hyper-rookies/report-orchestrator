@@ -1,19 +1,19 @@
 # SS-02 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-10T08:45:49.1649070+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `frontend/src/lib/sessionAuth.ts` 생성됨 (`getUserSub` export)
-- [ ] `frontend/src/app/api/sessions/route.ts` 생성됨 (GET + POST)
-- [ ] GET: Authorization 없으면 401 반환
-- [ ] POST: sessionId/title/messages 누락 시 400 반환
-- [ ] POST: index.json upsert + 세션 파일 저장 로직 포함
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `frontend/src/lib/sessionAuth.ts` created (`getUserSub` export)
+- [x] `frontend/src/app/api/sessions/route.ts` created (GET + POST)
+- [x] GET returns `401` without Authorization
+- [x] POST returns `400` when `sessionId`, `title`, or `messages` is missing
+- [x] POST includes index upsert and session file save logic
+- [x] `cd frontend && npx tsc --noEmit` passes
 
 ---
 
@@ -21,26 +21,28 @@
 
 | File | Action | Lines |
 |------|--------|-------|
-| `frontend/src/lib/sessionAuth.ts` | Created | ? |
-| `frontend/src/app/api/sessions/route.ts` | Created | ? |
+| `frontend/src/lib/sessionAuth.ts` | Created | 15 |
+| `frontend/src/app/api/sessions/route.ts` | Created | 59 |
 
 ---
 
 ## TypeScript Check
 
+```bash
+$ cd frontend
+$ cmd /c .\node_modules\.bin\tsc.cmd --noEmit --pretty false
 ```
-$ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
-```
+
+Result: passed with exit code 0 and no diagnostics.
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+None.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.
