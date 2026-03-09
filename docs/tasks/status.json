@@ -10,6 +10,6 @@
     "SC-02": { "status": "done", "title": "precompute_dashboard.py Athena 실행 + pytest", "completedAt": "2026-03-09T15:01:53.5538293+09:00" },
     "SC-03": { "status": "done", "title": "스크립트 실행 → 5개 JSON + manifest 생성", "completedAt": "2026-03-09T15:35:39.4481818+09:00" },
     "SC-04": { "status": "done", "title": "useDashboardCache.ts + page.tsx manifest 방식 교체", "completedAt": "2026-03-09T15:57:40.3937894+09:00" },
-    "SC-05": { "status": "pending", "title": "REPORT.md 작성", "completedAt": null }
+    "SC-05": { "status": "done", "title": "REPORT.md 작성", "completedAt": "2026-03-09T16:10:10.3893468+09:00" }
   }
 }
