@@ -16,6 +16,16 @@
     "SH-03": { "status": "done", "title": "public shared dashboard page", "completedAt": "2026-03-10T08:10:31.9633473+09:00" },
     "SH-04": { "status": "pending", "title": "ShareButton modal with expiry/copy", "completedAt": null },
     "SH-05": { "status": "done", "title": "PdfExportButton with html2canvas + jspdf", "completedAt": "2026-03-10T09:12:00+09:00" },
-    "SH-06": { "status": "pending", "title": "wire ShareButton + PdfExportButton into dashboard header", "completedAt": null }
+    "SH-06": { "status": "pending", "title": "wire ShareButton + PdfExportButton into dashboard header", "completedAt": null },
+    "SS-01": { "status": "done", "title": "의존성(@aws-sdk/client-s3) + sessionS3.ts + session 타입", "completedAt": "2026-03-10T08:18:04.0209542+09:00" },
+    "SS-02": { "status": "pending", "title": "GET/POST /api/sessions (목록 + 생성)", "completedAt": null },
+    "SS-03": { "status": "pending", "title": "GET/PATCH/DELETE /api/sessions/[id]", "completedAt": null },
+    "SS-04": { "status": "pending", "title": "sessionShareStore.ts + 세션 공유 API 2개", "completedAt": null },
+    "SS-05": { "status": "pending", "title": "SessionContext provider + useSessionStore", "completedAt": null },
+    "SS-06": { "status": "pending", "title": "SessionListItem 컴포넌트 (점3개 메뉴 + 우클릭)", "completedAt": null },
+    "SS-07": { "status": "pending", "title": "Sidebar 업데이트 + layout.tsx에 SessionProvider", "completedAt": null },
+    "SS-08": { "status": "pending", "title": "(app)/page.tsx 자동 저장 + sessionId URL 라우팅", "completedAt": null },
+    "SS-09": { "status": "pending", "title": "sessions/[sessionId]/page.tsx 세션 복원", "completedAt": null },
+    "SS-10": { "status": "pending", "title": "share/session/[code]/page.tsx read-only 공유 뷰", "completedAt": null }
   }
 }

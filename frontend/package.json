@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.1",
+    "@aws-sdk/client-s3": "^3.1005.0",
     "@tanstack/react-table": "^8.21.3",
     "aws-amplify": "^6.16.2",
     "class-variance-authority": "^0.7.1",
