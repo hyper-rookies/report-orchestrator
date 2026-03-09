@@ -6,6 +6,8 @@ import TrendLineChart from "@/components/dashboard/TrendLineChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
+const DEBUG_DASHBOARD = process.env.NEXT_PUBLIC_DEBUG_DASHBOARD === "true";
+
 function formatInt(value: number): string {
   return new Intl.NumberFormat("ko-KR").format(Math.max(0, Math.round(value)));
 }
@@ -23,6 +25,7 @@ export default function DashboardPage() {
     trend,
     loading,
     error,
+    debug,
   } = useDashboardData();
 
   const kpis: DashboardKpi[] = [
@@ -93,6 +96,48 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {DEBUG_DASHBOARD && (
+          <Card className="nhn-panel border-dashed">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold tracking-wide">
+                Dashboard Debug (dev-only)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              <p className="text-muted-foreground">
+                generatedAt: {debug.generatedAt ?? "N/A"}
+              </p>
+              {debug.queries.length === 0 ? (
+                <p className="text-muted-foreground">쿼리 실행 정보가 없습니다.</p>
+              ) : (
+                <div className="space-y-2">
+                  {debug.queries.map((q) => (
+                    <div key={q.key} className="rounded-md border p-2">
+                      <p>
+                        <span className="font-semibold">{q.key}</span>{" "}
+                        <span
+                          className={
+                            q.status === "ok"
+                              ? "text-[#1D8844]"
+                              : "text-destructive"
+                          }
+                        >
+                          {q.status}
+                        </span>
+                      </p>
+                      <p className="text-muted-foreground">question: {q.question}</p>
+                      <p className="text-muted-foreground">reportId: {q.reportId ?? "N/A"}</p>
+                      <p className="text-muted-foreground">lastEvent: {q.lastEvent ?? "N/A"}</p>
+                      <p className="text-muted-foreground">rowCount: {q.rowCount}</p>
+                      {q.error && <p className="text-destructive">error: {q.error}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

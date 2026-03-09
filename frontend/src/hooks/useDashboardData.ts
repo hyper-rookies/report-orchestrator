@@ -11,11 +11,29 @@ interface DashboardData {
   trend: Array<{ date: string; sessions: number; installs: number }>;
   loading: boolean;
   error: string | null;
+  debug: DashboardDebug;
 }
 
 interface SseFrame {
   type: string;
   data: Record<string, unknown>;
+}
+
+type DashboardQueryKey = "sessions" | "installs" | "engagement" | "trend";
+
+interface DashboardQueryDebug {
+  key: DashboardQueryKey;
+  question: string;
+  status: "ok" | "error";
+  reportId: string | null;
+  error: string | null;
+  rowCount: number;
+  lastEvent: string | null;
+}
+
+interface DashboardDebug {
+  generatedAt: string | null;
+  queries: DashboardQueryDebug[];
 }
 
 const SSE_URL = process.env.NEXT_PUBLIC_SSE_URL ?? "";
@@ -29,6 +47,10 @@ const INITIAL_DATA: DashboardData = {
   trend: [],
   loading: true,
   error: null,
+  debug: {
+    generatedAt: null,
+    queries: [],
+  },
 };
 
 function parseNumber(value: unknown): number {
@@ -88,24 +110,23 @@ function parseSseChunk(chunk: string): SseFrame[] {
   return frames;
 }
 
-function extractRowsFromFrames(frames: SseFrame[]): Record<string, unknown>[] | null {
-  for (const frame of frames) {
-    if (frame.type === "error") {
-      throw new Error((frame.data.message as string) ?? "SSE query failed.");
-    }
-    if (frame.type === "table") {
-      const rows = frame.data.rows;
-      if (Array.isArray(rows)) {
-        return rows as Record<string, unknown>[];
-      }
-    }
-  }
-  return null;
+interface QueryExecutionResult {
+  rows: Record<string, unknown>[];
+  debug: Omit<DashboardQueryDebug, "key" | "question">;
 }
 
-async function runSseQuery(question: string): Promise<Record<string, unknown>[]> {
+async function runSseQuery(question: string): Promise<QueryExecutionResult> {
+  const debug: Omit<DashboardQueryDebug, "key" | "question"> = {
+    status: "ok",
+    reportId: null,
+    error: null,
+    rowCount: 0,
+    lastEvent: null,
+  };
   if (!SSE_URL) {
-    throw new Error("NEXT_PUBLIC_SSE_URL is not configured.");
+    debug.status = "error";
+    debug.error = "NEXT_PUBLIC_SSE_URL is not configured.";
+    return { rows: [], debug };
   }
 
   const idToken = await getIdToken();
@@ -123,13 +144,43 @@ async function runSseQuery(question: string): Promise<Record<string, unknown>[]>
   });
 
   if (!res.ok || !res.body) {
-    throw new Error(`HTTP ${res.status}`);
+    debug.status = "error";
+    debug.error = `HTTP ${res.status}`;
+    return { rows: [], debug };
   }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let tableRows: Record<string, unknown>[] | null = null;
+
+  const processFrames = (frames: SseFrame[]): { shouldStop: boolean } => {
+    for (const frame of frames) {
+      debug.lastEvent = frame.type;
+      if (frame.type === "meta") {
+        const reportId = frame.data.reportId;
+        if (typeof reportId === "string" && reportId.trim().length > 0) {
+          debug.reportId = reportId;
+        }
+      }
+      if (frame.type === "table") {
+        const rows = frame.data.rows;
+        if (Array.isArray(rows)) {
+          tableRows = rows as Record<string, unknown>[];
+          debug.rowCount = tableRows.length;
+        }
+      }
+      if (frame.type === "error") {
+        debug.status = "error";
+        debug.error = (frame.data.message as string) ?? "SSE query failed.";
+        return { shouldStop: true };
+      }
+      if (frame.type === "final") {
+        return { shouldStop: true };
+      }
+    }
+    return { shouldStop: false };
+  };
 
   while (true) {
     const { done, value } = await reader.read();
@@ -144,21 +195,22 @@ async function runSseQuery(question: string): Promise<Record<string, unknown>[]>
     const chunk = buffer.slice(0, splitIndex + 2);
     buffer = buffer.slice(splitIndex + 2);
 
-    const extracted = extractRowsFromFrames(parseSseChunk(chunk));
-    if (extracted) {
-      tableRows = extracted;
+    const { shouldStop } = processFrames(parseSseChunk(chunk));
+    if (shouldStop) {
       break;
     }
   }
 
-  if (!tableRows && buffer.trim().length > 0) {
-    const extracted = extractRowsFromFrames(parseSseChunk(buffer));
-    if (extracted) {
-      tableRows = extracted;
-    }
+  if (buffer.trim().length > 0) {
+    processFrames(parseSseChunk(buffer));
   }
 
-  return tableRows ?? [];
+  if (!tableRows && debug.status === "ok") {
+    debug.status = "error";
+    debug.error = "No table data returned.";
+  }
+
+  return { rows: tableRows ?? [], debug };
 }
 
 export function useDashboardData(): DashboardData {
@@ -171,33 +223,90 @@ export function useDashboardData(): DashboardData {
       let sessionError: string | null = null;
       let installError: string | null = null;
       let engagementError: string | null = null;
+      const debugQueries: DashboardQueryDebug[] = [];
       let sessionRows: Record<string, unknown>[] = [];
       let installRows: Record<string, unknown>[] = [];
       let engagementRows: Record<string, unknown>[] = [];
       let trendRows: Record<string, unknown>[] = [];
 
+      const sessionQuestion = "24년 11월 채널별 총 세션수를 보여줘";
       try {
-        sessionRows = await runSseQuery("24년 11월 채널별 총 세션수를 보여줘");
+        const result = await runSseQuery(sessionQuestion);
+        sessionRows = result.rows;
+        debugQueries.push({ key: "sessions", question: sessionQuestion, ...result.debug });
+        if (result.debug.status === "error") {
+          sessionError = result.debug.error ?? "Unknown error";
+        }
       } catch (err) {
         sessionError = (err as Error).message;
+        debugQueries.push({
+          key: "sessions",
+          question: sessionQuestion,
+          status: "error",
+          reportId: null,
+          error: sessionError,
+          rowCount: 0,
+          lastEvent: null,
+        });
       }
 
+      const installQuestion = "24년 11월 미디어소스별 총 설치건수를 보여줘";
       try {
-        installRows = await runSseQuery("24년 11월 미디어소스별 총 설치건수를 보여줘");
+        const result = await runSseQuery(installQuestion);
+        installRows = result.rows;
+        debugQueries.push({ key: "installs", question: installQuestion, ...result.debug });
+        if (result.debug.status === "error") {
+          installError = result.debug.error ?? "Unknown error";
+        }
       } catch (err) {
         installError = (err as Error).message;
+        debugQueries.push({
+          key: "installs",
+          question: installQuestion,
+          status: "error",
+          reportId: null,
+          error: installError,
+          rowCount: 0,
+          lastEvent: null,
+        });
       }
 
+      const engagementQuestion = "24년 11월 채널별 engagement_rate를 보여줘";
       try {
-        engagementRows = await runSseQuery("24년 11월 채널별 engagement_rate를 보여줘");
+        const result = await runSseQuery(engagementQuestion);
+        engagementRows = result.rows;
+        debugQueries.push({ key: "engagement", question: engagementQuestion, ...result.debug });
+        if (result.debug.status === "error") {
+          engagementError = result.debug.error ?? "Unknown error";
+        }
       } catch (err) {
         engagementError = (err as Error).message;
+        debugQueries.push({
+          key: "engagement",
+          question: engagementQuestion,
+          status: "error",
+          reportId: null,
+          error: engagementError,
+          rowCount: 0,
+          lastEvent: null,
+        });
       }
 
+      const trendQuestion = "24년 11월 일자별 세션수와 설치건수 트렌드를 보여줘";
       try {
-        trendRows = await runSseQuery("24년 11월 일자별 세션수와 설치건수 트렌드를 보여줘");
+        const result = await runSseQuery(trendQuestion);
+        trendRows = result.rows;
+        debugQueries.push({ key: "trend", question: trendQuestion, ...result.debug });
       } catch {
-        // trend silent fail, trend stays []
+        debugQueries.push({
+          key: "trend",
+          question: trendQuestion,
+          status: "error",
+          reportId: null,
+          error: "Trend query failed before SSE parsing.",
+          rowCount: 0,
+          lastEvent: null,
+        });
       }
 
       const sessionsByChannel = new Map<string, number>();
@@ -271,6 +380,10 @@ export function useDashboardData(): DashboardData {
         trend,
         loading: false,
         error: errorParts.length > 0 ? (errorParts as string[]).join(" | ") : null,
+        debug: {
+          generatedAt: new Date().toISOString(),
+          queries: debugQueries,
+        },
       });
     };
 
