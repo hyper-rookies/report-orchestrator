@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,7 +15,7 @@ export interface ChartSpec {
   type?: string;
   title?: string;
   xAxis: string;
-  series: Array<{ dataKey: string; label?: string }>;
+  series: Array<{ metric?: string; dataKey?: string; label?: string }>;
   data: Record<string, unknown>[];
 }
 
@@ -29,6 +30,11 @@ interface Props {
   [key: string]: unknown;
 }
 
+interface NormalizedSeries {
+  dataKey: string;
+  label: string;
+}
+
 function isBackendChartSpec(spec: ChartSpec | LegacyChartSpec): spec is ChartSpec {
   return "xAxis" in spec && Array.isArray((spec as ChartSpec).series) && Array.isArray((spec as ChartSpec).data);
 }
@@ -37,22 +43,46 @@ export default function ReportBarChart(props: Props) {
   const { spec } = props;
 
   const normalized = isBackendChartSpec(spec)
-    ? spec
+    ? {
+        type: spec.type,
+        title: spec.title,
+        xAxis: spec.xAxis,
+        series: spec.series,
+        data: spec.data,
+      }
     : {
+        type: "bar",
         title: spec.title,
         xAxis: spec.xKey,
-        series: [{ dataKey: spec.yKey, label: spec.yKey }],
+        series: [{ dataKey: spec.yKey, label: spec.yKey, metric: spec.yKey }],
         data: (Array.isArray(props.rows) ? props.rows : []) as Record<string, unknown>[],
       };
 
-  if (!Array.isArray(normalized.series) || normalized.series.length === 0) return null;
+  const series = normalized.series
+    .map((item) => {
+      const dataKey = item.dataKey ?? item.metric;
+      if (!dataKey || typeof dataKey !== "string") {
+        return null;
+      }
+      return {
+        dataKey,
+        label: item.label ?? dataKey,
+      };
+    })
+    .filter((item): item is NormalizedSeries => item !== null);
+
+  if (!Array.isArray(series) || series.length === 0) return null;
   if (!Array.isArray(normalized.data) || normalized.data.length === 0) return null;
   if (!normalized.xAxis) return null;
 
-  const firstSeries = normalized.series[0];
-  if (!firstSeries?.dataKey) {
-    return null;
-  }
+  const isStacked = normalized.type === "stackedBar";
+  const seriesColors = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+  ];
 
   return (
     <div className="space-y-2 rounded-xl border border-border/90 bg-background p-3 shadow-[0_12px_30px_-22px_rgba(25,25,25,0.45)]">
@@ -79,12 +109,17 @@ export default function ReportBarChart(props: Props) {
               color: "var(--foreground)",
             }}
           />
-          <Bar
-            dataKey={firstSeries.dataKey}
-            name={firstSeries.label ?? firstSeries.dataKey}
-            fill="var(--chart-3)"
-            radius={[4, 4, 0, 0]}
-          />
+          <Legend />
+          {series.map((item, idx) => (
+            <Bar
+              key={item.dataKey}
+              dataKey={item.dataKey}
+              name={item.label}
+              fill={seriesColors[idx % seriesColors.length]}
+              radius={[4, 4, 0, 0]}
+              stackId={isStacked ? "stack" : undefined}
+            />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </div>
