@@ -1,18 +1,18 @@
 # SS-04 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-10T08:56:17.7251338+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `frontend/src/lib/sessionShareStore.ts` 생성됨 (createSessionShareCode, resolveSessionShareCode)
-- [ ] `POST /api/sessions/[id]/share` — 세션 없으면 404, 성공 시 { code, url, expiresAt }
-- [ ] `GET /api/share/session/[code]` — 없거나 만료 시 404, 성공 시 SessionData
-- [ ] TTL 7일 (604800초) 적용
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `frontend/src/lib/sessionShareStore.ts` created (`createSessionShareCode`, `resolveSessionShareCode`)
+- [x] `POST /api/sessions/[id]/share` returns `404` when session is missing and `{ code, url, expiresAt }` on success
+- [x] `GET /api/share/session/[code]` returns `404` when missing or expired and `SessionData` on success
+- [x] TTL of 7 days (`604800` seconds) is applied
+- [x] `cd frontend && npx tsc --noEmit` passes
 
 ---
 
@@ -20,27 +20,29 @@
 
 | File | Action | Lines |
 |------|--------|-------|
-| `frontend/src/lib/sessionShareStore.ts` | Created | ? |
-| `frontend/src/app/api/sessions/[id]/share/route.ts` | Created | ? |
-| `frontend/src/app/api/share/session/[code]/route.ts` | Created | ? |
+| `frontend/src/lib/sessionShareStore.ts` | Created | 48 |
+| `frontend/src/app/api/sessions/[id]/share/route.ts` | Created | 27 |
+| `frontend/src/app/api/share/session/[code]/route.ts` | Created | 17 |
 
 ---
 
 ## TypeScript Check
 
+```bash
+$ cd frontend
+$ cmd /c .\node_modules\.bin\tsc.cmd --noEmit --pretty false
 ```
-$ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
-```
+
+Result: passed with exit code 0 and no diagnostics.
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+None.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.

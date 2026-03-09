@@ -20,7 +20,7 @@
     "SS-01": { "status": "done", "title": "의존성(@aws-sdk/client-s3) + sessionS3.ts + session 타입", "completedAt": "2026-03-10T08:18:04.0209542+09:00" },
     "SS-02": { "status": "done", "title": "GET/POST /api/sessions (목록 + 생성)", "completedAt": "2026-03-10T08:45:49.1649070+09:00" },
     "SS-03": { "status": "done", "title": "GET/PATCH/DELETE /api/sessions/[id]", "completedAt": "2026-03-10T08:50:13.5649348+09:00" },
-    "SS-04": { "status": "pending", "title": "sessionShareStore.ts + 세션 공유 API 2개", "completedAt": null },
+    "SS-04": { "status": "done", "title": "sessionShareStore.ts + 세션 공유 API 2개", "completedAt": "2026-03-10T08:56:17.7251338+09:00" },
     "SS-05": { "status": "pending", "title": "SessionContext provider + useSessionStore", "completedAt": null },
     "SS-06": { "status": "pending", "title": "SessionListItem 컴포넌트 (점3개 메뉴 + 우클릭)", "completedAt": null },
     "SS-07": { "status": "pending", "title": "Sidebar 업데이트 + layout.tsx에 SessionProvider", "completedAt": null },
