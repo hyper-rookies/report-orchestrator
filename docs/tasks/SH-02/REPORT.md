@@ -1,19 +1,19 @@
 # SH-02 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-10T07:53:11.8582353+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `frontend/src/app/api/share/route.ts` 생성됨 (POST 핸들러)
-- [ ] `frontend/src/app/api/share/[code]/route.ts` 생성됨 (GET 핸들러)
-- [ ] POST: `weekStart`, `weekEnd`, `weekLabel` 누락 시 400 반환
-- [ ] GET: 코드 없거나 만료 시 404, JWT 만료 시 410 반환
-- [ ] GET: 정상 시 `{ weekStart, weekEnd, weekLabel }` 반환
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `frontend/src/app/api/share/route.ts` created with POST handler
+- [x] `frontend/src/app/api/share/[code]/route.ts` created with GET handler
+- [x] POST returns `400` when `weekStart`, `weekEnd`, or `weekLabel` is missing
+- [x] GET returns `404` for missing/expired code and `410` for invalid/expired JWT
+- [x] GET returns `{ weekStart, weekEnd, weekLabel }` on success
+- [x] TypeScript check passes
 
 ---
 
@@ -21,26 +21,30 @@
 
 | File | Action | Lines |
 |------|--------|-------|
-| `frontend/src/app/api/share/route.ts` | Created | ? |
-| `frontend/src/app/api/share/[code]/route.ts` | Created | ? |
+| `frontend/src/app/api/share/route.ts` | Created | 36 |
+| `frontend/src/app/api/share/[code]/route.ts` | Created | 24 |
 
 ---
 
 ## TypeScript Check
 
+```bash
+$ cd frontend
+$ .\node_modules\.bin\tsc.cmd --noEmit
 ```
-$ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
-```
+
+Exit code: 0
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+`npx tsc --noEmit` could not run in PowerShell because of the local execution policy,
+so the equivalent TypeScript compiler entrypoint `.\node_modules\.bin\tsc.cmd --noEmit`
+was used instead.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.
