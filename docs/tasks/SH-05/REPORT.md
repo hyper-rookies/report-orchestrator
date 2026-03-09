@@ -1,18 +1,18 @@
 # SH-05 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-10T09:12:00+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `frontend/src/components/dashboard/PdfExportButton.tsx` 생성됨
-- [ ] `html2canvas`와 `jspdf`를 동적 import (`Promise.all`)로 사용
-- [ ] `targetId` prop으로 캡처 대상 DOM id를 받음
-- [ ] `exporting` 상태: 버튼 disabled + "저장 중..." 텍스트
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `frontend/src/components/dashboard/PdfExportButton.tsx` created
+- [x] `html2canvas` and `jspdf` loaded via dynamic `Promise.all` imports
+- [x] `targetId` prop selects the capture DOM element by id
+- [x] `exporting` state disables the button and updates button text
+- [x] `cd frontend && npx tsc --noEmit` passes
 
 ---
 
@@ -20,25 +20,27 @@
 
 | File | Action | Lines |
 |------|--------|-------|
-| `frontend/src/components/dashboard/PdfExportButton.tsx` | Created | ? |
+| `frontend/src/components/dashboard/PdfExportButton.tsx` | Created | 1-64 |
+| `frontend/package.json` | Updated | dependency entries |
+| `frontend/package-lock.json` | Updated | lockfile refresh |
 
 ---
 
 ## TypeScript Check
 
-```
+```bash
 $ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
+# exit code 0
 ```
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+Added `html2canvas` and `jspdf` to `frontend/package.json` and refreshed the lockfile so the component can compile.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.
