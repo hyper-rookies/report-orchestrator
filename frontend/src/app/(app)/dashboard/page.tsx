@@ -7,7 +7,9 @@ import ChannelRevenueChart from "@/components/dashboard/ChannelRevenueChart";
 import ConversionChart from "@/components/dashboard/ConversionChart";
 import InstallFunnelChart from "@/components/dashboard/InstallFunnelChart";
 import KpiCard, { type DashboardKpi } from "@/components/dashboard/KpiCard";
+import PdfExportButton from "@/components/dashboard/PdfExportButton";
 import RetentionCohortChart from "@/components/dashboard/RetentionCohortChart";
+import ShareButton from "@/components/dashboard/ShareButton";
 import TrendLineChart from "@/components/dashboard/TrendLineChart";
 import WeekSelector, { type WeekRange } from "@/components/dashboard/WeekSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,19 +69,30 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 space-y-6 overflow-y-auto px-6 py-8">
-      <div className="mx-auto w-full max-w-6xl space-y-6">
+      <div id="dashboard-content" className="mx-auto w-full max-w-6xl space-y-6">
         <div className="nhn-panel space-y-2 px-6 py-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-bold tracking-tight">마케팅 대시보드</h1>
-            {weeks.length > 0 && (
-              <WeekSelector
-                weeks={weeks}
-                selectedIndex={selectedWeekIndex}
-                onChange={(index) => {
-                  setSelectedWeekIndex(Math.min(Math.max(index, 0), weeks.length - 1));
-                }}
-              />
-            )}
+            <div className="flex items-center gap-2">
+              {weeks.length > 0 && (
+                <WeekSelector
+                  weeks={weeks}
+                  selectedIndex={selectedWeekIndex}
+                  onChange={(index) => {
+                    setSelectedWeekIndex(Math.min(Math.max(index, 0), weeks.length - 1));
+                  }}
+                />
+              )}
+              {selectedRange.start && (
+                <>
+                  <ShareButton selectedRange={selectedRange} />
+                  <PdfExportButton
+                    targetId="dashboard-content"
+                    filename={`dashboard-${selectedRange.start}_${selectedRange.end}.pdf`}
+                  />
+                </>
+              )}
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">{selectedRange.label} 데이터 요약</p>
           {error && <p className="mt-2 text-xs text-destructive">일부 데이터 로드 실패: {error}</p>}
