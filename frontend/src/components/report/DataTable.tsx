@@ -34,6 +34,8 @@ export default function DataTable({ rows }: Props) {
     [rows]
   );
 
+  // TanStack Table returns non-memoizable callbacks; React Compiler intentionally skips this hook.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: rows,
     columns,

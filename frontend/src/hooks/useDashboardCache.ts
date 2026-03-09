@@ -171,7 +171,6 @@ export function useDashboardCache(selectedRange: WeekRange): DashboardCacheData 
 
   useEffect(() => {
     let cancelled = false;
-    setData(INITIAL);
 
     const url = `/dashboard-cache/week=${selectedRange.start}_${selectedRange.end}.json`;
     fetch(url)

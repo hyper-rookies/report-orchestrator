@@ -36,12 +36,9 @@ function toNumber(value: unknown): number {
 }
 
 export default function ReportPieChart({ spec }: { spec: PieSpec }) {
-  if (!Array.isArray(spec.data) || spec.data.length === 0) return null;
-  if (!spec.nameKey || !spec.valueKey) return null;
-
   const pieData = useMemo(
     () =>
-      spec.data.map((row) => ({
+      (Array.isArray(spec.data) ? spec.data : []).map((row) => ({
         ...row,
         [spec.valueKey]: toNumber(row[spec.valueKey]),
       })),
@@ -60,6 +57,9 @@ export default function ReportPieChart({ spec }: { spec: PieSpec }) {
     () => new Intl.NumberFormat("ko-KR").format(Math.round(total)),
     [total]
   );
+
+  if (!Array.isArray(spec.data) || spec.data.length === 0) return null;
+  if (!spec.nameKey || !spec.valueKey) return null;
 
   return (
     <div className="space-y-2 rounded-xl border border-border/90 bg-background p-3 shadow-[0_12px_30px_-22px_rgba(25,25,25,0.45)]">
