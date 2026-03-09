@@ -1,20 +1,20 @@
 # DA-05 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-09T12:00:29.5166741+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `WEEKS` 상수 (5개 WeekRange) 정의됨
-- [ ] `selectedWeekIndex` 상태 (`useState(3)`) 추가됨
-- [ ] `useDashboardData(selectedRange)` 호출됨
-- [ ] 헤더에 `WeekSelector` 렌더링됨
-- [ ] 신규 차트 4개 모두 렌더링됨
-- [ ] `RetentionCohortChart` 렌더링됨
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `WEEKS` constant (5 `WeekRange`) defined
+- [x] Added `selectedWeekIndex` state (`useState(3)`)
+- [x] `useDashboardData(selectedRange)` applied
+- [x] Rendered `WeekSelector` in dashboard header
+- [x] Rendered all 4 new charts (`ChannelRevenue`, `Conversion`, `CampaignInstalls`, `InstallFunnel`)
+- [x] Rendered `RetentionCohortChart`
+- [x] `cd frontend && npx tsc --noEmit` passes
 
 ---
 
@@ -22,25 +22,25 @@
 
 | File | Action | Lines Before | Lines After |
 |------|--------|-------------|-------------|
-| `frontend/src/app/(app)/dashboard/page.tsx` | Modified | ? | ? |
+| `frontend/src/app/(app)/dashboard/page.tsx` | Modified | 133 | 173 |
 
 ---
 
 ## TypeScript Check
 
-```
-$ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
+```bash
+$ cd frontend && npx.cmd tsc --noEmit
+(no output; exit code 0)
 ```
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+None.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.
