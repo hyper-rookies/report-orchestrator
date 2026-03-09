@@ -1,17 +1,17 @@
 # SC-03 Task Report
 
-**Status:** BLOCKED
+**Status:** DONE
 
-**Completed At:** 2026-03-09T15:21:36.2091787+09:00
+**Completed At:** 2026-03-09T15:35:39.4481818+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `frontend/public/dashboard-cache/manifest.json` 존재
-- [ ] `frontend/public/dashboard-cache/week=2024-11-22_2024-11-28.json` 존재
-- [ ] manifest.json이 유효한 JSON 배열
-- [ ] 각 week JSON에 9개 쿼리 키 존재
+- [x] `frontend/public/dashboard-cache/manifest.json` 존재
+- [x] `frontend/public/dashboard-cache/week=2024-11-22_2024-11-28.json` 존재
+- [x] manifest.json이 유효한 JSON 배열
+- [x] 각 week JSON에 9개 쿼리 키 존재
 
 ---
 
@@ -19,33 +19,36 @@
 
 | File | Rows (sessions query) |
 |------|----------------------|
-| `week=2024-11-01_2024-11-07.json` | N/A |
-| `week=2024-11-08_2024-11-14.json` | N/A |
-| `week=2024-11-15_2024-11-21.json` | N/A |
-| `week=2024-11-22_2024-11-28.json` | N/A |
-| `week=2024-11-29_2024-11-30.json` | N/A |
-| `manifest.json` | N/A |
+| `week=2024-11-01_2024-11-07.json` | 6 |
+| `week=2024-11-08_2024-11-14.json` | 6 |
+| `week=2024-11-15_2024-11-21.json` | 6 |
+| `week=2024-11-22_2024-11-28.json` | 6 |
+| `week=2024-11-29_2024-11-30.json` | 6 |
+| `manifest.json` | 5 entries |
 
 ---
 
 ## Script Output (last 10 lines)
 
 ```text
-$ aws sts get-caller-identity
-The config profile (hyper) could not be found
+[channel_revenue] done (6 rows)
+[campaign_installs] done (5 rows)
+[install_funnel] done (4 rows)
+[retention] done (5 rows)
+-> saved: C:\Users\NHN\Repo\report-orchestrator\report-orchestrator\frontend\public\dashboard-cache\week=2024-11-29_2024-11-30.json
+-> manifest saved: C:\Users\NHN\Repo\report-orchestrator\report-orchestrator\frontend\public\dashboard-cache\manifest.json
 
-$ AWS_PROFILE='' AWS_DEFAULT_PROFILE='' aws sts get-caller-identity
-Unable to locate credentials. You can configure credentials by running "aws login".
+OK: all weeks complete
 ```
 
 ---
 
 ## Deviations from Plan
 
-- AWS 자격증명이 설정되지 않아 SC-03을 진행할 수 없었다.
+없음
 
 ---
 
 ## Questions for Reviewer
 
-- 로컬 또는 CI 환경에 사용할 AWS 프로파일/자격증명 제공이 필요하다.
+없음

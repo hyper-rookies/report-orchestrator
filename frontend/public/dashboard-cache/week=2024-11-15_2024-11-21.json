@@ -1,0 +1,241 @@
+{
+  "week": {
+    "start": "2024-11-15",
+    "end": "2024-11-21",
+    "label": "2024년 11월 3주차"
+  },
+  "generatedAt": "2026-03-09T06:27:14.642091+00:00",
+  "sessions": [
+    {
+      "channel_group": "Referral",
+      "sessions": "20026",
+      "conversions": "602"
+    },
+    {
+      "channel_group": "Email",
+      "sessions": "18405",
+      "conversions": "553"
+    },
+    {
+      "channel_group": "Paid Social",
+      "sessions": "18018",
+      "conversions": "541"
+    },
+    {
+      "channel_group": "Organic Search",
+      "sessions": "16659",
+      "conversions": "500"
+    },
+    {
+      "channel_group": "Paid Search",
+      "sessions": "16188",
+      "conversions": "486"
+    },
+    {
+      "channel_group": "Direct",
+      "sessions": "11911",
+      "conversions": "357"
+    }
+  ],
+  "installs": [
+    {
+      "media_source": "Facebook Ads",
+      "installs": "7481"
+    },
+    {
+      "media_source": "Google Ads",
+      "installs": "6895"
+    },
+    {
+      "media_source": "Apple Search Ads",
+      "installs": "6640"
+    },
+    {
+      "media_source": "TikTok Ads",
+      "installs": "5870"
+    },
+    {
+      "media_source": "organic",
+      "installs": "5770"
+    }
+  ],
+  "engagement": [
+    {
+      "channel_group": "Email",
+      "engagement_rate": "0.6604714285714286"
+    },
+    {
+      "channel_group": "Direct",
+      "engagement_rate": "0.6286714285714285"
+    },
+    {
+      "channel_group": "Organic Search",
+      "engagement_rate": "0.6080285714285714"
+    },
+    {
+      "channel_group": "Paid Search",
+      "engagement_rate": "0.6021285714285715"
+    },
+    {
+      "channel_group": "Referral",
+      "engagement_rate": "0.5965857142857143"
+    },
+    {
+      "channel_group": "Paid Social",
+      "engagement_rate": "0.5509714285714286"
+    }
+  ],
+  "trend_sessions": [
+    {
+      "dt": "2024-11-15",
+      "sessions": "12431"
+    },
+    {
+      "dt": "2024-11-16",
+      "sessions": "15221"
+    },
+    {
+      "dt": "2024-11-17",
+      "sessions": "16252"
+    },
+    {
+      "dt": "2024-11-18",
+      "sessions": "14975"
+    },
+    {
+      "dt": "2024-11-19",
+      "sessions": "14484"
+    },
+    {
+      "dt": "2024-11-20",
+      "sessions": "12317"
+    },
+    {
+      "dt": "2024-11-21",
+      "sessions": "15527"
+    }
+  ],
+  "trend_installs": [
+    {
+      "dt": "2024-11-15",
+      "installs": "4541"
+    },
+    {
+      "dt": "2024-11-16",
+      "installs": "5196"
+    },
+    {
+      "dt": "2024-11-17",
+      "installs": "4436"
+    },
+    {
+      "dt": "2024-11-18",
+      "installs": "6108"
+    },
+    {
+      "dt": "2024-11-19",
+      "installs": "3844"
+    },
+    {
+      "dt": "2024-11-20",
+      "installs": "3980"
+    },
+    {
+      "dt": "2024-11-21",
+      "installs": "4551"
+    }
+  ],
+  "channel_revenue": [
+    {
+      "channel_group": "Paid Social",
+      "total_revenue": "1.8671853E7"
+    },
+    {
+      "channel_group": "Paid Search",
+      "total_revenue": "1.3770962E7"
+    },
+    {
+      "channel_group": "Email",
+      "total_revenue": "1.3561342E7"
+    },
+    {
+      "channel_group": "Organic Search",
+      "total_revenue": "1.2941629E7"
+    },
+    {
+      "channel_group": "Referral",
+      "total_revenue": "1.2461003E7"
+    },
+    {
+      "channel_group": "Direct",
+      "total_revenue": "1.1749936E7"
+    }
+  ],
+  "campaign_installs": [
+    {
+      "campaign": "",
+      "installs": "18280"
+    },
+    {
+      "campaign": "fb_prospecting_nov",
+      "installs": "3830"
+    },
+    {
+      "campaign": "gads_brand_nov",
+      "installs": "3781"
+    },
+    {
+      "campaign": "fb_retargeting_nov",
+      "installs": "3651"
+    },
+    {
+      "campaign": "gads_performance_nov",
+      "installs": "3114"
+    }
+  ],
+  "install_funnel": [
+    {
+      "event_name": "sign_up",
+      "event_count": "12777"
+    },
+    {
+      "event_name": "add_to_cart",
+      "event_count": "11996"
+    },
+    {
+      "event_name": "install",
+      "event_count": "10691"
+    },
+    {
+      "event_name": "purchase",
+      "event_count": "9639"
+    }
+  ],
+  "retention": [
+    {
+      "cohort_day": "0",
+      "retained_users": "18718",
+      "cohort_size": "19134"
+    },
+    {
+      "cohort_day": "1",
+      "retained_users": "9616",
+      "cohort_size": "19134"
+    },
+    {
+      "cohort_day": "7",
+      "retained_users": "5746",
+      "cohort_size": "19134"
+    },
+    {
+      "cohort_day": "14",
+      "retained_users": "3860",
+      "cohort_size": "19134"
+    },
+    {
+      "cohort_day": "30",
+      "retained_users": "2214",
+      "cohort_size": "19134"
+    }
+  ]
+}
