@@ -74,7 +74,7 @@ export default function DashboardPage() {
               {loading ? (
                 <div className="h-[260px] animate-pulse rounded-lg bg-muted" />
               ) : channelShare.length > 0 ? (
-                <ChannelPieChart data={channelShare} />
+                <ChannelPieChart data={channelShare} totalValue={totalSessions} />
               ) : (
                 <p className="text-sm text-muted-foreground">데이터 로드 실패</p>
               )}
