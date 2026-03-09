@@ -1,6 +1,7 @@
 import { SseFrame } from "@/hooks/useSse";
 import DataTable from "@/components/report/DataTable";
 import ReportBarChart from "@/components/report/ReportBarChart";
+import ReportPieChart, { type PieSpec } from "@/components/report/ReportPieChart";
 
 import ProgressIndicator from "./ProgressIndicator";
 
@@ -30,27 +31,35 @@ export default function AssistantMessage({ frames, streaming }: Props) {
     (row) => typeof row === "object" && row !== null
   );
 
-  const rawChartSpec = chartFrame?.data.spec as
-    | {
-        type?: string;
-        title?: string;
-        xAxis?: string;
-        series?: Array<{ metric?: string }>;
-        data?: Record<string, unknown>[];
-      }
-    | undefined;
-  const firstSeriesMetric = rawChartSpec?.series?.[0]?.metric;
-  const chartSpec: ChartSpec | null =
-    typeof rawChartSpec?.xAxis === "string" && typeof firstSeriesMetric === "string"
+  const rawChartSpec = chartFrame?.data.spec as Record<string, unknown> | undefined;
+  const chartType = typeof rawChartSpec?.type === "string" ? rawChartSpec.type : undefined;
+
+  const pieSpec: PieSpec | null =
+    chartType === "pie" &&
+    Array.isArray(rawChartSpec?.data) &&
+    typeof rawChartSpec?.nameKey === "string" &&
+    typeof rawChartSpec?.valueKey === "string"
       ? {
-          xKey: rawChartSpec.xAxis,
-          yKey: firstSeriesMetric,
-          ...(typeof rawChartSpec.title === "string" ? { title: rawChartSpec.title } : {}),
+          type: "pie",
+          data: rawChartSpec.data as Record<string, unknown>[],
+          nameKey: rawChartSpec.nameKey,
+          valueKey: rawChartSpec.valueKey,
+          ...(typeof rawChartSpec?.title === "string" ? { title: rawChartSpec.title } : {}),
         }
       : null;
-  const chartRows = Array.isArray(rawChartSpec?.data)
-    ? (rawChartSpec.data as Record<string, unknown>[])
-    : tableRows;
+
+  const barLikeSpec: ChartSpec | null =
+    Array.isArray(rawChartSpec?.data) &&
+    typeof rawChartSpec?.xAxis === "string" &&
+    Array.isArray(rawChartSpec?.series)
+      ? {
+          type: chartType,
+          title: typeof rawChartSpec?.title === "string" ? rawChartSpec.title : undefined,
+          xAxis: rawChartSpec.xAxis,
+          series: rawChartSpec.series as Array<{ metric?: string; dataKey?: string; label?: string }>,
+          data: rawChartSpec.data as Record<string, unknown>[],
+        }
+      : null;
 
   return (
     <div className="flex justify-start">
@@ -61,9 +70,8 @@ export default function AssistantMessage({ frames, streaming }: Props) {
           <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{finalSummary}</p>
         )}
         {tableFrame && <DataTable rows={tableRows} />}
-        {chartFrame && chartSpec && chartRows.length > 0 && (
-          <ReportBarChart rows={chartRows} spec={chartSpec} />
-        )}
+        {chartFrame && pieSpec && <ReportPieChart spec={pieSpec} />}
+        {chartFrame && !pieSpec && barLikeSpec && <ReportBarChart spec={barLikeSpec} />}
         {errorFrame && (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {errorFrame.data.message as string}

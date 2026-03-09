@@ -115,6 +115,27 @@ export async function* buildSseEvents(
           return;
         }
 
+        // Surface Lambda crash payloads (e.g. {"errorMessage":"...","errorType":"..."}).
+        if (
+          (ag.includes("query") || ag.includes("analysis")) &&
+          "errorMessage" in parsed &&
+          "errorType" in parsed
+        ) {
+          const errorMessage =
+            typeof parsed.errorMessage === "string"
+              ? parsed.errorMessage
+              : `Action group "${agentEvent.actionGroup}" crashed without a message.`;
+          const errorType =
+            typeof parsed.errorType === "string" ? parsed.errorType : "LambdaCrash";
+          yield formatSseEvent("error", {
+            version: "v1",
+            code: "ACTION_GROUP_CRASH",
+            message: `${errorType}: ${errorMessage}`,
+            retryable: false,
+          });
+          return;
+        }
+
         // Surface structured errors from action group Lambdas.
         // SCHEMA_VIOLATION = Bedrock sent invalid params → emit as progress and let
         // Bedrock see the error and retry or respond naturally.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import math
 from typing import Any
@@ -8,9 +9,49 @@ VERSION = "v1"
 
 # ── Bedrock Action Group adapter ──────────────────────────────────────────────
 
+def _parse_bedrock_array(v: str) -> list[Any]:
+    try:
+        parsed = json.loads(v)
+        if isinstance(parsed, list):
+            return parsed
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    try:
+        parsed = ast.literal_eval(v)
+        if isinstance(parsed, list):
+            return parsed
+    except (SyntaxError, ValueError):
+        pass
+
+    stripped = v.strip()
+    if stripped.startswith("[") and stripped.endswith("]"):
+        inner = stripped[1:-1]
+        return [item.strip() for item in inner.split(",") if item.strip()]
+    return [v]
+
+
+def _parse_bedrock_object(v: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(v)
+        if isinstance(parsed, dict):
+            return parsed
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    try:
+        parsed = ast.literal_eval(v)
+        if isinstance(parsed, dict):
+            return parsed
+    except (SyntaxError, ValueError):
+        pass
+
+    raise ValueError("Object parameter must be a JSON object.")
+
+
 _BEDROCK_TYPE_PARSERS = {
-    "array": json.loads,
-    "object": json.loads,
+    "array": _parse_bedrock_array,
+    "object": _parse_bedrock_object,
     "integer": int,
     "number": float,
     "boolean": lambda v: v.lower() == "true",
