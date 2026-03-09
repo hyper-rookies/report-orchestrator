@@ -295,3 +295,49 @@ def test_lambda_handler_accepts_proxy_body_shape():
         "series": [{"metric": "sessions", "label": "Sessions"}],
         "data": [{"date": "2026-03-01", "sessions": 10}],
     }
+
+
+def test_parse_bedrock_params_accepts_non_json_array_and_object_literals():
+    event = {
+        "actionGroup": "viz",
+        "function": "buildChartSpec",
+        "parameters": [
+            {"name": "rows", "type": "array", "value": "[{channel_group=Organic Search, sessions=80507}]"},
+            {"name": "yAxis", "type": "array", "value": "[sessions]"},
+            {"name": "chartType", "type": "string", "value": "pie"},
+            {"name": "xAxis", "type": "string", "value": "channel_group"},
+        ],
+    }
+
+    parsed = viz_app._parse_bedrock_params(event)
+    assert parsed["chartType"] == "pie"
+    assert parsed["xAxis"] == "channel_group"
+    assert parsed["yAxis"] == ["sessions"]
+    assert parsed["rows"] == [{"channel_group": "Organic Search", "sessions": 80507}]
+
+
+def test_lambda_handler_bedrock_pie_tolerates_non_json_parameter_literals():
+    event = {
+        "actionGroup": "viz",
+        "function": "buildChartSpec",
+        "parameters": [
+            {"name": "chartType", "type": "string", "value": "pie"},
+            {"name": "xAxis", "type": "string", "value": "channel_group"},
+            {"name": "yAxis", "type": "array", "value": "[SUM(sessions)]"},
+            {
+                "name": "rows",
+                "type": "array",
+                "value": "[{channel_group=Organic Search, SUM(sessions)=80507}, {channel_group=Direct, SUM(sessions)=69631}]",
+            },
+        ],
+    }
+
+    response = viz_app.lambda_handler(event, None)
+    body_text = response["response"]["functionResponse"]["responseBody"]["TEXT"]["body"]
+    body = json.loads(body_text)
+
+    assert body["version"] == "v1"
+    assert body["spec"]["type"] == "pie"
+    assert body["spec"]["nameKey"] == "channel_group"
+    assert body["spec"]["valueKey"] == "SUM(sessions)"
+    assert len(body["spec"]["data"]) == 2
