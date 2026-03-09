@@ -1,19 +1,19 @@
 # SH-04 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-10T08:09:20.3777968+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `frontend/src/components/dashboard/ShareButton.tsx` 생성됨
-- [ ] `ShareButtonProps` → `selectedRange: WeekRange` prop 존재
-- [ ] 모달: 로딩 / 오류 / 완료 세 상태 처리
-- [ ] 완료 상태: 만료일 표시 (`⚠️ 이 링크는 <날짜>에 만료됩니다 (7일).`)
-- [ ] 완료 상태: URL 인풋 + 복사 버튼 (복사 후 2초간 Check 아이콘)
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `frontend/src/components/dashboard/ShareButton.tsx` created
+- [x] `ShareButtonProps` includes `selectedRange: WeekRange`
+- [x] Modal handles loading / error / done states
+- [x] Done state shows expiry notice
+- [x] Done state shows URL input + copy button with 2 second success indicator
+- [x] `cd frontend && npx tsc --noEmit` passes
 
 ---
 
@@ -21,25 +21,27 @@
 
 | File | Action | Lines |
 |------|--------|-------|
-| `frontend/src/components/dashboard/ShareButton.tsx` | Created | ? |
+| `frontend/src/components/dashboard/ShareButton.tsx` | Created | 128 |
 
 ---
 
 ## TypeScript Check
 
+```bash
+$ cd frontend
+$ cmd /c .\node_modules\.bin\tsc.cmd --noEmit --pretty false
 ```
-$ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
-```
+
+Result: passed with exit code 0 and no diagnostics.
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+None.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.

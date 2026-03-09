@@ -14,7 +14,7 @@
     "SH-01": { "status": "done", "title": "JWT sign/verify + short code store", "completedAt": "2026-03-09T17:16:11.5028101+09:00" },
     "SH-02": { "status": "done", "title": "POST /api/share + GET /api/share/[code] routes", "completedAt": "2026-03-10T07:53:11.8582353+09:00" },
     "SH-03": { "status": "done", "title": "public shared dashboard page", "completedAt": "2026-03-10T08:10:31.9633473+09:00" },
-    "SH-04": { "status": "pending", "title": "ShareButton modal with expiry/copy", "completedAt": null },
+    "SH-04": { "status": "done", "title": "ShareButton modal with expiry/copy", "completedAt": "2026-03-10T08:09:20.3777968+09:00" },
     "SH-05": { "status": "done", "title": "PdfExportButton with html2canvas + jspdf", "completedAt": "2026-03-10T09:12:00+09:00" },
     "SH-06": { "status": "pending", "title": "wire ShareButton + PdfExportButton into dashboard header", "completedAt": null },
     "SS-01": { "status": "done", "title": "의존성(@aws-sdk/client-s3) + sessionS3.ts + session 타입", "completedAt": "2026-03-10T08:18:04.0209542+09:00" },
