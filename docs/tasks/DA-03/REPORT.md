@@ -1,19 +1,19 @@
 # DA-03 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-09T11:27:00.9975318+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `InstallFunnelChart.tsx` 생성됨
-- [ ] `InstallFunnelChart.tsx`의 `data` prop 타입: `Array<{ stage: string; count: number }>`
-- [ ] `RetentionCohortChart.tsx` 생성됨
-- [ ] `RetentionCohortChart.tsx`의 `data` prop 타입: `Array<{ day: number; retentionRate: number }>`
-- [ ] 두 컴포넌트 모두 `loading` prop 있고 스켈레톤 UI 렌더링됨
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `InstallFunnelChart.tsx` created
+- [x] `InstallFunnelChart.tsx` accepts `data` prop as `Array<{ stage: string; count: number }>`
+- [x] `RetentionCohortChart.tsx` created
+- [x] `RetentionCohortChart.tsx` accepts `data` prop as `Array<{ day: number; retentionRate: number }>`
+- [x] Both components support `loading` prop and render skeleton UI
+- [x] `cd frontend && npx tsc --noEmit` passes
 
 ---
 
@@ -21,26 +21,26 @@
 
 | File | Action | Lines |
 |------|--------|-------|
-| `frontend/src/components/dashboard/InstallFunnelChart.tsx` | Created | ? |
-| `frontend/src/components/dashboard/RetentionCohortChart.tsx` | Created | ? |
+| `frontend/src/components/dashboard/InstallFunnelChart.tsx` | Created | 75 |
+| `frontend/src/components/dashboard/RetentionCohortChart.tsx` | Created | 70 |
 
 ---
 
 ## TypeScript Check
 
 ```
-$ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
+$ cd frontend && npx.cmd tsc --noEmit
+(no output; exit code 0)
 ```
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+None.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.
