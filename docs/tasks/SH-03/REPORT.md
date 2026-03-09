@@ -1,19 +1,19 @@
 # SH-03 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-10T08:10:31.9633473+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `frontend/src/app/share/[code]/page.tsx` 생성됨
-- [ ] `(app)` 그룹 밖 (`app/share/` 경로) — 사이드바 없음 확인
-- [ ] 로딩 중 / 오류 / 정상 세 가지 상태 처리
-- [ ] 만료 안내 문구 (`⚠️ 이 링크는 ... 만료됩니다.`) 존재
-- [ ] `useDashboardCache` 사용 (Bedrock 호출 없음)
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `frontend/src/app/share/[code]/page.tsx` created
+- [x] Verified route is outside the `(app)` group, so it does not render the sidebar layout
+- [x] Loading, error, and success states handled
+- [x] Expiry notice copy is shown on the shared page
+- [x] `useDashboardCache` is used for read-only dashboard data
+- [x] TypeScript check passes
 
 ---
 
@@ -21,25 +21,28 @@
 
 | File | Action | Lines |
 |------|--------|-------|
-| `frontend/src/app/share/[code]/page.tsx` | Created | ? |
+| `frontend/src/app/share/[code]/page.tsx` | Created | 191 |
 
 ---
 
 ## TypeScript Check
 
+```bash
+$ cd frontend
+$ .\node_modules\.bin\tsc.cmd --noEmit
 ```
-$ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
-```
+
+Exit code: 0
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+`GET /api/share/[code]` currently returns only the week range payload, so the page shows
+the fixed expiry notice text `7 days` instead of an exact timestamp.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.
