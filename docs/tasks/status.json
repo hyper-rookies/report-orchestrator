@@ -8,7 +8,7 @@
     "DA-05": { "status": "done", "title": "dashboard/page.tsx 통합", "completedAt": "2026-03-09T12:00:29.5166741+09:00" },
     "SC-01": { "status": "done", "title": "dashboard_queries.py SQL 모듈 + pytest", "completedAt": "2026-03-09T14:46:21.4831223+09:00" },
     "SC-02": { "status": "done", "title": "precompute_dashboard.py Athena 실행 + pytest", "completedAt": "2026-03-09T15:01:53.5538293+09:00" },
-    "SC-03": { "status": "pending", "title": "스크립트 실행 → 5개 JSON + manifest 생성", "completedAt": null },
+    "SC-03": { "status": "blocked", "title": "스크립트 실행 → 5개 JSON + manifest 생성", "completedAt": "2026-03-09T15:21:36.2091787+09:00" },
     "SC-04": { "status": "pending", "title": "useDashboardCache.ts + page.tsx manifest 방식 교체", "completedAt": null },
     "SC-05": { "status": "pending", "title": "REPORT.md 작성", "completedAt": null }
   }
