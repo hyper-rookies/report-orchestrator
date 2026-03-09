@@ -19,12 +19,17 @@ interface SseFrame {
   data: Record<string, unknown>;
 }
 
-type DashboardQueryKey = "sessions" | "installs" | "engagement" | "trend";
+type DashboardQueryKey =
+  | "sessions"
+  | "installs"
+  | "engagement"
+  | "trend_sessions"
+  | "trend_installs";
 
 interface DashboardQueryDebug {
   key: DashboardQueryKey;
   question: string;
-  status: "ok" | "error";
+  status: "pending" | "ok" | "error";
   reportId: string | null;
   error: string | null;
   rowCount: number;
@@ -115,9 +120,9 @@ interface QueryExecutionResult {
   debug: Omit<DashboardQueryDebug, "key" | "question">;
 }
 
-async function runSseQuery(question: string): Promise<QueryExecutionResult> {
+async function runSseQuery(question: string, timeoutMs = 45000): Promise<QueryExecutionResult> {
   const debug: Omit<DashboardQueryDebug, "key" | "question"> = {
-    status: "ok",
+    status: "pending",
     reportId: null,
     error: null,
     rowCount: 0,
@@ -137,11 +142,25 @@ async function runSseQuery(question: string): Promise<QueryExecutionResult> {
     headers.Authorization = `Bearer ${idToken}`;
   }
 
-  const res = await fetch(SSE_URL, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ question, autoApproveActions: true }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(SSE_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ question, autoApproveActions: true }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    debug.status = "error";
+    debug.error =
+      (err as Error).name === "AbortError"
+        ? `Timeout after ${Math.floor(timeoutMs / 1000)}s`
+        : (err as Error).message;
+    clearTimeout(timeoutId);
+    return { rows: [], debug };
+  }
 
   if (!res.ok || !res.body) {
     debug.status = "error";
@@ -182,27 +201,41 @@ async function runSseQuery(question: string): Promise<QueryExecutionResult> {
     return { shouldStop: false };
   };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    buffer = buffer.replace(/\r\n/g, "\n");
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r\n/g, "\n");
 
-    const splitIndex = buffer.lastIndexOf("\n\n");
-    if (splitIndex === -1) continue;
+      const splitIndex = buffer.lastIndexOf("\n\n");
+      if (splitIndex === -1) continue;
 
-    const chunk = buffer.slice(0, splitIndex + 2);
-    buffer = buffer.slice(splitIndex + 2);
+      const chunk = buffer.slice(0, splitIndex + 2);
+      buffer = buffer.slice(splitIndex + 2);
 
-    const { shouldStop } = processFrames(parseSseChunk(chunk));
-    if (shouldStop) {
-      break;
+      const { shouldStop } = processFrames(parseSseChunk(chunk));
+      if (shouldStop) {
+        break;
+      }
     }
+  } catch (err) {
+    debug.status = "error";
+    debug.error =
+      (err as Error).name === "AbortError"
+        ? `Timeout after ${Math.floor(timeoutMs / 1000)}s`
+        : (err as Error).message;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (buffer.trim().length > 0) {
     processFrames(parseSseChunk(buffer));
+  }
+
+  if (debug.status === "pending") {
+    debug.status = "ok";
   }
 
   if (!tableRows && debug.status === "ok") {
@@ -227,19 +260,93 @@ export function useDashboardData(): DashboardData {
       let sessionRows: Record<string, unknown>[] = [];
       let installRows: Record<string, unknown>[] = [];
       let engagementRows: Record<string, unknown>[] = [];
-      let trendRows: Record<string, unknown>[] = [];
+      let trendSessionRows: Record<string, unknown>[] = [];
+      let trendInstallRows: Record<string, unknown>[] = [];
 
       const sessionQuestion = "24년 11월 채널별 총 세션수를 보여줘";
+      const installQuestion = "24년 11월 미디어소스별 총 설치건수를 보여줘";
+      const engagementQuestion = "24년 11월 채널별 engagement_rate를 보여줘";
+      const trendSessionsQuestion =
+        "24년 11월 v_latest_ga4_acquisition_daily에서 dt 일자별 sessions 합계를 보여줘";
+      const trendInstallsQuestion =
+        "24년 11월 v_latest_appsflyer_installs_daily에서 dt 일자별 installs 합계를 보여줘";
+      const baseDebugQueries: DashboardQueryDebug[] = [
+        {
+          key: "sessions",
+          question: sessionQuestion,
+          status: "pending",
+          reportId: null,
+          error: null,
+          rowCount: 0,
+          lastEvent: null,
+        },
+        {
+          key: "installs",
+          question: installQuestion,
+          status: "pending",
+          reportId: null,
+          error: null,
+          rowCount: 0,
+          lastEvent: null,
+        },
+        {
+          key: "engagement",
+          question: engagementQuestion,
+          status: "pending",
+          reportId: null,
+          error: null,
+          rowCount: 0,
+          lastEvent: null,
+        },
+        {
+          key: "trend_sessions",
+          question: trendSessionsQuestion,
+          status: "pending",
+          reportId: null,
+          error: null,
+          rowCount: 0,
+          lastEvent: null,
+        },
+        {
+          key: "trend_installs",
+          question: trendInstallsQuestion,
+          status: "pending",
+          reportId: null,
+          error: null,
+          rowCount: 0,
+          lastEvent: null,
+        },
+      ];
+      if (!cancelled) {
+        setData((prev) => ({
+          ...prev,
+          loading: true,
+          debug: {
+            generatedAt: new Date().toISOString(),
+            queries: baseDebugQueries,
+          },
+        }));
+      }
+
+      const pushQueryDebug = (item: DashboardQueryDebug) => {
+        const idx = debugQueries.findIndex((q) => q.key === item.key);
+        if (idx === -1) {
+          debugQueries.push(item);
+        } else {
+          debugQueries[idx] = item;
+        }
+      };
+
       try {
         const result = await runSseQuery(sessionQuestion);
         sessionRows = result.rows;
-        debugQueries.push({ key: "sessions", question: sessionQuestion, ...result.debug });
+        pushQueryDebug({ key: "sessions", question: sessionQuestion, ...result.debug });
         if (result.debug.status === "error") {
           sessionError = result.debug.error ?? "Unknown error";
         }
       } catch (err) {
         sessionError = (err as Error).message;
-        debugQueries.push({
+        pushQueryDebug({
           key: "sessions",
           question: sessionQuestion,
           status: "error",
@@ -250,17 +357,16 @@ export function useDashboardData(): DashboardData {
         });
       }
 
-      const installQuestion = "24년 11월 미디어소스별 총 설치건수를 보여줘";
       try {
         const result = await runSseQuery(installQuestion);
         installRows = result.rows;
-        debugQueries.push({ key: "installs", question: installQuestion, ...result.debug });
+        pushQueryDebug({ key: "installs", question: installQuestion, ...result.debug });
         if (result.debug.status === "error") {
           installError = result.debug.error ?? "Unknown error";
         }
       } catch (err) {
         installError = (err as Error).message;
-        debugQueries.push({
+        pushQueryDebug({
           key: "installs",
           question: installQuestion,
           status: "error",
@@ -271,17 +377,16 @@ export function useDashboardData(): DashboardData {
         });
       }
 
-      const engagementQuestion = "24년 11월 채널별 engagement_rate를 보여줘";
       try {
         const result = await runSseQuery(engagementQuestion);
         engagementRows = result.rows;
-        debugQueries.push({ key: "engagement", question: engagementQuestion, ...result.debug });
+        pushQueryDebug({ key: "engagement", question: engagementQuestion, ...result.debug });
         if (result.debug.status === "error") {
           engagementError = result.debug.error ?? "Unknown error";
         }
       } catch (err) {
         engagementError = (err as Error).message;
-        debugQueries.push({
+        pushQueryDebug({
           key: "engagement",
           question: engagementQuestion,
           status: "error",
@@ -292,18 +397,41 @@ export function useDashboardData(): DashboardData {
         });
       }
 
-      const trendQuestion = "24년 11월 일자별 세션수와 설치건수 트렌드를 보여줘";
       try {
-        const result = await runSseQuery(trendQuestion);
-        trendRows = result.rows;
-        debugQueries.push({ key: "trend", question: trendQuestion, ...result.debug });
+        const result = await runSseQuery(trendSessionsQuestion);
+        trendSessionRows = result.rows;
+        pushQueryDebug({
+          key: "trend_sessions",
+          question: trendSessionsQuestion,
+          ...result.debug,
+        });
       } catch {
-        debugQueries.push({
-          key: "trend",
-          question: trendQuestion,
+        pushQueryDebug({
+          key: "trend_sessions",
+          question: trendSessionsQuestion,
           status: "error",
           reportId: null,
-          error: "Trend query failed before SSE parsing.",
+          error: "Trend sessions query failed before SSE parsing.",
+          rowCount: 0,
+          lastEvent: null,
+        });
+      }
+
+      try {
+        const result = await runSseQuery(trendInstallsQuestion);
+        trendInstallRows = result.rows;
+        pushQueryDebug({
+          key: "trend_installs",
+          question: trendInstallsQuestion,
+          ...result.debug,
+        });
+      } catch {
+        pushQueryDebug({
+          key: "trend_installs",
+          question: trendInstallsQuestion,
+          status: "error",
+          reportId: null,
+          error: "Trend installs query failed before SSE parsing.",
           rowCount: 0,
           lastEvent: null,
         });
@@ -325,11 +453,18 @@ export function useDashboardData(): DashboardData {
         installsBySource.set(source, (installsBySource.get(source) ?? 0) + installs);
       }
 
-      for (const row of trendRows) {
+      for (const row of trendSessionRows) {
         const dt = normalizeDateLabel(row.dt);
         if (!dt) continue;
         const curr = trendMap.get(dt) ?? { sessions: 0, installs: 0 };
         curr.sessions += parseNumber(row.sessions);
+        trendMap.set(dt, curr);
+      }
+
+      for (const row of trendInstallRows) {
+        const dt = normalizeDateLabel(row.dt);
+        if (!dt) continue;
+        const curr = trendMap.get(dt) ?? { sessions: 0, installs: 0 };
         curr.installs += parseNumber(row.installs);
         trendMap.set(dt, curr);
       }
