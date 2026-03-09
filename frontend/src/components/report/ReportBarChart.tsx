@@ -3,6 +3,7 @@
 import {
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
   Legend,
   ResponsiveContainer,
@@ -37,6 +38,17 @@ interface NormalizedSeries {
 
 function isBackendChartSpec(spec: ChartSpec | LegacyChartSpec): spec is ChartSpec {
   return "xAxis" in spec && Array.isArray((spec as ChartSpec).series) && Array.isArray((spec as ChartSpec).data);
+}
+
+function toNumber(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/,/g, "").trim());
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
 }
 
 export default function ReportBarChart(props: Props) {
@@ -76,19 +88,55 @@ export default function ReportBarChart(props: Props) {
   if (!normalized.xAxis) return null;
 
   const isStacked = normalized.type === "stackedBar";
+  const isSingleSeries = series.length === 1;
+  const primaryMetricKey = series[0].dataKey;
+  const chartData =
+    !isStacked && isSingleSeries
+      ? Array.from(
+          normalized.data.reduce((acc, row) => {
+            const groupKey = String(row[normalized.xAxis] ?? "Unknown");
+            const prev = acc.get(groupKey);
+            const metricValue = toNumber(row[primaryMetricKey]);
+            if (!prev) {
+              acc.set(groupKey, {
+                [normalized.xAxis]: groupKey,
+                [primaryMetricKey]: metricValue,
+              });
+            } else {
+              prev[primaryMetricKey] = toNumber(prev[primaryMetricKey]) + metricValue;
+            }
+            return acc;
+          }, new Map<string, Record<string, unknown>>())
+        ).map(([, row]) => row)
+      : normalized.data;
+
   const seriesColors = [
-    "var(--chart-1)",
-    "var(--chart-2)",
-    "var(--chart-3)",
-    "var(--chart-4)",
-    "var(--chart-5)",
+    "#0F172A",
+    "#2563EB",
+    "#0E9F6E",
+    "#D946EF",
+    "#F59E0B",
+    "#E11D48",
+    "#14B8A6",
+    "#6D28D9",
+    "#EA580C",
+    "#4B5563",
   ];
+  const categoryColorByX = new Map<string, string>();
+  if (!isStacked && isSingleSeries) {
+    for (const row of chartData) {
+      const key = String(row[normalized.xAxis] ?? "Unknown");
+      if (!categoryColorByX.has(key)) {
+        categoryColorByX.set(key, seriesColors[categoryColorByX.size % seriesColors.length]);
+      }
+    }
+  }
 
   return (
     <div className="space-y-2 rounded-xl border border-border/90 bg-background p-3 shadow-[0_12px_30px_-22px_rgba(25,25,25,0.45)]">
       {normalized.title && <p className="text-sm font-semibold text-foreground">{normalized.title}</p>}
       <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={normalized.data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+        <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis
             dataKey={normalized.xAxis}
@@ -118,7 +166,16 @@ export default function ReportBarChart(props: Props) {
               fill={seriesColors[idx % seriesColors.length]}
               radius={[4, 4, 0, 0]}
               stackId={isStacked ? "stack" : undefined}
-            />
+            >
+              {!isStacked &&
+                isSingleSeries &&
+                chartData.map((row, rowIdx) => (
+                  <Cell
+                    key={`${item.dataKey}-${rowIdx}`}
+                    fill={categoryColorByX.get(String(row[normalized.xAxis] ?? "Unknown")) ?? "#0F172A"}
+                  />
+                ))}
+            </Bar>
           ))}
         </BarChart>
       </ResponsiveContainer>

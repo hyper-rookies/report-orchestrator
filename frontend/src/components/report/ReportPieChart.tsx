@@ -11,11 +11,16 @@ export interface PieSpec {
 }
 
 const COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
+  "#0F172A",
+  "#2563EB",
+  "#0E9F6E",
+  "#D946EF",
+  "#F59E0B",
+  "#E11D48",
+  "#14B8A6",
+  "#6D28D9",
+  "#EA580C",
+  "#4B5563",
 ];
 
 export default function ReportPieChart({ spec }: { spec: PieSpec }) {
@@ -47,4 +52,3 @@ export default function ReportPieChart({ spec }: { spec: PieSpec }) {
     </div>
   );
 }
-
