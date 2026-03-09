@@ -1,10 +1,15 @@
 {
-  "_note": "Codex: ?쒖뒪???꾨즺 ??status瑜?'done'?쇰줈, 留됲엳硫?'blocked'濡?蹂寃쏀븯??",
+  "_note": "Codex: 태스크 완료 시 status를 'done'으로, 막히면 'blocked'로 변경하라.",
   "tasks": {
-    "DA-01": { "status": "done", "title": "WeekSelector + ChannelRevenueChart 而댄룷?뚰듃", "completedAt": "2026-03-09T11:21:01.0417894+09:00" },
-    "DA-02": { "status": "done", "title": "ConversionChart + CampaignInstallsChart 而댄룷?뚰듃", "completedAt": "2026-03-09T11:26:01.0020914+09:00" },
-    "DA-03": { "status": "done", "title": "InstallFunnelChart + RetentionCohortChart 而댄룷?뚰듃", "completedAt": "2026-03-09T11:27:00.9975318+09:00" },
-    "DA-04": { "status": "done", "title": "useDashboardData.ts ?뺤옣", "completedAt": "2026-03-09T11:50:53.4476329+09:00" },
-    "DA-05": { "status": "done", "title": "dashboard/page.tsx ?듯빀", "completedAt": "2026-03-09T12:00:29.5166741+09:00" }
+    "DA-01": { "status": "done", "title": "WeekSelector + ChannelRevenueChart 컴포넌트", "completedAt": "2026-03-09T11:21:01.0417894+09:00" },
+    "DA-02": { "status": "done", "title": "ConversionChart + CampaignInstallsChart 컴포넌트", "completedAt": "2026-03-09T11:26:01.0020914+09:00" },
+    "DA-03": { "status": "done", "title": "InstallFunnelChart + RetentionCohortChart 컴포넌트", "completedAt": "2026-03-09T11:27:00.9975318+09:00" },
+    "DA-04": { "status": "done", "title": "useDashboardData.ts 확장", "completedAt": "2026-03-09T11:50:53.4476329+09:00" },
+    "DA-05": { "status": "done", "title": "dashboard/page.tsx 통합", "completedAt": "2026-03-09T12:00:29.5166741+09:00" },
+    "SC-01": { "status": "done", "title": "dashboard_queries.py SQL 모듈 + pytest", "completedAt": "2026-03-09T14:46:21.4831223+09:00" },
+    "SC-02": { "status": "pending", "title": "precompute_dashboard.py Athena 실행 + pytest", "completedAt": null },
+    "SC-03": { "status": "pending", "title": "스크립트 실행 → 5개 JSON + manifest 생성", "completedAt": null },
+    "SC-04": { "status": "pending", "title": "useDashboardCache.ts + page.tsx manifest 방식 교체", "completedAt": null },
+    "SC-05": { "status": "pending", "title": "REPORT.md 작성", "completedAt": null }
   }
 }
