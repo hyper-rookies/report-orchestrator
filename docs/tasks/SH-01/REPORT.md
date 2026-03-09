@@ -1,19 +1,19 @@
 # SH-01 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-09T17:16:11.5028101+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `frontend/src/lib/shareToken.ts` 생성됨
-- [ ] `frontend/src/lib/shareCodeStore.ts` 생성됨
-- [ ] `signShareToken` / `verifyShareToken` / `getExpiresAt` export됨
-- [ ] `createCode` / `resolveCode` export됨
-- [ ] `SHARE_TOKEN_SECRET` 미설정 시 `Error` throw
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `frontend/src/lib/shareToken.ts` created
+- [x] `frontend/src/lib/shareCodeStore.ts` created
+- [x] `signShareToken` / `verifyShareToken` / `getExpiresAt` exported
+- [x] `createCode` / `resolveCode` exported
+- [x] Throws `Error` when `SHARE_TOKEN_SECRET` is missing/too short
+- [x] `cd frontend && npx tsc --noEmit` passes
 
 ---
 
@@ -21,27 +21,31 @@
 
 | File | Action | Lines |
 |------|--------|-------|
-| `frontend/src/lib/shareToken.ts` | Created | ? |
-| `frontend/src/lib/shareCodeStore.ts` | Created | ? |
-| `frontend/.env.example` | Modified | ? |
+| `frontend/src/lib/shareToken.ts` | Created | 39 |
+| `frontend/src/lib/shareCodeStore.ts` | Created | 39 |
+| `frontend/.env.example` | Created | 8 |
+| `frontend/.env.local` | Modified | +1 |
+| `frontend/package.json` | Modified | +2 deps |
+| `frontend/package-lock.json` | Modified | lockfile sync |
 
 ---
 
 ## TypeScript Check
 
-```
+```bash
 $ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
+# (no output, exit code 0)
 ```
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+- `frontend/.env.example` did not exist, so it was created.
+- Added direct dependencies to `frontend/package.json` (`jose`, `nanoid`) and synced lockfile.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+- None.

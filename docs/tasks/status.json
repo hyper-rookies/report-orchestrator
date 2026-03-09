@@ -11,7 +11,7 @@
     "SC-03": { "status": "done", "title": "run script and generate 5 JSON + manifest", "completedAt": "2026-03-09T15:35:39.4481818+09:00" },
     "SC-04": { "status": "done", "title": "replace with useDashboardCache + manifest flow", "completedAt": "2026-03-09T15:57:40.3937894+09:00" },
     "SC-05": { "status": "done", "title": "write final static cache report", "completedAt": "2026-03-09T16:10:10.3893468+09:00" },
-    "SH-01": { "status": "pending", "title": "JWT sign/verify + short code store", "completedAt": null },
+    "SH-01": { "status": "done", "title": "JWT sign/verify + short code store", "completedAt": "2026-03-09T17:16:11.5028101+09:00" },
     "SH-02": { "status": "pending", "title": "POST /api/share + GET /api/share/[code] routes", "completedAt": null },
     "SH-03": { "status": "pending", "title": "public shared dashboard page", "completedAt": null },
     "SH-04": { "status": "pending", "title": "ShareButton modal with expiry/copy", "completedAt": null },
