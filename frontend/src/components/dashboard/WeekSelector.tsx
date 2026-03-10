@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatWeekRangeLabel } from "@/lib/weekRangeLabel";
 
 export interface WeekRange {
   start: string;
@@ -30,8 +31,8 @@ export default function WeekSelector({ weeks, selectedIndex, onChange }: WeekSel
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
-      <span className="min-w-[160px] text-center text-sm font-medium">
-        {weeks[selectedIndex]?.label ?? "-"}
+      <span className="min-w-[280px] text-center text-sm font-medium">
+        {weeks[selectedIndex] ? formatWeekRangeLabel(weeks[selectedIndex]) : "-"}
       </span>
       <Button
         variant="outline"

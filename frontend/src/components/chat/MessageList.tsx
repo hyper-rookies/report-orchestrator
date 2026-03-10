@@ -1,12 +1,12 @@
 import type { RefObject } from "react";
 
-import { Message } from "@/app/(app)/page";
 import { SseFrame } from "@/hooks/useSse";
+import type { ChatMessage } from "@/types/chat";
 
 import AssistantMessage from "./AssistantMessage";
 
 interface Props {
-  messages: Message[];
+  messages: ChatMessage[];
   streamingFrames: SseFrame[];
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }

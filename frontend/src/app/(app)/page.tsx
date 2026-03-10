@@ -1,34 +1,80 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import MessageList from "@/components/chat/MessageList";
 import ChatInput from "@/components/chat/ChatInput";
-import { SseFrame, useSse } from "@/hooks/useSse";
+import { useSessionContext } from "@/context/SessionContext";
+import {
+  applySaveSuccess,
+  createSaveFailure,
+  prepareSessionSave,
+  type FailedSessionSave,
+} from "@/lib/sessionPersistence";
+import { type SseFrame, useSse } from "@/hooks/useSse";
+import type { ChatMessage } from "@/types/chat";
 
-export interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  frames?: SseFrame[];
-}
+const SKIP_TYPES = new Set(["chunk", "status", "delta"]);
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const router = useRouter();
+  const { saveSession } = useSessionContext();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [retryableSave, setRetryableSave] = useState<FailedSessionSave | null>(null);
+  const [persisting, setPersisting] = useState(false);
   const { frames, streaming, error, ask } = useSse();
   const messageScrollRef = useRef<HTMLDivElement>(null);
+  const sessionIdsRef = useRef<{ persistedSessionId: string | null; draftSessionId: string | null }>({
+    persistedSessionId: null,
+    draftSessionId: null,
+  });
 
   const hasRenderableFrame = (allFrames: SseFrame[]) =>
     allFrames.some((frame) => {
-      if (frame.type === "chunk" || frame.type === "table" || frame.type === "chart" || frame.type === "error") {
+      if (
+        frame.type === "chunk" ||
+        frame.type === "table" ||
+        frame.type === "chart" ||
+        frame.type === "error"
+      ) {
         return true;
       }
       if (frame.type !== "final") {
         return false;
       }
-      const summary = (frame.data.agentSummary as string | undefined) ?? (frame.data.summary as string | undefined);
+      const summary =
+        (frame.data.agentSummary as string | undefined) ??
+        (frame.data.summary as string | undefined);
       return typeof summary === "string" && summary.trim().length > 0;
     });
+
+  const persistSession = async (failedSave: FailedSessionSave) => {
+    setPersisting(true);
+    setSaveError(null);
+
+    try {
+      const savedMeta = await saveSession(failedSave.request);
+      const nextIds = applySaveSuccess(sessionIdsRef.current, savedMeta.sessionId);
+      sessionIdsRef.current = nextIds;
+      setRetryableSave(null);
+
+      if (failedSave.shouldNavigateOnSuccess && nextIds.navigateTo) {
+        router.replace(nextIds.navigateTo);
+      }
+    } catch (saveFailureError) {
+      const nextFailure = createSaveFailure(
+        failedSave.request,
+        failedSave.shouldNavigateOnSuccess,
+        saveFailureError
+      );
+      setRetryableSave(nextFailure);
+      setSaveError(nextFailure.message);
+    } finally {
+      setPersisting(false);
+    }
+  };
 
   useEffect(() => {
     if (messages.length === 0 && frames.length === 0) {
@@ -45,12 +91,18 @@ export default function ChatPage() {
   }, [messages, frames]);
 
   const handleSubmit = async (question: string) => {
-    const userMsg: Message = {
+    setSaveError(null);
+    setRetryableSave(null);
+
+    const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: question,
     };
-    setMessages((prev) => [...prev, userMsg]);
+
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
+
     const completedFrames = await ask(question);
     const normalizedFrames = hasRenderableFrame(completedFrames)
       ? completedFrames
@@ -60,20 +112,43 @@ export default function ChatPage() {
             data: {
               version: "v1",
               code: "EMPTY_RESPONSE",
-              message: "응답 프레임이 비어 있습니다. 인증(401) 또는 SSE 응답 형식을 확인해 주세요.",
+              message:
+                "?묐떟 ?꾨젅?꾩씠 鍮꾩뼱 ?덉뒿?덈떎. ?몄쬆(401) ?먮뒗 SSE ?묐떟 ?뺤떇???뺤씤??二쇱꽭??",
               retryable: false,
             },
           } satisfies SseFrame,
         ];
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "",
-        frames: normalizedFrames,
-      },
-    ]);
+
+    const assistantMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: "",
+      frames: normalizedFrames,
+    };
+
+    const updatedMessages = [...nextMessages, assistantMsg];
+    setMessages(updatedMessages);
+
+    const pendingSave = prepareSessionSave({
+      ...sessionIdsRef.current,
+      persistedTitle: null,
+      loadedTitle: null,
+      question,
+      messages: updatedMessages,
+      skipFrameTypes: SKIP_TYPES,
+      createSessionId: () => crypto.randomUUID(),
+    });
+
+    sessionIdsRef.current = {
+      ...sessionIdsRef.current,
+      draftSessionId: pendingSave.request.sessionId,
+    };
+
+    await persistSession({
+      message: "",
+      request: pendingSave.request,
+      shouldNavigateOnSuccess: pendingSave.shouldNavigateOnSuccess,
+    });
   };
 
   return (
@@ -88,8 +163,22 @@ export default function ChatPage() {
           {error}
         </p>
       )}
-      <ChatInput onSubmit={handleSubmit} disabled={streaming} />
+      {saveError && (
+        <div className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p>{saveError}</p>
+          {retryableSave && (
+            <button
+              type="button"
+              className="shrink-0 rounded border border-destructive/40 px-2 py-1 text-xs font-medium hover:bg-destructive/10"
+              onClick={() => void persistSession(retryableSave)}
+              disabled={persisting}
+            >
+              다시 저장
+            </button>
+          )}
+        </div>
+      )}
+      <ChatInput onSubmit={handleSubmit} disabled={streaming || persisting} />
     </div>
   );
 }
-

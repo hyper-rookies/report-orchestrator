@@ -1,15 +1,165 @@
 {
-  "_note": "Codex: 태스크 완료 시 status를 'done'으로, 막히면 'blocked'로 변경하라.",
-  "tasks": {
-    "DA-01": { "status": "done", "title": "WeekSelector + ChannelRevenueChart 컴포넌트", "completedAt": "2026-03-09T11:21:01.0417894+09:00" },
-    "DA-02": { "status": "done", "title": "ConversionChart + CampaignInstallsChart 컴포넌트", "completedAt": "2026-03-09T11:26:01.0020914+09:00" },
-    "DA-03": { "status": "done", "title": "InstallFunnelChart + RetentionCohortChart 컴포넌트", "completedAt": "2026-03-09T11:27:00.9975318+09:00" },
-    "DA-04": { "status": "done", "title": "useDashboardData.ts 확장", "completedAt": "2026-03-09T11:50:53.4476329+09:00" },
-    "DA-05": { "status": "done", "title": "dashboard/page.tsx 통합", "completedAt": "2026-03-09T12:00:29.5166741+09:00" },
-    "SC-01": { "status": "done", "title": "dashboard_queries.py SQL 모듈 + pytest", "completedAt": "2026-03-09T14:46:21.4831223+09:00" },
-    "SC-02": { "status": "done", "title": "precompute_dashboard.py Athena 실행 + pytest", "completedAt": "2026-03-09T15:01:53.5538293+09:00" },
-    "SC-03": { "status": "done", "title": "스크립트 실행 → 5개 JSON + manifest 생성", "completedAt": "2026-03-09T15:35:39.4481818+09:00" },
-    "SC-04": { "status": "done", "title": "useDashboardCache.ts + page.tsx manifest 방식 교체", "completedAt": "2026-03-09T15:57:40.3937894+09:00" },
-    "SC-05": { "status": "done", "title": "REPORT.md 작성", "completedAt": "2026-03-09T16:10:10.3893468+09:00" }
-  }
+    "_note":  "Codex: 태스크 완료 시 status를 \u0027done\u0027으로, 막히면 \u0027blocked\u0027로 변경하라.",
+    "tasks":  {
+                  "DA-01":  {
+                                "status":  "done",
+                                "title":  "WeekSelector + ChannelRevenueChart component",
+                                "completedAt":  "2026-03-09T11:21:01.0417894+09:00"
+                            },
+                  "DA-02":  {
+                                "status":  "done",
+                                "title":  "ConversionChart + CampaignInstallsChart component",
+                                "completedAt":  "2026-03-09T11:26:01.0020914+09:00"
+                            },
+                  "DA-03":  {
+                                "status":  "done",
+                                "title":  "InstallFunnelChart + RetentionCohortChart component",
+                                "completedAt":  "2026-03-09T11:27:00.9975318+09:00"
+                            },
+                  "DA-04":  {
+                                "status":  "done",
+                                "title":  "extend useDashboardData.ts",
+                                "completedAt":  "2026-03-09T11:50:53.4476329+09:00"
+                            },
+                  "DA-05":  {
+                                "status":  "done",
+                                "title":  "integrate dashboard/page.tsx",
+                                "completedAt":  "2026-03-09T12:00:29.5166741+09:00"
+                            },
+                  "SC-01":  {
+                                "status":  "done",
+                                "title":  "dashboard_queries.py SQL module + pytest",
+                                "completedAt":  "2026-03-09T14:46:21.4831223+09:00"
+                            },
+                  "SC-02":  {
+                                "status":  "done",
+                                "title":  "precompute_dashboard.py Athena runner + pytest",
+                                "completedAt":  "2026-03-09T15:01:53.5538293+09:00"
+                            },
+                  "SC-03":  {
+                                "status":  "done",
+                                "title":  "run script and generate 5 JSON + manifest",
+                                "completedAt":  "2026-03-09T15:35:39.4481818+09:00"
+                            },
+                  "SC-04":  {
+                                "status":  "done",
+                                "title":  "replace with useDashboardCache + manifest flow",
+                                "completedAt":  "2026-03-09T15:57:40.3937894+09:00"
+                            },
+                  "SC-05":  {
+                                "status":  "done",
+                                "title":  "write final static cache report",
+                                "completedAt":  "2026-03-09T16:10:10.3893468+09:00"
+                            },
+                  "SH-01":  {
+                                "status":  "done",
+                                "title":  "JWT sign/verify + short code store",
+                                "completedAt":  "2026-03-09T17:16:11.5028101+09:00"
+                            },
+                  "SH-02":  {
+                                "status":  "done",
+                                "title":  "POST /api/share + GET /api/share/[code] routes",
+                                "completedAt":  "2026-03-10T07:53:11.8582353+09:00"
+                            },
+                  "SH-03":  {
+                                "status":  "done",
+                                "title":  "public shared dashboard page",
+                                "completedAt":  "2026-03-10T08:10:31.9633473+09:00"
+                            },
+                  "SH-04":  {
+                                "status":  "done",
+                                "title":  "ShareButton modal with expiry/copy",
+                                "completedAt":  "2026-03-10T08:09:20.3777968+09:00"
+                            },
+                  "SH-05":  {
+                                "status":  "done",
+                                "title":  "PdfExportButton with html2canvas + jspdf",
+                                "completedAt":  "2026-03-10T09:12:00+09:00"
+                            },
+                  "SH-06":  {
+                                "status":  "done",
+                                "title":  "wire ShareButton + PdfExportButton into dashboard header",
+                                "completedAt":  "2026-03-10T08:37:05.6431784+09:00"
+                            },
+                  "SS-01":  {
+                                "status":  "done",
+                                "title":  "의존성(@aws-sdk/client-s3) + sessionS3.ts + session 타입",
+                                "completedAt":  "2026-03-10T08:18:04.0209542+09:00"
+                            },
+                  "SS-02":  {
+                                "status":  "done",
+                                "title":  "GET/POST /api/sessions (목록 + 생성)",
+                                "completedAt":  "2026-03-10T08:45:49.1649070+09:00"
+                            },
+                  "SS-03":  {
+                                "status":  "done",
+                                "title":  "GET/PATCH/DELETE /api/sessions/[id]",
+                                "completedAt":  "2026-03-10T08:50:13.5649348+09:00"
+                            },
+                  "SS-04":  {
+                                "status":  "done",
+                                "title":  "sessionShareStore.ts + 세션 공유 API 2개",
+                                "completedAt":  "2026-03-10T08:56:17.7251338+09:00"
+                            },
+                  "SS-05":  {
+                                "status":  "done",
+                                "title":  "SessionContext provider + useSessionStore",
+                                "completedAt":  "2026-03-10T09:01:12.4943771+09:00"
+                            },
+                  "SS-06":  {
+                                "status":  "done",
+                                "title":  "SessionListItem 컴포넌트 (점3개 메뉴 + 우클릭)",
+                                "completedAt":  "2026-03-10T09:05:15.3813679+09:00"
+                            },
+                  "SS-07":  {
+                                "status":  "done",
+                                "title":  "Sidebar 업데이트 + layout.tsx에 SessionProvider",
+                                "completedAt":  "2026-03-10T09:11:30.8552558+09:00"
+                            },
+                  "SS-08":  {
+                                "status":  "done",
+                                "title":  "(app)/page.tsx 자동 저장 + sessionId URL 라우팅",
+                                "completedAt":  "2026-03-10T09:15:08.6775511+09:00"
+                            },
+                  "SS-09":  {
+                                "status":  "done",
+                                "title":  "sessions/[sessionId]/page.tsx 세션 복원",
+                                "completedAt":  "2026-03-10T09:19:49.6329882+09:00"
+                            },
+                  "SS-10":  {
+                                "status":  "pending",
+                                "title":  "share/session/[code]/page.tsx read-only 공유 뷰",
+                                "completedAt":  null
+                            },
+                  "VZ-01":  {
+                                "status":  "pending",
+                                "title":  "chart_selector.py — 결정론적 선택 엔진 + 단위 테스트",
+                                "completedAt":  null
+                            },
+                  "VZ-02":  {
+                                "status":  "pending",
+                                "title":  "app.py — chartType=auto 지원 + test_auto_mode.py",
+                                "completedAt":  null
+                            },
+                  "VZ-03":  {
+                                "status":  "pending",
+                                "title":  "selectionReason → spec 추가 + CONTRACTS.md 업데이트",
+                                "completedAt":  null
+                            },
+                  "VZ-04":  {
+                                "status":  "pending",
+                                "title":  "Bedrock Agent 프롬프트 — auto 모드 + hint 전달 지침",
+                                "completedAt":  null
+                            },
+                  "VZ-05":  {
+                                "status":  "pending",
+                                "title":  "AssistantMessage — 차트/테이블 토글 switch",
+                                "completedAt":  null
+                            },
+                  "VZ-06":  {
+                                "status":  "pending",
+                                "title":  "테이블/차트 카드 CSV 다운로드 버튼",
+                                "completedAt":  null
+                            }
+              }
 }

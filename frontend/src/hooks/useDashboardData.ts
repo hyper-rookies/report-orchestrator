@@ -72,7 +72,7 @@ function normalizeDateLabel(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(value);
   if (!isoMatch) return value;
-  const [_, month, day] = value.split("-");
+  const [, month, day] = value.split("-");
   return `${month}/${day}`;
 }
 

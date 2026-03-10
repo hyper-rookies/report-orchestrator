@@ -256,7 +256,7 @@ def test_viz_buildchartspec_bedrock_invalid_chart_type_returns_error_in_envelope
         "parameters": [
             _param("version", "string", "v1"),
             _param("rows", "array", json.dumps(_ROWS)),
-            _param("chartType", "string", "pie"),
+            _param("chartType", "string", "scatter"),
         ],
     }
     body = _assert_bedrock_envelope(viz_app.lambda_handler(event, None), "viz", "buildChartSpec")

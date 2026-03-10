@@ -2,19 +2,7 @@
 
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-
-const COLORS = [
-  "#0F172A",
-  "#2563EB",
-  "#0E9F6E",
-  "#D946EF",
-  "#F59E0B",
-  "#E11D48",
-  "#14B8A6",
-  "#6D28D9",
-  "#EA580C",
-  "#4B5563",
-];
+import { CHART_TOOLTIP_STYLE, getChannelColor } from "./chartTheme";
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("ko-KR").format(Math.round(value));
@@ -39,7 +27,7 @@ export default function ChannelPieChart({
               <div className="flex items-center gap-2">
                 <span
                   className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                  style={{ backgroundColor: getChannelColor(item.name) }}
                 />
                 <span className="text-foreground/90">{item.name}</span>
               </div>
@@ -64,7 +52,7 @@ export default function ChannelPieChart({
                 labelLine={false}
               >
                 {data.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={i} fill={getChannelColor(data[i]?.name ?? String(i))} />
                 ))}
               </Pie>
               <Tooltip
@@ -73,12 +61,7 @@ export default function ChannelPieChart({
                   const ratio = total > 0 ? (numeric / total) * 100 : 0;
                   return `${ratio.toFixed(1)}%`;
                 }}
-                contentStyle={{
-                  borderRadius: 12,
-                  border: "1px solid var(--border)",
-                  background: "var(--card)",
-                  color: "var(--foreground)",
-                }}
+                contentStyle={CHART_TOOLTIP_STYLE}
               />
             </PieChart>
           </ResponsiveContainer>
