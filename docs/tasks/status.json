@@ -22,7 +22,7 @@
     "SS-03": { "status": "done", "title": "GET/PATCH/DELETE /api/sessions/[id]", "completedAt": "2026-03-10T08:50:13.5649348+09:00" },
     "SS-04": { "status": "done", "title": "sessionShareStore.ts + 세션 공유 API 2개", "completedAt": "2026-03-10T08:56:17.7251338+09:00" },
     "SS-05": { "status": "done", "title": "SessionContext provider + useSessionStore", "completedAt": "2026-03-10T09:01:12.4943771+09:00" },
-    "SS-06": { "status": "pending", "title": "SessionListItem 컴포넌트 (점3개 메뉴 + 우클릭)", "completedAt": null },
+    "SS-06": { "status": "done", "title": "SessionListItem 컴포넌트 (점3개 메뉴 + 우클릭)", "completedAt": "2026-03-10T09:05:15.3813679+09:00" },
     "SS-07": { "status": "pending", "title": "Sidebar 업데이트 + layout.tsx에 SessionProvider", "completedAt": null },
     "SS-08": { "status": "pending", "title": "(app)/page.tsx 자동 저장 + sessionId URL 라우팅", "completedAt": null },
     "SS-09": { "status": "pending", "title": "sessions/[sessionId]/page.tsx 세션 복원", "completedAt": null },
