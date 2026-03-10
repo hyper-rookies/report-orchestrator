@@ -5,6 +5,11 @@ interface ShareEntry {
   expiresAt: number; // Unix seconds
 }
 
+export type ResolveShareCodeEntryResult =
+  | { status: "ok"; entry: { jwt: string; expiresAt: string } }
+  | { status: "expired" }
+  | { status: "missing" };
+
 const MAX_ENTRIES = 500;
 
 declare global {
@@ -19,13 +24,7 @@ function getStore(): Map<string, ShareEntry> {
   return global.__shareCodeStore;
 }
 
-function pruneStore(store: Map<string, ShareEntry>, now: number): void {
-  for (const [key, value] of store.entries()) {
-    if (value.expiresAt < now) {
-      store.delete(key);
-    }
-  }
-
+function pruneStore(store: Map<string, ShareEntry>): void {
   while (store.size > MAX_ENTRIES) {
     const oldestKey = store.keys().next().value;
     if (!oldestKey) {
@@ -40,31 +39,33 @@ export function createCode(jwt: string, expiresAt: Date): string {
   const code = nanoid(8);
   store.set(code, { jwt, expiresAt: Math.floor(expiresAt.getTime() / 1000) });
 
-  const now = Math.floor(Date.now() / 1000);
-  pruneStore(store, now);
+  pruneStore(store);
 
   return code;
 }
 
-export function resolveCodeEntry(code: string): { jwt: string; expiresAt: string } | null {
+export function resolveCodeEntry(code: string): ResolveShareCodeEntryResult {
   const store = getStore();
   // This is only a process-local short-code cache. Restarts or multi-instance routing
   // can miss entries until the signed-token fallback is used by the caller.
   const entry = store.get(code);
   if (!entry) {
-    return null;
+    return { status: "missing" };
   }
   if (Math.floor(Date.now() / 1000) > entry.expiresAt) {
-    store.delete(code);
-    return null;
+    return { status: "expired" };
   }
 
   return {
-    jwt: entry.jwt,
-    expiresAt: new Date(entry.expiresAt * 1000).toISOString(),
+    status: "ok",
+    entry: {
+      jwt: entry.jwt,
+      expiresAt: new Date(entry.expiresAt * 1000).toISOString(),
+    },
   };
 }
 
 export function resolveCode(code: string): string | null {
-  return resolveCodeEntry(code)?.jwt ?? null;
+  const result = resolveCodeEntry(code);
+  return result.status === "ok" ? result.entry.jwt : null;
 }

@@ -6,27 +6,39 @@ import type { SessionData } from "@/types/session";
 
 type Params = { params: Promise<{ id: string }> };
 
+function errorResponse(status: number, error: string): NextResponse {
+  return NextResponse.json({ error }, { status });
+}
+
 export async function POST(
   req: NextRequest,
   { params }: Params
 ): Promise<NextResponse> {
   const sub = getUserSub(req);
   if (!sub) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return errorResponse(401, "Unauthorized");
   }
 
   const { id } = await params;
-  const session = await s3GetJson<SessionData>(sessionKey(sub, id));
-  if (!session) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (id.trim().length === 0) {
+    return errorResponse(400, "Malformed session id.");
   }
 
-  const { code, expiresAt } = createSessionShareCode(session);
-  const origin = req.headers.get("origin") ?? req.nextUrl.origin;
+  try {
+    const session = await s3GetJson<SessionData>(sessionKey(sub, id));
+    if (!session) {
+      return errorResponse(404, "Session was not found.");
+    }
 
-  return NextResponse.json({
-    code,
-    url: `${origin}/share/session/${code}`,
-    expiresAt: expiresAt.toISOString(),
-  });
+    const { code, expiresAt } = createSessionShareCode(session);
+    const origin = req.headers.get("origin") ?? req.nextUrl.origin;
+
+    return NextResponse.json({
+      code,
+      url: `${origin}/share/session/${code}`,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch {
+    return errorResponse(500, "Failed to create session share link.");
+  }
 }

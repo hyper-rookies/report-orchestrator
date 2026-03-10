@@ -6,6 +6,11 @@ interface SessionShareEntry {
   expiresAt: number;
 }
 
+export type ResolveSessionShareCodeResult =
+  | { status: "ok"; sessionData: SessionData; expiresAt: string }
+  | { status: "expired" }
+  | { status: "missing" };
+
 const TTL_SECONDS = 7 * 24 * 60 * 60;
 const MAX_ENTRIES = 200;
 
@@ -22,13 +27,7 @@ function getStore(): Map<string, SessionShareEntry> {
   return global.__sessionShareStore;
 }
 
-function pruneStore(store: Map<string, SessionShareEntry>, now: number): void {
-  for (const [key, value] of store.entries()) {
-    if (value.expiresAt < now) {
-      store.delete(key);
-    }
-  }
-
+function pruneStore(store: Map<string, SessionShareEntry>): void {
   while (store.size > MAX_ENTRIES) {
     const oldestKey = store.keys().next().value;
     if (!oldestKey) {
@@ -51,26 +50,28 @@ export function createSessionShareCode(sessionData: SessionData): {
     expiresAt: Math.floor(expiresAt.getTime() / 1000),
   });
 
-  const now = Math.floor(Date.now() / 1000);
-  pruneStore(store, now);
+  pruneStore(store);
 
   return { code, expiresAt };
 }
 
-export function resolveSessionShareCode(code: string): SessionData | null {
+export function resolveSessionShareCode(code: string): ResolveSessionShareCodeResult {
   const store = getStore();
   // This store is intentionally process-local for now, so links are not durable
   // across server restarts or load-balanced instance hops.
   const entry = store.get(code);
 
   if (!entry) {
-    return null;
+    return { status: "missing" };
   }
 
   if (Math.floor(Date.now() / 1000) > entry.expiresAt) {
-    store.delete(code);
-    return null;
+    return { status: "expired" };
   }
 
-  return entry.sessionData;
+  return {
+    status: "ok",
+    sessionData: entry.sessionData,
+    expiresAt: new Date(entry.expiresAt * 1000).toISOString(),
+  };
 }

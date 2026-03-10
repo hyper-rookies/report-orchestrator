@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT, errors, jwtVerify } from "jose";
 
 const SHARE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
@@ -20,6 +20,11 @@ export interface VerifiedShareTokenPayload extends ShareTokenPayload {
   expiresAt: string;
 }
 
+export type VerifyShareTokenResult =
+  | { status: "ok"; payload: VerifiedShareTokenPayload }
+  | { status: "expired" }
+  | { status: "invalid" };
+
 export async function signShareToken(payload: ShareTokenPayload): Promise<string> {
   return new SignJWT({ s: payload.weekStart, e: payload.weekEnd, l: payload.weekLabel })
     .setProtectedHeader({ alg: "HS256" })
@@ -28,25 +33,34 @@ export async function signShareToken(payload: ShareTokenPayload): Promise<string
     .sign(getSecret());
 }
 
-export async function verifyShareToken(token: string): Promise<VerifiedShareTokenPayload | null> {
+export async function verifyShareToken(token: string): Promise<VerifyShareTokenResult> {
+  const secret = getSecret();
+
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, secret);
     if (
       typeof payload.s !== "string" ||
       typeof payload.e !== "string" ||
       typeof payload.l !== "string" ||
       typeof payload.exp !== "number"
     ) {
-      return null;
+      return { status: "invalid" };
     }
     return {
-      weekStart: payload.s,
-      weekEnd: payload.e,
-      weekLabel: payload.l,
-      expiresAt: new Date(payload.exp * 1000).toISOString(),
+      status: "ok",
+      payload: {
+        weekStart: payload.s,
+        weekEnd: payload.e,
+        weekLabel: payload.l,
+        expiresAt: new Date(payload.exp * 1000).toISOString(),
+      },
     };
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof errors.JWTExpired) {
+      return { status: "expired" };
+    }
+
+    return { status: "invalid" };
   }
 }
 
