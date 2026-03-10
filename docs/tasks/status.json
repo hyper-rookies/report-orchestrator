@@ -26,6 +26,6 @@
     "SS-07": { "status": "done", "title": "Sidebar 업데이트 + layout.tsx에 SessionProvider", "completedAt": "2026-03-10T09:11:30.8552558+09:00" },
     "SS-08": { "status": "done", "title": "(app)/page.tsx 자동 저장 + sessionId URL 라우팅", "completedAt": "2026-03-10T09:15:08.6775511+09:00" },
     "SS-09": { "status": "done", "title": "sessions/[sessionId]/page.tsx 세션 복원", "completedAt": "2026-03-10T09:19:49.6329882+09:00" },
-    "SS-10": { "status": "pending", "title": "share/session/[code]/page.tsx read-only 공유 뷰", "completedAt": null }
+    "SS-10": { "status": "done", "title": "share/session/[code]/page.tsx read-only 공유 뷰", "completedAt": "2026-03-10T09:45:00+09:00" }
   }
 }
