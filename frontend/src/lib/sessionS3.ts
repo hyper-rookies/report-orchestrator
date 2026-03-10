@@ -9,6 +9,10 @@ function getClient(): S3Client {
   return new S3Client({ region: process.env.AWS_REGION ?? "ap-northeast-2" });
 }
 
+export function hasSessionBucket(): boolean {
+  return typeof process.env.SESSION_BUCKET === "string" && process.env.SESSION_BUCKET.trim().length > 0;
+}
+
 function getBucket(): string {
   const bucket = process.env.SESSION_BUCKET;
   if (!bucket) {

@@ -150,6 +150,16 @@
                                 "status":  "pending",
                                 "title":  "Bedrock Agent 프롬프트 — auto 모드 + hint 전달 지침",
                                 "completedAt":  null
+                            },
+                  "VZ-05":  {
+                                "status":  "pending",
+                                "title":  "AssistantMessage — 차트/테이블 토글 switch",
+                                "completedAt":  null
+                            },
+                  "VZ-06":  {
+                                "status":  "pending",
+                                "title":  "테이블/차트 카드 CSV 다운로드 버튼",
+                                "completedAt":  null
                             }
               }
 }

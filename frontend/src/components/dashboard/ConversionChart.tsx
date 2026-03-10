@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  CHART_AXIS_LABEL_STYLE,
   CHART_AXIS_LINE_STYLE,
   CHART_GRID_STROKE,
   CHART_TICK_LINE_STYLE,
@@ -59,7 +60,13 @@ export default function ConversionChart({
           tick={CHART_TICK_STYLE}
           tickLine={CHART_TICK_LINE_STYLE}
           axisLine={CHART_AXIS_LINE_STYLE}
-          tickMargin={8}
+          tickMargin={10}
+          interval={0}
+          angle={-20}
+          textAnchor="end"
+          height={56}
+          minTickGap={0}
+          label={{ value: "Channel", position: "insideBottom", offset: -4, ...CHART_AXIS_LABEL_STYLE }}
         />
         <YAxis
           tick={CHART_TICK_STYLE}

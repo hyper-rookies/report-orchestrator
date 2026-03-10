@@ -10,7 +10,6 @@ import DashboardCardView from "@/components/dashboard/DashboardCardView";
 import ExportExcelButton from "@/components/dashboard/ExportExcelButton";
 import InstallFunnelChart from "@/components/dashboard/InstallFunnelChart";
 import KpiCard, { type DashboardKpi } from "@/components/dashboard/KpiCard";
-import PdfExportButton from "@/components/dashboard/PdfExportButton";
 import RetentionCohortChart from "@/components/dashboard/RetentionCohortChart";
 import ShareButton from "@/components/dashboard/ShareButton";
 import TrendLineChart from "@/components/dashboard/TrendLineChart";
@@ -124,14 +123,14 @@ export default function DashboardPage() {
                 />
               )}
               {selectedRange.start && (
-                <>
+                <div
+                  className="flex items-center gap-2"
+                  data-pdf-export-hide="true"
+                  data-html2canvas-ignore="true"
+                >
                   <ShareButton selectedRange={selectedRange} />
                   <ExportExcelButton selectedRange={selectedRange} data={dashboardData} />
-                  <PdfExportButton
-                    targetId="dashboard-content"
-                    filename={`dashboard-${selectedRange.start}_${selectedRange.end}.pdf`}
-                  />
-                </>
+                </div>
               )}
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserSub } from "@/lib/sessionAuth";
-import { sessionKey, s3GetJson } from "@/lib/sessionS3";
+import { hasSessionBucket, sessionKey, s3GetJson } from "@/lib/sessionS3";
 import { createSessionShareCode } from "@/lib/sessionShareStore";
 import type { SessionData } from "@/types/session";
 
@@ -17,6 +17,10 @@ export async function POST(
   const sub = getUserSub(req);
   if (!sub) {
     return errorResponse(401, "Unauthorized");
+  }
+
+  if (!hasSessionBucket()) {
+    return errorResponse(503, "Session storage is unavailable. SESSION_BUCKET env var is not set.");
   }
 
   const { id } = await params;

@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  findUnsupportedComputedStyles,
+  preparePdfExportTarget,
+} from "@/lib/pdfExportSanitizer";
 
 interface PdfExportButtonProps {
   targetId: string;
@@ -17,6 +21,7 @@ export default function PdfExportButton({
 
   const handleExport = async () => {
     setExporting(true);
+    let cleanupExportTarget: (() => void) | null = null;
 
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
@@ -29,11 +34,16 @@ export default function PdfExportButton({
         throw new Error(`Element #${targetId} not found`);
       }
 
-      const rootStyles = getComputedStyle(document.documentElement);
-      const backgroundColor = rootStyles.getPropertyValue("--background").trim() || "#ffffff";
+      const unsupportedStyles = findUnsupportedComputedStyles(element);
+      if (unsupportedStyles.length > 0) {
+        console.warn("PDF export sanitized unsupported computed colors:", unsupportedStyles);
+      }
 
-      const canvas = await html2canvas(element, {
-        backgroundColor,
+      const exportTarget = preparePdfExportTarget(element);
+      cleanupExportTarget = exportTarget.cleanup;
+
+      const canvas = await html2canvas(exportTarget.element, {
+        backgroundColor: exportTarget.backgroundColor,
         scale: 2,
         useCORS: true,
       });
@@ -51,6 +61,7 @@ export default function PdfExportButton({
     } catch (error) {
       console.error("PDF export failed:", error);
     } finally {
+      cleanupExportTarget?.();
       setExporting(false);
     }
   };

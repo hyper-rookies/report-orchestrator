@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserSub } from "@/lib/sessionAuth";
-import { indexKey, s3GetJson, s3PutJson, sessionKey } from "@/lib/sessionS3";
+import { hasSessionBucket, indexKey, s3GetJson, s3PutJson, sessionKey } from "@/lib/sessionS3";
 import type { SessionData, SessionMeta } from "@/types/session";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const sub = getUserSub(req);
   if (!sub) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!hasSessionBucket()) {
+    return NextResponse.json([]);
   }
 
   const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
@@ -21,6 +25,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const sub = getUserSub(req);
   if (!sub) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!hasSessionBucket()) {
+    return NextResponse.json(
+      { error: "Session storage is unavailable. SESSION_BUCKET env var is not set." },
+      { status: 503 }
+    );
   }
 
   let body: unknown;

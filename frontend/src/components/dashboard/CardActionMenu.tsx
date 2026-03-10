@@ -74,7 +74,11 @@ export default function CardActionMenu({
   };
 
   return (
-    <CardAction className="relative">
+    <CardAction
+      className="relative"
+      data-pdf-export-hide="true"
+      data-html2canvas-ignore="true"
+    >
       <div ref={menuRef} className="relative">
         <Button
           type="button"

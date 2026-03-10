@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  CHART_AXIS_LABEL_STYLE,
   CHART_AXIS_LINE_STYLE,
   CHART_GRID_STROKE,
   CHART_TICK_LINE_STYLE,
@@ -62,15 +63,18 @@ export default function CampaignInstallsChart({
           tickLine={CHART_TICK_LINE_STYLE}
           axisLine={CHART_AXIS_LINE_STYLE}
           tickMargin={8}
+          height={48}
+          label={{ value: "Installs", position: "insideBottom", offset: -4, ...CHART_AXIS_LABEL_STYLE }}
         />
         <YAxis
           dataKey="campaign"
           type="category"
-          width={136}
+          width={156}
           tick={CHART_TICK_STYLE_SMALL}
           tickLine={CHART_TICK_LINE_STYLE}
           axisLine={CHART_AXIS_LINE_STYLE}
           tickMargin={6}
+          interval={0}
         />
         <Tooltip
           contentStyle={CHART_TOOLTIP_STYLE}

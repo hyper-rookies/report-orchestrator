@@ -44,7 +44,11 @@ export default function DashboardCardView({
     <Card className="nhn-panel">
       <CardHeader>
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <CardAction className="flex items-center gap-2">
+        <CardAction
+          className="flex items-center gap-2"
+          data-pdf-export-hide="true"
+          data-html2canvas-ignore="true"
+        >
           <div className="inline-flex items-center rounded-md border border-input/80 bg-background p-0.5 shadow-xs">
             <Button
               type="button"
