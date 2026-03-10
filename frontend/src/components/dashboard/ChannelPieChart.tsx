@@ -20,7 +20,7 @@ export default function ChannelPieChart({
   return (
     <div className="grid gap-3 md:grid-cols-[210px_1fr] md:items-center">
       <div className="order-2 space-y-1.5 text-sm md:order-1">
-        {data.map((item, idx) => {
+        {data.map((item) => {
           const ratio = total > 0 ? (item.value / total) * 100 : 0;
           return (
             <div key={item.name} className="flex items-center justify-between gap-3">

@@ -13,7 +13,6 @@ export type ResolveShareCodeEntryResult =
 const MAX_ENTRIES = 500;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __shareCodeStore: Map<string, ShareEntry> | undefined;
 }
 

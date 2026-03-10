@@ -1,10 +1,10 @@
-const assert = require("node:assert/strict");
-const {
+import assert from "node:assert/strict";
+import {
   SHARE_EXPIRY_FALLBACK_LABEL,
   SHARE_EXPIRY_TIME_ZONE_LABEL,
   formatShareExpiry,
   isShareLinkReusable,
-} = require("./shareExpiry.ts") as typeof import("./shareExpiry");
+} from "./shareExpiry";
 
 assert.equal(isShareLinkReusable("2026-03-10T00:00:00.000Z", Date.UTC(2026, 2, 10, 0, 0, 1)), false);
 assert.equal(isShareLinkReusable("2026-03-10T00:00:00.000Z", Date.UTC(2026, 2, 9, 23, 59, 59)), true);

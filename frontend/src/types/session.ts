@@ -7,7 +7,7 @@ export interface SessionMeta {
   updatedAt: string;
 }
 
-export interface StoredMessage extends ChatMessage {}
+export type StoredMessage = ChatMessage;
 
 export interface SessionData extends SessionMeta {
   messages: StoredMessage[];

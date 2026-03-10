@@ -15,7 +15,6 @@ const TTL_SECONDS = 7 * 24 * 60 * 60;
 const MAX_ENTRIES = 200;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __sessionShareStore: Map<string, SessionShareEntry> | undefined;
 }
 

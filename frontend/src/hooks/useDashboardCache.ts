@@ -130,9 +130,13 @@ async function fetchCacheJson<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-function findPreviousWeekRange(weeks: WeekRange[], selectedRange: WeekRange): WeekRange | null {
+function findPreviousWeekRange(
+  weeks: WeekRange[],
+  selectedStart: string,
+  selectedEnd: string
+): WeekRange | null {
   const selectedIndex = weeks.findIndex(
-    (week) => week.start === selectedRange.start && week.end === selectedRange.end
+    (week) => week.start === selectedStart && week.end === selectedEnd
   );
 
   if (selectedIndex <= 0) {
@@ -242,11 +246,12 @@ function parseCache(json: DashboardCacheJson): ParsedDashboardCacheMetrics {
 
 export function useDashboardCache(selectedRange: WeekRange): DashboardCacheData {
   const [data, setData] = useState<DashboardCacheData>(INITIAL);
+  const { start, end } = selectedRange;
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!selectedRange.start || !selectedRange.end) {
+    if (!start || !end) {
       setData(INITIAL);
       return () => {
         cancelled = true;
@@ -263,11 +268,11 @@ export function useDashboardCache(selectedRange: WeekRange): DashboardCacheData 
       try {
         const [weeks, currentJson] = await Promise.all([
           fetchCacheJson<WeekRange[]>("/dashboard-cache/manifest.json"),
-          fetchCacheJson<DashboardCacheJson>(buildWeekUrl(selectedRange)),
+          fetchCacheJson<DashboardCacheJson>(buildWeekUrl({ start, end, label: "" })),
         ]);
 
         const currentMetrics = parseCache(currentJson);
-        const previousRange = findPreviousWeekRange(weeks, selectedRange);
+        const previousRange = findPreviousWeekRange(weeks, start, end);
         let previousMetrics: ParsedDashboardCacheMetrics | null = null;
 
         if (previousRange) {
@@ -318,7 +323,7 @@ export function useDashboardCache(selectedRange: WeekRange): DashboardCacheData 
     return () => {
       cancelled = true;
     };
-  }, [selectedRange.start, selectedRange.end]);
+  }, [start, end]);
 
   return data;
 }
