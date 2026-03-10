@@ -11,9 +11,49 @@
 - [x] `frontend/src/app/api/share/route.ts` created with POST handler
 - [x] `frontend/src/app/api/share/[code]/route.ts` created with GET handler
 - [x] POST returns `400` when `weekStart`, `weekEnd`, or `weekLabel` is missing
-- [x] GET returns `404` for missing/expired code and `410` for invalid/expired JWT
-- [x] GET returns `{ weekStart, weekEnd, weekLabel }` on success
+- [x] `GET /api/share/[code]` returns `{ weekStart, weekEnd, weekLabel, expiresAt }` on success
+- [x] `GET /api/share/[code]` returns `404` for unknown/non-existent code
+- [x] `GET /api/share/[code]` returns `410` for expired share, expired token, or expired backing entry
+- [x] All non-2xx responses use `{ error: string }`
 - [x] TypeScript check passes
+
+---
+
+## Public API Contract
+
+### `GET /api/share/[code]`
+
+Success body:
+
+```json
+{
+  "weekStart": "YYYY-MM-DD",
+  "weekEnd": "YYYY-MM-DD",
+  "weekLabel": "string",
+  "expiresAt": "ISO-8601 timestamp"
+}
+```
+
+Error body:
+
+```json
+{
+  "error": "string"
+}
+```
+
+Status code matrix:
+
+| Route | Status | Meaning |
+|------|--------|---------|
+| `POST /api/share` | `200` | Share link created |
+| `POST /api/share` | `400` | Malformed JSON or invalid share request payload |
+| `POST /api/share` | `500` | Share link creation failed |
+| `GET /api/share/[code]` | `200` | Share resolved successfully |
+| `GET /api/share/[code]` | `400` | Malformed share code or malformed share token |
+| `GET /api/share/[code]` | `404` | Unknown or non-existent share code |
+| `GET /api/share/[code]` | `410` | Expired share, expired token, or expired backing entry |
+| `GET /api/share/[code]` | `500` | Share resolution failed |
 
 ---
 

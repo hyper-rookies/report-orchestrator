@@ -1,121 +1,100 @@
-# SH-02: POST /api/share + GET /api/share/[code] 라우트
+# SH-02: POST /api/share + GET /api/share/[code]
 
-**전제 조건:** SH-01이 `docs/tasks/status.json`에서 `"done"` 상태여야 한다.
+**Prerequisite:** SH-01 must be marked `"done"` in `docs/tasks/status.json`.
 
-## 작업 개요
+## Overview
 
-`frontend/src/app/api/share/route.ts`와 `frontend/src/app/api/share/[code]/route.ts`를 생성한다.
-**다른 파일은 수정하지 않는다.**
-
-## 생성할 파일
+Create the public share API routes:
 
 - `frontend/src/app/api/share/route.ts`
 - `frontend/src/app/api/share/[code]/route.ts`
 
----
-
-## 구현 코드
-
-### `frontend/src/app/api/share/route.ts`
-
-```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { signShareToken, getExpiresAt } from "@/lib/shareToken";
-import { createCode } from "@/lib/shareCodeStore";
-
-export async function POST(req: NextRequest): Promise<NextResponse> {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const { weekStart, weekEnd, weekLabel } = body as {
-    weekStart?: unknown;
-    weekEnd?: unknown;
-    weekLabel?: unknown;
-  };
-
-  if (
-    typeof weekStart !== "string" ||
-    typeof weekEnd !== "string" ||
-    typeof weekLabel !== "string"
-  ) {
-    return NextResponse.json(
-      { error: "weekStart, weekEnd, weekLabel are required strings" },
-      { status: 400 }
-    );
-  }
-
-  const expiresAt = getExpiresAt();
-  const jwt = await signShareToken({ weekStart, weekEnd, weekLabel });
-  const code = createCode(jwt, expiresAt);
-
-  const origin = req.headers.get("origin") ?? req.nextUrl.origin;
-  const shareUrl = `${origin}/share/${code}`;
-
-  return NextResponse.json({
-    code,
-    url: shareUrl,
-    expiresAt: expiresAt.toISOString(),
-  });
-}
-```
-
-### `frontend/src/app/api/share/[code]/route.ts`
-
-```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { verifyShareToken } from "@/lib/shareToken";
-import { resolveCode } from "@/lib/shareCodeStore";
-
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ code: string }> }
-): Promise<NextResponse> {
-  const { code } = await params;
-  const jwt = resolveCode(code);
-  if (!jwt) {
-    return NextResponse.json(
-      { error: "Share link not found or expired." },
-      { status: 404 }
-    );
-  }
-  const payload = await verifyShareToken(jwt);
-  if (!payload) {
-    return NextResponse.json(
-      { error: "Share token is invalid or expired." },
-      { status: 410 }
-    );
-  }
-  return NextResponse.json(payload);
-}
-```
+The documented contract in this prompt matches the current implementation.
 
 ---
 
-## 검증 명령
+## Contract
+
+### `POST /api/share`
+
+Request body:
+
+```json
+{
+  "weekStart": "YYYY-MM-DD",
+  "weekEnd": "YYYY-MM-DD",
+  "weekLabel": "string"
+}
+```
+
+Success body:
+
+```json
+{
+  "code": "string",
+  "url": "https://.../share/<code>?token=<jwt>",
+  "expiresAt": "ISO-8601 timestamp"
+}
+```
+
+### `GET /api/share/[code]`
+
+Success body:
+
+```json
+{
+  "weekStart": "YYYY-MM-DD",
+  "weekEnd": "YYYY-MM-DD",
+  "weekLabel": "string",
+  "expiresAt": "ISO-8601 timestamp"
+}
+```
+
+Error body for all non-2xx responses:
+
+```json
+{
+  "error": "string"
+}
+```
+
+## Status Code Matrix
+
+| Route | Status | Meaning |
+|------|--------|---------|
+| `POST /api/share` | `200` | Share link created |
+| `POST /api/share` | `400` | Malformed JSON or invalid share request payload |
+| `POST /api/share` | `500` | Share link creation failed |
+| `GET /api/share/[code]` | `200` | Share resolved successfully |
+| `GET /api/share/[code]` | `400` | Malformed share code or malformed share token |
+| `GET /api/share/[code]` | `404` | Unknown or non-existent share code |
+| `GET /api/share/[code]` | `410` | Expired share, expired token, or expired backing entry |
+| `GET /api/share/[code]` | `500` | Share resolution failed |
+
+---
+
+## Validation
 
 ```bash
 cd frontend && npx tsc --noEmit
 ```
 
-Expected: 오류 없음 (exit code 0)
+Expected: exit code `0`.
 
-## 수락 기준
+## Acceptance Criteria
 
-- [ ] `frontend/src/app/api/share/route.ts` 생성됨 (POST 핸들러)
-- [ ] `frontend/src/app/api/share/[code]/route.ts` 생성됨 (GET 핸들러)
-- [ ] POST: `weekStart`, `weekEnd`, `weekLabel` 누락 시 400 반환
-- [ ] GET: 코드 없거나 만료 시 404, JWT 만료 시 410 반환
-- [ ] GET: 정상 시 `{ weekStart, weekEnd, weekLabel }` 반환
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [ ] `frontend/src/app/api/share/route.ts` exists with a POST handler
+- [ ] `frontend/src/app/api/share/[code]/route.ts` exists with a GET handler
+- [ ] `POST /api/share` returns `400` for malformed JSON or invalid request fields
+- [ ] `GET /api/share/[code]` returns `404` for unknown/non-existent code
+- [ ] `GET /api/share/[code]` returns `410` for expired share, expired token, or expired backing entry
+- [ ] `GET /api/share/[code]` returns `{ weekStart, weekEnd, weekLabel, expiresAt }` on success
+- [ ] All non-2xx responses return `{ error: string }`
+- [ ] `cd frontend && npx tsc --noEmit` passes
 
-## 완료 후 할 일
+## Completion
 
-1. `docs/tasks/SH-02/REPORT.md` 채우기
-2. `docs/tasks/status.json`에서 SH-02 status → `"done"` 또는 `"blocked"`
-3. `git add frontend/src/app/api/share/route.ts "frontend/src/app/api/share/[code]/route.ts" docs/tasks/SH-02/REPORT.md docs/tasks/status.json`
-4. `git commit -m "feat(share): add POST /api/share and GET /api/share/[code] routes (SH-02)"`
-```
+1. Update `docs/tasks/SH-02/REPORT.md`.
+2. Update `docs/tasks/status.json` with `"done"` or `"blocked"` for `SH-02`.
+3. Stage the API files plus docs.
+4. Commit with `feat(share): add POST /api/share and GET /api/share/[code] routes (SH-02)`.
