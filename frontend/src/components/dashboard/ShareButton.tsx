@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, Copy, Share2, X } from "lucide-react";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Button } from "@/components/ui/button";
+import { formatShareExpiry, isShareLinkReusable } from "@/lib/shareExpiry";
 
 interface ShareButtonProps {
   selectedRange: WeekRange;
@@ -14,20 +15,6 @@ type ShareState =
   | { status: "loading" }
   | { status: "done"; url: string; expiresAt: string }
   | { status: "error"; message: string };
-
-function formatExpiresAt(expiresAt: string): string {
-  const date = new Date(expiresAt);
-
-  if (Number.isNaN(date.getTime())) {
-    return expiresAt;
-  }
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
-}
 
 export default function ShareButton({ selectedRange }: ShareButtonProps) {
   const [state, setState] = useState<ShareState>({ status: "idle" });
@@ -42,8 +29,12 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
 
   const handleShare = async () => {
     if (state.status === "done") {
-      setOpen(true);
-      return;
+      if (isShareLinkReusable(state.expiresAt)) {
+        setOpen(true);
+        return;
+      }
+
+      setState({ status: "idle" });
     }
 
     setCopied(false);
@@ -89,7 +80,7 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
     }
   };
 
-  const expiresLabel = state.status === "done" ? formatExpiresAt(state.expiresAt) : "";
+  const expiresLabel = state.status === "done" ? formatShareExpiry(state.expiresAt) : "";
 
   return (
     <div className="relative">

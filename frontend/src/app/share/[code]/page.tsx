@@ -13,6 +13,7 @@ import TrendLineChart from "@/components/dashboard/TrendLineChart";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboardCache } from "@/hooks/useDashboardCache";
+import { formatShareExpiry } from "@/lib/shareExpiry";
 
 function formatInt(value: number): string {
   return new Intl.NumberFormat("ko-KR").format(Math.max(0, Math.round(value)));
@@ -69,7 +70,7 @@ export default function SharePage() {
           setResolved({
             status: "ok",
             range: { start: data.weekStart, end: data.weekEnd, label: data.weekLabel },
-            expiresAt: formatExpiresAt(data.expiresAt),
+            expiresAt: formatShareExpiry(data.expiresAt),
           });
         }
       })
