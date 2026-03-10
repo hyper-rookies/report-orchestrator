@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import MessageList from "@/components/chat/MessageList";
 import ChatInput from "@/components/chat/ChatInput";
 import { SseFrame, useSse } from "@/hooks/useSse";
+import { useSessionContext } from "@/context/SessionContext";
+import type { StoredMessage } from "@/types/session";
 
 export interface Message {
   id: string;
@@ -14,9 +17,13 @@ export interface Message {
 }
 
 export default function ChatPage() {
+  const router = useRouter();
+  const { saveSession } = useSessionContext();
   const [messages, setMessages] = useState<Message[]>([]);
   const { frames, streaming, error, ask } = useSse();
   const messageScrollRef = useRef<HTMLDivElement>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const SKIP_TYPES = new Set(["chunk", "status", "delta"]);
 
   const hasRenderableFrame = (allFrames: SseFrame[]) =>
     allFrames.some((frame) => {
@@ -45,12 +52,19 @@ export default function ChatPage() {
   }, [messages, frames]);
 
   const handleSubmit = async (question: string) => {
+    if (!sessionIdRef.current) {
+      sessionIdRef.current = crypto.randomUUID();
+      router.replace(`/sessions/${sessionIdRef.current}`);
+    }
+
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
       content: question,
     };
+
     setMessages((prev) => [...prev, userMsg]);
+
     const completedFrames = await ask(question);
     const normalizedFrames = hasRenderableFrame(completedFrames)
       ? completedFrames
@@ -65,15 +79,31 @@ export default function ChatPage() {
             },
           } satisfies SseFrame,
         ];
-    setMessages((prev) => [
-      ...prev,
-      {
+
+    const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
         content: "",
         frames: normalizedFrames,
-      },
-    ]);
+      };
+
+    setMessages((prev) => {
+      const updated = [...prev, assistantMsg];
+      const storedMessages: StoredMessage[] = updated.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        frames: message.frames?.filter((frame) => !SKIP_TYPES.has(frame.type)),
+      }));
+
+      void saveSession({
+        sessionId: sessionIdRef.current!,
+        title: question.slice(0, 40),
+        messages: storedMessages,
+      });
+
+      return updated;
+    });
   };
 
   return (

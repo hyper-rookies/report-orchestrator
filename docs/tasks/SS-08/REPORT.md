@@ -1,18 +1,18 @@
 # SS-08 Task Report
 
-**Status:** IN_PROGRESS | DONE | BLOCKED
+**Status:** DONE
 
-**Completed At:** (ISO timestamp)
+**Completed At:** 2026-03-10T09:15:08.6775511+09:00
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `Message` 인터페이스가 `export`됨
-- [ ] 첫 메시지 시 `sessionIdRef.current` 생성 + `router.replace`로 URL 변경
-- [ ] 응답 완료 후 `saveSession` 자동 호출
-- [ ] 저장 시 `chunk/status/delta` 프레임 제외
-- [ ] `cd frontend && npx tsc --noEmit` 오류 없음
+- [x] `Message` interface is exported
+- [x] First message creates `sessionIdRef.current` and updates the URL via `router.replace`
+- [x] `saveSession` is called automatically after the assistant response completes
+- [x] `chunk`, `status`, and `delta` frames are excluded from saved frames
+- [x] `cd frontend && npx tsc --noEmit` passes
 
 ---
 
@@ -20,25 +20,27 @@
 
 | File | Action | Lines Before | Lines After |
 |------|--------|-------------|-------------|
-| `frontend/src/app/(app)/page.tsx` | Modified | ? | ? |
+| `frontend/src/app/(app)/page.tsx` | Modified | 86 | 109 |
 
 ---
 
 ## TypeScript Check
 
+```bash
+$ cd frontend
+$ cmd /c .\node_modules\.bin\tsc.cmd --noEmit --pretty false
 ```
-$ cd frontend && npx tsc --noEmit
-(출력 붙여넣기)
-```
+
+Result: passed with exit code 0 and no diagnostics.
 
 ---
 
 ## Deviations from Plan
 
-없음 / (계획과 다른 점 기술)
+None.
 
 ---
 
 ## Questions for Reviewer
 
-없음 / (리뷰어에게 물어볼 것)
+None.
