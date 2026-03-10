@@ -31,7 +31,7 @@ interface ParsedDashboardCacheMetrics {
   totalSessions: number;
   totalInstalls: number;
   avgEngagementRate: number;
-  channelShare: Array<{ name: string; value: number }>;
+  channelShare: Array<{ name: string; value: number; sessions: number }>;
   trend: Array<{ date: string; sessions: number; installs: number }>;
   conversionByChannel: Array<{ channel: string; conversionRate: number }>;
   channelRevenue: Array<{ channel: string; revenue: number }>;
@@ -49,7 +49,7 @@ export interface DashboardCacheData {
     totalInstalls: KpiComparisonMetric;
     avgEngagementRate: KpiComparisonMetric;
   };
-  channelShare: Array<{ name: string; value: number }>;
+  channelShare: Array<{ name: string; value: number; sessions: number }>;
   trend: Array<{ date: string; sessions: number; installs: number }>;
   conversionByChannel: Array<{ channel: string; conversionRate: number }>;
   channelRevenue: Array<{ channel: string; revenue: number }>;
@@ -154,6 +154,7 @@ function parseCache(json: DashboardCacheJson): ParsedDashboardCacheMetrics {
     .sort((a, b) => b[1] - a[1])
     .map(([name, value]) => ({
       name,
+      sessions: Math.round(value),
       value: totalSessions > 0 ? Number(((value / totalSessions) * 100).toFixed(1)) : 0,
     }));
 

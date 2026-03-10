@@ -5,6 +5,7 @@ import CampaignInstallsChart from "@/components/dashboard/CampaignInstallsChart"
 import ChannelPieChart from "@/components/dashboard/ChannelPieChart";
 import ChannelRevenueChart from "@/components/dashboard/ChannelRevenueChart";
 import ConversionChart from "@/components/dashboard/ConversionChart";
+import ExportExcelButton from "@/components/dashboard/ExportExcelButton";
 import InstallFunnelChart from "@/components/dashboard/InstallFunnelChart";
 import KpiCard, { type DashboardKpi } from "@/components/dashboard/KpiCard";
 import PdfExportButton from "@/components/dashboard/PdfExportButton";
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   }, []);
 
   const selectedRange = weeks[selectedWeekIndex] ?? { start: "", end: "", label: "" };
+  const dashboardData = useDashboardCache(selectedRange);
   const {
     totalSessions,
     totalInstalls,
@@ -52,7 +54,7 @@ export default function DashboardPage() {
     trend,
     loading,
     error,
-  } = useDashboardCache(selectedRange);
+  } = dashboardData;
 
   const kpis: DashboardKpi[] = [
     {
@@ -97,6 +99,7 @@ export default function DashboardPage() {
               {selectedRange.start && (
                 <>
                   <ShareButton selectedRange={selectedRange} />
+                  <ExportExcelButton selectedRange={selectedRange} data={dashboardData} />
                   <PdfExportButton
                     targetId="dashboard-content"
                     filename={`dashboard-${selectedRange.start}_${selectedRange.end}.pdf`}
