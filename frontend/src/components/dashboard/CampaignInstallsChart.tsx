@@ -54,8 +54,8 @@ export default function CampaignInstallsChart({
 
   const top10 = data.slice(0, 10);
   const chart = (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={top10} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+    <ResponsiveContainer width="100%" height={320}>
+      <BarChart data={top10} layout="vertical" margin={{ top: 18, right: 20, left: 8, bottom: 18 }}>
         <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
         <XAxis
           type="number"
@@ -63,17 +63,17 @@ export default function CampaignInstallsChart({
           tickLine={CHART_TICK_LINE_STYLE}
           axisLine={CHART_AXIS_LINE_STYLE}
           tickMargin={8}
-          height={48}
-          label={{ value: "Installs", position: "insideBottom", offset: -4, ...CHART_AXIS_LABEL_STYLE }}
+          height={60}
+          label={{ value: "Installs", position: "insideBottom", offset: 10, ...CHART_AXIS_LABEL_STYLE }}
         />
         <YAxis
           dataKey="campaign"
           type="category"
-          width={156}
+          width={172}
           tick={CHART_TICK_STYLE_SMALL}
           tickLine={CHART_TICK_LINE_STYLE}
           axisLine={CHART_AXIS_LINE_STYLE}
-          tickMargin={6}
+          tickMargin={8}
           interval={0}
         />
         <Tooltip

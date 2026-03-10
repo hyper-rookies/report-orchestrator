@@ -1,7 +1,9 @@
+import { useRef, useState } from "react";
 import { SseFrame } from "@/hooks/useSse";
 import DataTable from "@/components/report/DataTable";
 import ReportBarChart from "@/components/report/ReportBarChart";
 import ReportPieChart, { type PieSpec } from "@/components/report/ReportPieChart";
+import { downloadCsv } from "@/lib/exportCsv";
 
 import ProgressIndicator from "./ProgressIndicator";
 
@@ -11,12 +13,21 @@ interface Props {
 }
 
 type ChartSpec = Parameters<typeof ReportBarChart>[0]["spec"];
+const ACTION_BUTTON_CLASS =
+  "rounded-md border border-input/80 px-2 py-1 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:bg-muted";
 
 export default function AssistantMessage({ frames, streaming }: Props) {
+  const [showTable, setShowTable] = useState(false);
+  const prevChartFrameRef = useRef(frames.findLast((f) => f.type === "chart"));
+  const currentChartFrame = frames.findLast((f) => f.type === "chart");
+  if (prevChartFrameRef.current !== currentChartFrame) {
+    prevChartFrameRef.current = currentChartFrame;
+    setShowTable(false);
+  }
   const progressFrames = frames.filter((f) => f.type === "progress");
   const chunkFrames = frames.filter((f) => f.type === "chunk");
   const tableFrame = [...frames].reverse().find((f) => f.type === "table");
-  const chartFrame = [...frames].reverse().find((f) => f.type === "chart");
+  const chartFrame = currentChartFrame;
   const errorFrame = [...frames].reverse().find((f) => f.type === "error");
   const finalFrame = [...frames].reverse().find((f) => f.type === "final");
 
@@ -33,6 +44,9 @@ export default function AssistantMessage({ frames, streaming }: Props) {
 
   const rawChartSpec = chartFrame?.data.spec as Record<string, unknown> | undefined;
   const chartType = typeof rawChartSpec?.type === "string" ? rawChartSpec.type : undefined;
+  const chartRows = ((rawChartSpec?.data as Record<string, unknown>[] | undefined) ?? []).filter(
+    (row) => typeof row === "object" && row !== null
+  );
 
   const pieSpec: PieSpec | null =
     chartType === "pie" &&
@@ -61,6 +75,8 @@ export default function AssistantMessage({ frames, streaming }: Props) {
         }
       : null;
 
+  const hasChart = chartFrame && (pieSpec || barLikeSpec);
+
   return (
     <div className="flex justify-start">
       <div className="nhn-panel max-w-[88%] space-y-3 px-4 py-3">
@@ -69,9 +85,59 @@ export default function AssistantMessage({ frames, streaming }: Props) {
         {!streamingText && finalSummary && (
           <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{finalSummary}</p>
         )}
-        {tableFrame && <DataTable rows={tableRows} />}
-        {chartFrame && pieSpec && <ReportPieChart spec={pieSpec} />}
-        {chartFrame && !pieSpec && barLikeSpec && <ReportBarChart spec={barLikeSpec} />}
+        {tableFrame && (
+          <div className="space-y-2">
+            <div className="flex justify-end gap-1">
+              <button
+                type="button"
+                className={ACTION_BUTTON_CLASS}
+                disabled={tableRows.length === 0}
+                onClick={() => downloadCsv(tableRows, "data.csv")}
+              >
+                CSV
+              </button>
+            </div>
+            <DataTable rows={tableRows} />
+          </div>
+        )}
+        {hasChart && (
+          <div className="space-y-2">
+            <div className="flex justify-end gap-1">
+              <button
+                type="button"
+                className={ACTION_BUTTON_CLASS}
+                onClick={() => setShowTable(false)}
+                aria-pressed={!showTable}
+              >
+                Chart
+              </button>
+              <button
+                type="button"
+                className={ACTION_BUTTON_CLASS}
+                onClick={() => setShowTable(true)}
+                aria-pressed={showTable}
+              >
+                Data
+              </button>
+              <button
+                type="button"
+                className={ACTION_BUTTON_CLASS}
+                disabled={chartRows.length === 0}
+                onClick={() => downloadCsv(chartRows, "data.csv")}
+              >
+                CSV
+              </button>
+            </div>
+            {showTable ? (
+              <DataTable rows={chartRows} />
+            ) : (
+              <>
+                {pieSpec && <ReportPieChart spec={pieSpec} />}
+                {!pieSpec && barLikeSpec && <ReportBarChart spec={barLikeSpec} />}
+              </>
+            )}
+          </div>
+        )}
         {errorFrame && (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {errorFrame.data.message as string}
