@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -36,55 +37,72 @@ const FUNNEL_COLORS = [
 interface InstallFunnelChartProps {
   data: Array<{ stage: string; count: number }>;
   loading?: boolean;
+  title?: string;
+  actionSlot?: ReactNode;
+  renderCard?: boolean;
 }
 
-export default function InstallFunnelChart({ data, loading = false }: InstallFunnelChartProps) {
+export default function InstallFunnelChart({
+  data,
+  loading = false,
+  title = "Install Funnel",
+  actionSlot,
+  renderCard = true,
+}: InstallFunnelChartProps) {
   if (loading) {
-    return (
+    return renderCard ? (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Install Funnel</CardTitle>
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          {actionSlot}
         </CardHeader>
         <CardContent className="h-[240px] animate-pulse rounded bg-muted" />
       </Card>
+    ) : (
+      <div className="h-[240px] animate-pulse rounded bg-muted" />
     );
   }
 
-  return (
+  const chart = (
+    <ResponsiveContainer width="100%" height={240}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+        <XAxis
+          dataKey="stage"
+          tick={CHART_TICK_STYLE_SMALL}
+          tickLine={CHART_TICK_LINE_STYLE}
+          axisLine={CHART_AXIS_LINE_STYLE}
+          tickMargin={8}
+        />
+        <YAxis
+          tickFormatter={(value) => Number(value).toLocaleString()}
+          tick={CHART_TICK_STYLE}
+          tickLine={CHART_TICK_LINE_STYLE}
+          axisLine={CHART_AXIS_LINE_STYLE}
+          tickMargin={8}
+        />
+        <Tooltip
+          formatter={(value) => [Number(value ?? 0).toLocaleString(), "Events"]}
+          contentStyle={CHART_TOOLTIP_STYLE}
+        />
+        <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+          {data.map((item, index) => (
+            <Cell key={`${item.stage}-${index}`} fill={FUNNEL_COLORS[index % FUNNEL_COLORS.length]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
+  return renderCard ? (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Install Funnel</CardTitle>
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {actionSlot}
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
-            <XAxis
-              dataKey="stage"
-              tick={CHART_TICK_STYLE_SMALL}
-              tickLine={CHART_TICK_LINE_STYLE}
-              axisLine={CHART_AXIS_LINE_STYLE}
-              tickMargin={8}
-            />
-            <YAxis
-              tickFormatter={(value) => Number(value).toLocaleString()}
-              tick={CHART_TICK_STYLE}
-              tickLine={CHART_TICK_LINE_STYLE}
-              axisLine={CHART_AXIS_LINE_STYLE}
-              tickMargin={8}
-            />
-            <Tooltip
-              formatter={(value) => [Number(value ?? 0).toLocaleString(), "Events"]}
-              contentStyle={CHART_TOOLTIP_STYLE}
-            />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-              {data.map((item, index) => (
-                <Cell key={`${item.stage}-${index}`} fill={FUNNEL_COLORS[index % FUNNEL_COLORS.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </CardContent>
+      <CardContent>{chart}</CardContent>
     </Card>
+  ) : (
+    chart
   );
 }

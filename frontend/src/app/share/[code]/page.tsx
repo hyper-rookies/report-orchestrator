@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import CampaignInstallsChart from "@/components/dashboard/CampaignInstallsChart";
+import CardActionMenu from "@/components/dashboard/CardActionMenu";
 import ChannelPieChart from "@/components/dashboard/ChannelPieChart";
 import ChannelRevenueChart from "@/components/dashboard/ChannelRevenueChart";
 import ConversionChart from "@/components/dashboard/ConversionChart";
@@ -13,6 +14,10 @@ import TrendLineChart from "@/components/dashboard/TrendLineChart";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboardCache } from "@/hooks/useDashboardCache";
+import {
+  buildDashboardCardExports,
+  type DashboardCardExportConfig,
+} from "@/lib/dashboardCardExports";
 import { formatShareExpiry } from "@/lib/shareExpiry";
 import { formatWeekRangeLabel } from "@/lib/weekRangeLabel";
 
@@ -47,13 +52,13 @@ export default function SharePage() {
     const query = token ? `?token=${encodeURIComponent(token)}` : "";
 
     fetch(`/api/share/${code}${query}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = (await res.json()) as { error?: string };
-          throw new Error(err.error ?? `HTTP ${res.status}`);
+      .then(async (response) => {
+        if (!response.ok) {
+          const errorBody = (await response.json()) as { error?: string };
+          throw new Error(errorBody.error ?? `HTTP ${response.status}`);
         }
 
-        return res.json() as Promise<ShareApiResponse>;
+        return response.json() as Promise<ShareApiResponse>;
       })
       .then((data) => {
         if (!cancelled) {
@@ -64,11 +69,11 @@ export default function SharePage() {
           });
         }
       })
-      .catch((err: unknown) => {
+      .catch((error: unknown) => {
         if (!cancelled) {
           setResolved({
             status: "error",
-            message: err instanceof Error ? err.message : "공유 링크를 불러오지 못했습니다.",
+            message: error instanceof Error ? error.message : "공유 링크를 불러오지 못했습니다.",
           });
         }
       });
@@ -103,6 +108,7 @@ export default function SharePage() {
 }
 
 function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: string }) {
+  const dashboardData = useDashboardCache(range);
   const {
     totalSessions,
     totalInstalls,
@@ -117,29 +123,50 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
     trend,
     loading,
     error,
-  } = useDashboardCache(range);
+  } = dashboardData;
+  const cardExports = buildDashboardCardExports(dashboardData);
 
-  const kpis: DashboardKpi[] = [
+  const renderCardAction = (config: DashboardCardExportConfig) => (
+    <CardActionMenu
+      title={config.title}
+      selectedRange={range}
+      unit={config.unit}
+      columns={config.columns}
+      rows={config.rows}
+      disabled={loading}
+    />
+  );
+
+  const kpis: Array<{ kpi: DashboardKpi; actionSlot: ReactNode }> = [
     {
-      label: "총 세션",
-      value: totalSessions !== null ? formatInt(totalSessions) : "데이터 로드 실패",
-      currentValue: kpiComparison.totalSessions.currentValue,
-      previousValue: kpiComparison.totalSessions.previousValue,
-      deltaPercent: kpiComparison.totalSessions.deltaPercent,
+      kpi: {
+        label: cardExports.totalSessions.title,
+        value: totalSessions !== null ? formatInt(totalSessions) : "데이터 로드 실패",
+        currentValue: kpiComparison.totalSessions.currentValue,
+        previousValue: kpiComparison.totalSessions.previousValue,
+        deltaPercent: kpiComparison.totalSessions.deltaPercent,
+      },
+      actionSlot: renderCardAction(cardExports.totalSessions),
     },
     {
-      label: "총 설치",
-      value: totalInstalls !== null ? formatInt(totalInstalls) : "데이터 로드 실패",
-      currentValue: kpiComparison.totalInstalls.currentValue,
-      previousValue: kpiComparison.totalInstalls.previousValue,
-      deltaPercent: kpiComparison.totalInstalls.deltaPercent,
+      kpi: {
+        label: cardExports.totalInstalls.title,
+        value: totalInstalls !== null ? formatInt(totalInstalls) : "데이터 로드 실패",
+        currentValue: kpiComparison.totalInstalls.currentValue,
+        previousValue: kpiComparison.totalInstalls.previousValue,
+        deltaPercent: kpiComparison.totalInstalls.deltaPercent,
+      },
+      actionSlot: renderCardAction(cardExports.totalInstalls),
     },
     {
-      label: "평균 참여율",
-      value: avgEngagementRate !== null ? formatRate(avgEngagementRate) : "데이터 로드 실패",
-      currentValue: kpiComparison.avgEngagementRate.currentValue,
-      previousValue: kpiComparison.avgEngagementRate.previousValue,
-      deltaPercent: kpiComparison.avgEngagementRate.deltaPercent,
+      kpi: {
+        label: cardExports.avgEngagementRate.title,
+        value: avgEngagementRate !== null ? formatRate(avgEngagementRate) : "데이터 로드 실패",
+        currentValue: kpiComparison.avgEngagementRate.currentValue,
+        previousValue: kpiComparison.avgEngagementRate.previousValue,
+        deltaPercent: kpiComparison.avgEngagementRate.deltaPercent,
+      },
+      actionSlot: renderCardAction(cardExports.avgEngagementRate),
     },
   ];
 
@@ -172,13 +199,16 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
                   </CardContent>
                 </Card>
               ))
-            : kpis.map((kpi) => <KpiCard key={kpi.label} kpi={kpi} />)}
+            : kpis.map(({ kpi, actionSlot }) => (
+                <KpiCard key={kpi.label} kpi={kpi} actionSlot={actionSlot} />
+              ))}
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-semibold">채널별 세션 비중</CardTitle>
+              <CardTitle className="text-sm font-semibold">{cardExports.channelShare.title}</CardTitle>
+              {renderCardAction(cardExports.channelShare)}
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -192,7 +222,8 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-semibold">최근 7일 트렌드</CardTitle>
+              <CardTitle className="text-sm font-semibold">{cardExports.trend.title}</CardTitle>
+              {renderCardAction(cardExports.trend)}
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -207,17 +238,42 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <ChannelRevenueChart data={channelRevenue} loading={loading} />
-          <ConversionChart data={conversionByChannel} loading={loading} />
+          <ChannelRevenueChart
+            data={channelRevenue}
+            loading={loading}
+            title={cardExports.channelRevenue.title}
+            actionSlot={renderCardAction(cardExports.channelRevenue)}
+          />
+          <ConversionChart
+            data={conversionByChannel}
+            loading={loading}
+            title={cardExports.conversionByChannel.title}
+            actionSlot={renderCardAction(cardExports.conversionByChannel)}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <CampaignInstallsChart data={campaignInstalls} loading={loading} />
-          <InstallFunnelChart data={installFunnel} loading={loading} />
+          <CampaignInstallsChart
+            data={campaignInstalls}
+            loading={loading}
+            title={cardExports.campaignInstalls.title}
+            actionSlot={renderCardAction(cardExports.campaignInstalls)}
+          />
+          <InstallFunnelChart
+            data={installFunnel}
+            loading={loading}
+            title={cardExports.installFunnel.title}
+            actionSlot={renderCardAction(cardExports.installFunnel)}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          <RetentionCohortChart data={retention} loading={loading} />
+          <RetentionCohortChart
+            data={retention}
+            loading={loading}
+            title={cardExports.retention.title}
+            actionSlot={renderCardAction(cardExports.retention)}
+          />
         </div>
 
         <p className="pb-4 text-center text-xs text-muted-foreground">

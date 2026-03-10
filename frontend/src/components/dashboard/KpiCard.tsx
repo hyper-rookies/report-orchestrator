@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -7,6 +8,11 @@ export interface DashboardKpi {
   currentValue: number | null;
   previousValue: number | null;
   deltaPercent: number | null;
+}
+
+interface KpiCardProps {
+  kpi: DashboardKpi;
+  actionSlot?: ReactNode;
 }
 
 function formatDeltaText(deltaPercent: number): string {
@@ -19,7 +25,7 @@ function formatDeltaText(deltaPercent: number): string {
   return `${prefix}${deltaPercent.toFixed(1)}% ${direction}`;
 }
 
-export default function KpiCard({ kpi }: { kpi: DashboardKpi }) {
+export default function KpiCard({ kpi, actionSlot }: KpiCardProps) {
   const hasComparison =
     kpi.currentValue !== null &&
     kpi.previousValue !== null &&
@@ -33,6 +39,7 @@ export default function KpiCard({ kpi }: { kpi: DashboardKpi }) {
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {kpi.label}
         </CardTitle>
+        {actionSlot}
       </CardHeader>
       <CardContent className="space-y-1">
         <p className="text-2xl font-bold text-foreground">{kpi.value}</p>

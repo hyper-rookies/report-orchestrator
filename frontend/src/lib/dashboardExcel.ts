@@ -370,7 +370,9 @@ function createWorkbookBlob(workbook: WorkbookSpec): Blob {
     })),
   ];
 
-  return new Blob([createZip(entries)], {
+  const zip = createZip(entries);
+
+  return new Blob([zip as unknown as BlobPart], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 }

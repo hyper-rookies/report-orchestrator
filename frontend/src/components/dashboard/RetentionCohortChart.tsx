@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   CartesianGrid,
   Line,
@@ -24,11 +24,17 @@ import {
 interface RetentionCohortChartProps {
   data: Array<{ day: number; retentionRate: number }>;
   loading?: boolean;
+  title?: string;
+  actionSlot?: ReactNode;
+  renderCard?: boolean;
 }
 
 export default function RetentionCohortChart({
   data,
   loading = false,
+  title = "Retention Cohort (Day N)",
+  actionSlot,
+  renderCard = true,
 }: RetentionCohortChartProps) {
   const normalizedData = useMemo(() => {
     const maxRetention = data.reduce(
@@ -57,64 +63,72 @@ export default function RetentionCohortChart({
       : 1;
 
   if (loading) {
-    return (
+    return renderCard ? (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Retention Cohort (Day N)</CardTitle>
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          {actionSlot}
         </CardHeader>
         <CardContent className="h-[240px] animate-pulse rounded bg-muted" />
       </Card>
+    ) : (
+      <div className="h-[240px] animate-pulse rounded bg-muted" />
     );
   }
 
-  return (
+  const chart = (
+    <ResponsiveContainer width="100%" height={240}>
+      <LineChart data={normalizedData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+        <XAxis
+          dataKey="day"
+          tickFormatter={(value) => `D${value}`}
+          tick={CHART_TICK_STYLE}
+          tickLine={CHART_TICK_LINE_STYLE}
+          axisLine={CHART_AXIS_LINE_STYLE}
+          tickMargin={8}
+        />
+        <YAxis
+          domain={[0, yAxisMax]}
+          tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
+          tick={CHART_TICK_STYLE}
+          tickLine={CHART_TICK_LINE_STYLE}
+          axisLine={CHART_AXIS_LINE_STYLE}
+          tickMargin={8}
+        />
+        <Tooltip
+          formatter={(value) => [`${(Number(value ?? 0) * 100).toFixed(1)}%`, "Retention"]}
+          labelFormatter={(label) => `Day ${label}`}
+          contentStyle={CHART_TOOLTIP_STYLE}
+        />
+        <Line
+          type="monotone"
+          dataKey="retentionRate"
+          stroke={CHART_SERIES_2}
+          strokeWidth={2.5}
+          dot={{ r: 4, fill: CHART_SERIES_2, stroke: CHART_SURFACE_COLOR, strokeWidth: 2 }}
+          activeDot={{
+            r: 6,
+            fill: CHART_SERIES_2,
+            stroke: CHART_SURFACE_COLOR,
+            strokeWidth: 2,
+          }}
+          isAnimationActive={false}
+          connectNulls
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+
+  return renderCard ? (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Retention Cohort (Day N)</CardTitle>
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {actionSlot}
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={normalizedData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
-            <XAxis
-              dataKey="day"
-              tickFormatter={(value) => `D${value}`}
-              tick={CHART_TICK_STYLE}
-              tickLine={CHART_TICK_LINE_STYLE}
-              axisLine={CHART_AXIS_LINE_STYLE}
-              tickMargin={8}
-            />
-            <YAxis
-              domain={[0, yAxisMax]}
-              tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
-              tick={CHART_TICK_STYLE}
-              tickLine={CHART_TICK_LINE_STYLE}
-              axisLine={CHART_AXIS_LINE_STYLE}
-              tickMargin={8}
-            />
-            <Tooltip
-              formatter={(value) => [`${(Number(value ?? 0) * 100).toFixed(1)}%`, "Retention"]}
-              labelFormatter={(label) => `Day ${label}`}
-              contentStyle={CHART_TOOLTIP_STYLE}
-            />
-            <Line
-              type="monotone"
-              dataKey="retentionRate"
-              stroke={CHART_SERIES_2}
-              strokeWidth={2.5}
-              dot={{ r: 4, fill: CHART_SERIES_2, stroke: CHART_SURFACE_COLOR, strokeWidth: 2 }}
-              activeDot={{
-                r: 6,
-                fill: CHART_SERIES_2,
-                stroke: CHART_SURFACE_COLOR,
-                strokeWidth: 2,
-              }}
-              isAnimationActive={false}
-              connectNulls
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </CardContent>
+      <CardContent>{chart}</CardContent>
     </Card>
+  ) : (
+    chart
   );
 }
