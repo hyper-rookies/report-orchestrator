@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Share2, X } from "lucide-react";
+import { Check, Copy, Share2 } from "lucide-react";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatShareExpiry, isShareLinkReusable } from "@/lib/shareExpiry";
+import { formatWeekRangeLabel } from "@/lib/weekRangeLabel";
 
 interface ShareButtonProps {
   selectedRange: WeekRange;
@@ -53,7 +61,8 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(errorBody?.error ?? `HTTP ${response.status}`);
       }
 
       const data = (await response.json()) as { url: string; expiresAt: string };
@@ -83,25 +92,19 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
   const expiresLabel = state.status === "done" ? formatShareExpiry(state.expiresAt) : "";
 
   return (
-    <div className="relative">
+    <Dialog open={open} onOpenChange={setOpen}>
       <Button variant="outline" size="sm" onClick={handleShare} className="gap-1.5">
         <Share2 className="h-3.5 w-3.5" />
         공유
       </Button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 space-y-3 rounded-lg border bg-card p-4 shadow-lg">
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="공유 모달 닫기"
-            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
+      <DialogContent className="z-[80] w-full max-w-md">
+        <DialogHeader className="pr-8">
+          <DialogTitle>링크 공유</DialogTitle>
+          <DialogDescription>{formatWeekRangeLabel(selectedRange)}</DialogDescription>
+        </DialogHeader>
 
-          <p className="text-sm font-semibold">링크 공유</p>
-
+        <div className="space-y-3">
           {state.status === "loading" && (
             <p className="text-sm text-muted-foreground">링크 생성 중...</p>
           )}
@@ -114,9 +117,9 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
             <>
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/30">
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  이 공유 링크는 <strong>{expiresLabel}</strong>에 만료됩니다 (7일).
+                  이 공유 링크는 <strong>{expiresLabel}</strong>에 만료됩니다. (7일)
                   <br />
-                  로그인 없이 영구 조회는 지원하지 않습니다.
+                  로그인 없이 읽기 전용 조회만 지원합니다.
                 </p>
               </div>
 
@@ -130,7 +133,7 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-7 w-7 shrink-0"
+                  className="h-8 w-8 shrink-0"
                   onClick={handleCopy}
                   aria-label="공유 링크 복사"
                 >
@@ -146,7 +149,7 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
             </>
           )}
         </div>
-      )}
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

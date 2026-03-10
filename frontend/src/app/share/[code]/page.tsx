@@ -68,7 +68,7 @@ export default function SharePage() {
         if (!cancelled) {
           setResolved({
             status: "error",
-            message: err instanceof Error ? err.message : "링크를 불러오지 못했습니다.",
+            message: err instanceof Error ? err.message : "공유 링크를 불러오지 못했습니다.",
           });
         }
       });
@@ -89,7 +89,7 @@ export default function SharePage() {
   if (resolved.status === "error") {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="text-center space-y-2">
+        <div className="space-y-2 text-center">
           <p className="text-lg font-semibold text-destructive">
             링크가 만료되었거나 유효하지 않습니다.
           </p>
@@ -107,6 +107,7 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
     totalSessions,
     totalInstalls,
     avgEngagementRate,
+    kpiComparison,
     channelShare,
     conversionByChannel,
     channelRevenue,
@@ -122,21 +123,30 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
     {
       label: "총 세션",
       value: totalSessions !== null ? formatInt(totalSessions) : "데이터 로드 실패",
+      currentValue: kpiComparison.totalSessions.currentValue,
+      previousValue: kpiComparison.totalSessions.previousValue,
+      deltaPercent: kpiComparison.totalSessions.deltaPercent,
     },
     {
       label: "총 설치",
       value: totalInstalls !== null ? formatInt(totalInstalls) : "데이터 로드 실패",
+      currentValue: kpiComparison.totalInstalls.currentValue,
+      previousValue: kpiComparison.totalInstalls.previousValue,
+      deltaPercent: kpiComparison.totalInstalls.deltaPercent,
     },
     {
       label: "평균 참여율",
       value: avgEngagementRate !== null ? formatRate(avgEngagementRate) : "데이터 로드 실패",
+      currentValue: kpiComparison.avgEngagementRate.currentValue,
+      previousValue: kpiComparison.avgEngagementRate.previousValue,
+      deltaPercent: kpiComparison.avgEngagementRate.deltaPercent,
     },
   ];
 
   return (
     <div className="min-h-screen bg-background px-6 py-8">
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <div className="rounded-lg border bg-card px-6 py-5 space-y-1">
+        <div className="space-y-1 rounded-lg border bg-card px-6 py-5">
           <div className="flex items-center justify-between gap-3">
             <h1 className="text-2xl font-bold tracking-tight">마케팅 대시보드</h1>
             <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
@@ -149,9 +159,7 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
           <p className="text-xs text-amber-600 dark:text-amber-400">
             이 공유 링크는 {expiresAt}에 만료됩니다.
           </p>
-          {error && (
-            <p className="text-xs text-destructive">일부 데이터 로드 실패: {error}</p>
-          )}
+          {error && <p className="text-xs text-destructive">주간 데이터 로드 실패: {error}</p>}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

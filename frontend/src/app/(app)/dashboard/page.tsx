@@ -30,7 +30,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetch("/dashboard-cache/manifest.json")
-      .then((r) => r.json() as Promise<WeekRange[]>)
+      .then((response) => response.json() as Promise<WeekRange[]>)
       .then((data) => {
         setWeeks(data);
         setSelectedWeekIndex(Math.max(0, data.length - 2));
@@ -42,6 +42,7 @@ export default function DashboardPage() {
     totalSessions,
     totalInstalls,
     avgEngagementRate,
+    kpiComparison,
     channelShare,
     conversionByChannel,
     channelRevenue,
@@ -57,14 +58,23 @@ export default function DashboardPage() {
     {
       label: "총 세션",
       value: totalSessions !== null ? formatInt(totalSessions) : "데이터 로드 실패",
+      currentValue: kpiComparison.totalSessions.currentValue,
+      previousValue: kpiComparison.totalSessions.previousValue,
+      deltaPercent: kpiComparison.totalSessions.deltaPercent,
     },
     {
       label: "총 설치",
       value: totalInstalls !== null ? formatInt(totalInstalls) : "데이터 로드 실패",
+      currentValue: kpiComparison.totalInstalls.currentValue,
+      previousValue: kpiComparison.totalInstalls.previousValue,
+      deltaPercent: kpiComparison.totalInstalls.deltaPercent,
     },
     {
       label: "평균 참여율",
       value: avgEngagementRate !== null ? formatRate(avgEngagementRate) : "데이터 로드 실패",
+      currentValue: kpiComparison.avgEngagementRate.currentValue,
+      previousValue: kpiComparison.avgEngagementRate.previousValue,
+      deltaPercent: kpiComparison.avgEngagementRate.deltaPercent,
     },
   ];
 
@@ -98,7 +108,7 @@ export default function DashboardPage() {
           <p className="text-sm text-muted-foreground">
             {formatWeekRangeLabel(selectedRange)} 데이터 요약
           </p>
-          {error && <p className="mt-2 text-xs text-destructive">일부 데이터 로드 실패: {error}</p>}
+          {error && <p className="mt-2 text-xs text-destructive">주간 데이터 로드 실패: {error}</p>}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

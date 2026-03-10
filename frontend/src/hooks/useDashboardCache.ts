@@ -21,10 +21,34 @@ interface DashboardCacheJson {
   retention: CacheRow[];
 }
 
+interface KpiComparisonMetric {
+  currentValue: number | null;
+  previousValue: number | null;
+  deltaPercent: number | null;
+}
+
+interface ParsedDashboardCacheMetrics {
+  totalSessions: number;
+  totalInstalls: number;
+  avgEngagementRate: number;
+  channelShare: Array<{ name: string; value: number }>;
+  trend: Array<{ date: string; sessions: number; installs: number }>;
+  conversionByChannel: Array<{ channel: string; conversionRate: number }>;
+  channelRevenue: Array<{ channel: string; revenue: number }>;
+  campaignInstalls: Array<{ campaign: string; installs: number }>;
+  installFunnel: Array<{ stage: string; count: number }>;
+  retention: Array<{ day: number; retentionRate: number }>;
+}
+
 export interface DashboardCacheData {
   totalSessions: number | null;
   totalInstalls: number | null;
   avgEngagementRate: number | null;
+  kpiComparison: {
+    totalSessions: KpiComparisonMetric;
+    totalInstalls: KpiComparisonMetric;
+    avgEngagementRate: KpiComparisonMetric;
+  };
   channelShare: Array<{ name: string; value: number }>;
   trend: Array<{ date: string; sessions: number; installs: number }>;
   conversionByChannel: Array<{ channel: string; conversionRate: number }>;
@@ -36,10 +60,17 @@ export interface DashboardCacheData {
   error: string | null;
 }
 
+const EMPTY_KPI_COMPARISON = {
+  totalSessions: { currentValue: null, previousValue: null, deltaPercent: null },
+  totalInstalls: { currentValue: null, previousValue: null, deltaPercent: null },
+  avgEngagementRate: { currentValue: null, previousValue: null, deltaPercent: null },
+} satisfies DashboardCacheData["kpiComparison"];
+
 const INITIAL: DashboardCacheData = {
   totalSessions: null,
   totalInstalls: null,
   avgEngagementRate: null,
+  kpiComparison: EMPTY_KPI_COMPARISON,
   channelShare: [],
   trend: [],
   conversionByChannel: [],
@@ -67,10 +98,54 @@ function normalizeDateLabel(dt: unknown): string | null {
   return `${month}/${day}`;
 }
 
-function parseCache(json: DashboardCacheJson): DashboardCacheData {
+function calculateDeltaPercent(currentValue: number | null, previousValue: number | null): number | null {
+  if (currentValue === null || previousValue === null || previousValue === 0) {
+    return null;
+  }
+
+  return ((currentValue - previousValue) / previousValue) * 100;
+}
+
+function buildKpiComparison(
+  currentValue: number | null,
+  previousValue: number | null
+): KpiComparisonMetric {
+  return {
+    currentValue,
+    previousValue,
+    deltaPercent: calculateDeltaPercent(currentValue, previousValue),
+  };
+}
+
+function buildWeekUrl(range: WeekRange): string {
+  return `/dashboard-cache/week=${range.start}_${range.end}.json`;
+}
+
+async function fetchCacheJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${url}`);
+  }
+
+  return (await res.json()) as T;
+}
+
+function findPreviousWeekRange(weeks: WeekRange[], selectedRange: WeekRange): WeekRange | null {
+  const selectedIndex = weeks.findIndex(
+    (week) => week.start === selectedRange.start && week.end === selectedRange.end
+  );
+
+  if (selectedIndex <= 0) {
+    return null;
+  }
+
+  return weeks[selectedIndex - 1] ?? null;
+}
+
+function parseCache(json: DashboardCacheJson): ParsedDashboardCacheMetrics {
   const sessionsByChannel = new Map<string, number>();
   for (const row of json.sessions) {
-    const ch = String(row.channel_group ?? "기타");
+    const ch = String(row.channel_group ?? "湲고?");
     sessionsByChannel.set(ch, (sessionsByChannel.get(ch) ?? 0) + parseNum(row.sessions));
   }
   const totalSessions = Array.from(sessionsByChannel.values()).reduce((a, b) => a + b, 0);
@@ -161,8 +236,6 @@ function parseCache(json: DashboardCacheJson): DashboardCacheData {
     campaignInstalls,
     installFunnel,
     retention,
-    loading: false,
-    error: null,
   };
 }
 
@@ -172,24 +245,74 @@ export function useDashboardCache(selectedRange: WeekRange): DashboardCacheData 
   useEffect(() => {
     let cancelled = false;
 
-    const url = `/dashboard-cache/week=${selectedRange.start}_${selectedRange.end}.json`;
-    fetch(url)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
-        return res.json() as Promise<DashboardCacheJson>;
-      })
-      .then((json) => {
-        if (!cancelled) setData(parseCache(json));
-      })
-      .catch((err: unknown) => {
+    if (!selectedRange.start || !selectedRange.end) {
+      setData(INITIAL);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setData((prev) => ({
+      ...prev,
+      loading: true,
+      error: null,
+    }));
+
+    const load = async () => {
+      try {
+        const [weeks, currentJson] = await Promise.all([
+          fetchCacheJson<WeekRange[]>("/dashboard-cache/manifest.json"),
+          fetchCacheJson<DashboardCacheJson>(buildWeekUrl(selectedRange)),
+        ]);
+
+        const currentMetrics = parseCache(currentJson);
+        const previousRange = findPreviousWeekRange(weeks, selectedRange);
+        let previousMetrics: ParsedDashboardCacheMetrics | null = null;
+
+        if (previousRange) {
+          try {
+            const previousJson = await fetchCacheJson<DashboardCacheJson>(buildWeekUrl(previousRange));
+            previousMetrics = parseCache(previousJson);
+          } catch {
+            previousMetrics = null;
+          }
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setData({
+          ...currentMetrics,
+          kpiComparison: {
+            totalSessions: buildKpiComparison(
+              currentMetrics.totalSessions,
+              previousMetrics?.totalSessions ?? null
+            ),
+            totalInstalls: buildKpiComparison(
+              currentMetrics.totalInstalls,
+              previousMetrics?.totalInstalls ?? null
+            ),
+            avgEngagementRate: buildKpiComparison(
+              currentMetrics.avgEngagementRate,
+              previousMetrics?.avgEngagementRate ?? null
+            ),
+          },
+          loading: false,
+          error: null,
+        });
+      } catch (err: unknown) {
         if (!cancelled) {
           setData((prev) => ({
             ...prev,
             loading: false,
-            error: err instanceof Error ? err.message : "캐시 로드 실패",
+            error: err instanceof Error ? err.message : "罹먯떆 濡쒕뱶 ?ㅽ뙣",
           }));
         }
-      });
+      }
+    };
+
+    void load();
 
     return () => {
       cancelled = true;
