@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:sessions": "node --experimental-strip-types scripts/test-session-persistence.mjs"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.1",

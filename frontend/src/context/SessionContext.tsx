@@ -27,10 +27,11 @@ interface SessionContextValue {
   sessions: SessionMeta[];
   loading: boolean;
   refreshSessions: () => Promise<void>;
-  saveSession: (args: SaveSessionArgs) => Promise<void>;
+  saveSession: (args: SaveSessionArgs) => Promise<SessionMeta>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   shareSession: (sessionId: string) => Promise<ShareResult>;
+  getSessionTitle: (sessionId: string) => string | null;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -55,6 +56,25 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   }
 }
 
+function sortSessionsByUpdatedAt(items: SessionMeta[]): SessionMeta[] {
+  return [...items].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+}
+
+async function getErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await response.json()) as { error?: unknown };
+    if (typeof body.error === "string" && body.error.trim().length > 0) {
+      return body.error;
+    }
+  } catch {
+    // fall through to fallback
+  }
+
+  return fallback;
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,37 +93,72 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Keep the initial fetch at provider mount because the app-wide sidebar renders
+    // recent sessions on every authenticated route in the `(app)` layout.
     void refreshSessions();
   }, [refreshSessions]);
 
   const saveSession = useCallback(
     async (args: SaveSessionArgs) => {
       const headers = await getAuthHeaders();
-      await fetch("/api/sessions", {
+      const response = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify(args),
       });
-      void refreshSessions();
+
+      if (!response.ok) {
+        throw new Error(await getErrorMessage(response, "세션 저장에 실패했습니다."));
+      }
+
+      const savedMeta = (await response.json()) as SessionMeta;
+      setSessions((prev) =>
+        sortSessionsByUpdatedAt([
+          savedMeta,
+          ...prev.filter((session) => session.sessionId !== savedMeta.sessionId),
+        ])
+      );
+
+      return savedMeta;
     },
-    [refreshSessions]
+    []
   );
 
   const renameSession = useCallback(async (sessionId: string, title: string) => {
     const headers = await getAuthHeaders();
-    await fetch(`/api/sessions/${sessionId}`, {
+    const response = await fetch(`/api/sessions/${sessionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify({ title }),
     });
+
+    if (!response.ok) {
+      throw new Error(await getErrorMessage(response, "세션 이름 변경에 실패했습니다."));
+    }
+
+    const updated = (await response.json()) as {
+      sessionId: string;
+      title: string;
+      updatedAt: string;
+    };
+
     setSessions((prev) =>
-      prev.map((session) => (session.sessionId === sessionId ? { ...session, title } : session))
+      sortSessionsByUpdatedAt(
+        prev.map((session) =>
+          session.sessionId === updated.sessionId
+            ? { ...session, title: updated.title, updatedAt: updated.updatedAt }
+            : session
+        )
+      )
     );
   }, []);
 
   const deleteSession = useCallback(async (sessionId: string) => {
     const headers = await getAuthHeaders();
-    await fetch(`/api/sessions/${sessionId}`, { method: "DELETE", headers });
+    const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE", headers });
+    if (!response.ok) {
+      throw new Error(await getErrorMessage(response, "세션 삭제에 실패했습니다."));
+    }
     setSessions((prev) => prev.filter((session) => session.sessionId !== sessionId));
   }, []);
 
@@ -120,6 +175,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return (await response.json()) as ShareResult;
   }, []);
 
+  const getSessionTitle = useCallback(
+    (sessionId: string) => sessions.find((session) => session.sessionId === sessionId)?.title ?? null,
+    [sessions]
+  );
+
   const value = useMemo(
     () => ({
       sessions,
@@ -129,8 +189,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       renameSession,
       deleteSession,
       shareSession,
+      getSessionTitle,
     }),
-    [sessions, loading, refreshSessions, saveSession, renameSession, deleteSession, shareSession]
+    [
+      sessions,
+      loading,
+      refreshSessions,
+      saveSession,
+      renameSession,
+      deleteSession,
+      shareSession,
+      getSessionTitle,
+    ]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

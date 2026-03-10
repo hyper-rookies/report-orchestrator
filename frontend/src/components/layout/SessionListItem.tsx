@@ -95,7 +95,14 @@ export default function SessionListItem({
     setEditing(false);
 
     if (trimmed && trimmed !== title) {
-      await renameSession(sessionId, trimmed);
+      try {
+        await renameSession(sessionId, trimmed);
+      } catch (error) {
+        window.alert(
+          error instanceof Error ? error.message : "?대쫫 蹂寃쏀븯湲곌? ?ㅽ뙣?덉뒿?덈떎."
+        );
+        setEditValue(title);
+      }
     } else {
       setEditValue(title);
     }
@@ -123,9 +130,15 @@ export default function SessionListItem({
       return;
     }
 
-    await deleteSession(sessionId);
-    if (isActive) {
-      router.push("/");
+    try {
+      await deleteSession(sessionId);
+      if (isActive) {
+        router.push("/");
+      }
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "?몄뀡???쒓굅?섎뒗 ?ㅽ뙣?덉뒿?덈떎."
+      );
     }
   };
 
