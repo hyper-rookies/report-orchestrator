@@ -14,6 +14,7 @@ import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboardCache } from "@/hooks/useDashboardCache";
 import { formatShareExpiry } from "@/lib/shareExpiry";
+import { formatWeekRangeLabel } from "@/lib/weekRangeLabel";
 
 function formatInt(value: number): string {
   return new Intl.NumberFormat("ko-KR").format(Math.max(0, Math.round(value)));
@@ -142,7 +143,9 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
               읽기 전용
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">{range.label} 데이터 요약</p>
+          <p className="text-sm text-muted-foreground">
+            {formatWeekRangeLabel(range)} 데이터 요약
+          </p>
           <p className="text-xs text-amber-600 dark:text-amber-400">
             이 공유 링크는 {expiresAt}에 만료됩니다.
           </p>

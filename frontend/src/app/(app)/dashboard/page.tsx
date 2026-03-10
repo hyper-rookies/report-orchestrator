@@ -14,6 +14,7 @@ import TrendLineChart from "@/components/dashboard/TrendLineChart";
 import WeekSelector, { type WeekRange } from "@/components/dashboard/WeekSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDashboardCache } from "@/hooks/useDashboardCache";
+import { formatWeekRangeLabel } from "@/lib/weekRangeLabel";
 
 function formatInt(value: number): string {
   return new Intl.NumberFormat("ko-KR").format(Math.max(0, Math.round(value)));
@@ -94,7 +95,9 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">{selectedRange.label} 데이터 요약</p>
+          <p className="text-sm text-muted-foreground">
+            {formatWeekRangeLabel(selectedRange)} 데이터 요약
+          </p>
           {error && <p className="mt-2 text-xs text-destructive">일부 데이터 로드 실패: {error}</p>}
         </div>
 
