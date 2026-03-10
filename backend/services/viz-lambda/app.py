@@ -5,8 +5,10 @@ import json
 import re
 from typing import Any
 
+from chart_selector import select_chart_type
+
 VERSION = "v1"
-ALLOWED_CHART_TYPES = {"bar", "line", "table", "pie", "stackedBar"}
+ALLOWED_CHART_TYPES = {"auto", "bar", "line", "table", "pie", "stackedBar"}
 
 # ── Bedrock Action Group adapter ──────────────────────────────────────────────
 
@@ -245,7 +247,26 @@ def build_chart_spec(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
         raise VizError("UNKNOWN", "rows must be an array of objects.")
     if chart_type not in ALLOWED_CHART_TYPES:
-        raise VizError("INVALID_CHART_TYPE", "chartType must be one of bar, line, table, pie, or stackedBar.")
+        raise VizError(
+            "INVALID_CHART_TYPE",
+            "chartType must be one of auto, bar, line, table, pie, or stackedBar.",
+        )
+
+    if chart_type == "auto":
+        hints = {
+            "questionIntent": payload.get("questionIntent", "generic"),
+            "isTimeSeries": _coerce_auto_bool_hint(payload.get("isTimeSeries", False)),
+            "compositionMode": _coerce_auto_bool_hint(payload.get("compositionMode", False)),
+            "comparisonMode": _coerce_auto_bool_hint(payload.get("comparisonMode", False)),
+            "deltaIncluded": _coerce_auto_bool_hint(payload.get("deltaIncluded", False)),
+            "categoryCount": _coerce_auto_count_hint(payload.get("categoryCount")),
+            "metricCount": _coerce_auto_count_hint(payload.get("metricCount")),
+            "rowCount": _coerce_auto_count_hint(payload.get("rowCount")),
+            "xAxis": x_axis,
+        }
+        chart_type, reason = select_chart_type(hints, rows)
+    else:
+        reason = f"explicit: {chart_type}"
 
     spec: dict[str, Any] = {
         "type": chart_type,
@@ -253,6 +274,7 @@ def build_chart_spec(payload: dict[str, Any]) -> dict[str, Any]:
     }
     if isinstance(title, str):
         spec["title"] = title
+    spec["selectionReason"] = reason
 
     if chart_type == "table":
         return {"version": VERSION, "spec": spec}
@@ -296,3 +318,27 @@ def _parse_event_payload(event: Any) -> dict[str, Any]:
 
 def _build_label(metric: str) -> str:
     return metric.replace("_", " ").title()
+
+
+def _coerce_auto_bool_hint(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1"}:
+            return True
+        if lowered in {"false", "0", ""}:
+            return False
+    return False
+
+
+def _coerce_auto_count_hint(value: Any) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and _INT_PATTERN.fullmatch(value.strip()):
+        return int(value.strip())
+    return None

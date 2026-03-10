@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 
 def _load_module():
-    module_path = Path(__file__).resolve().parents[1] / "services" / "viz-lambda" / "app.py"
+    service_dir = Path(__file__).resolve().parents[1] / "services" / "viz-lambda"
+    sys.path.insert(0, str(service_dir))
+    module_path = service_dir / "app.py"
     spec = importlib.util.spec_from_file_location("viz_lambda_app", module_path)
     assert spec is not None
     assert spec.loader is not None
@@ -40,6 +43,7 @@ def test_build_chart_spec_bar_includes_x_axis_series_and_data():
         "spec": {
             "type": "bar",
             "title": "Sessions and Conversions by Channel",
+            "selectionReason": "explicit: bar",
             "xAxis": "channel_group",
             "series": [
                 {"metric": "sessions", "label": "Sessions"},
@@ -67,6 +71,7 @@ def test_build_chart_spec_line_requires_same_shape_as_bar():
         "version": "v1",
         "spec": {
             "type": "line",
+            "selectionReason": "explicit: line",
             "xAxis": "date",
             "series": [{"metric": "sessions", "label": "Sessions"}],
             "data": rows,
@@ -96,6 +101,7 @@ def test_build_chart_spec_table_omits_x_axis_and_series_and_preserves_rows():
         "spec": {
             "type": "table",
             "title": "Performance Table",
+            "selectionReason": "explicit: table",
             "data": rows,
         },
     }
@@ -117,7 +123,7 @@ def test_lambda_handler_returns_invalid_chart_type_error():
         "version": "v1",
         "error": {
             "code": "INVALID_CHART_TYPE",
-            "message": "chartType must be one of bar, line, table, pie, or stackedBar.",
+            "message": "chartType must be one of auto, bar, line, table, pie, or stackedBar.",
             "retryable": False,
             "actionGroup": "viz",
         },
@@ -196,6 +202,7 @@ def test_build_chart_spec_pie_uses_name_key_and_value_key():
         "spec": {
             "type": "pie",
             "title": "Sessions Share by Channel",
+            "selectionReason": "explicit: pie",
             "nameKey": "channel_group",
             "valueKey": "sessions",
             "data": rows,
@@ -225,6 +232,7 @@ def test_build_chart_spec_stacked_bar_preserves_multi_series():
         "spec": {
             "type": "stackedBar",
             "title": "Cohort Retention",
+            "selectionReason": "explicit: stackedBar",
             "xAxis": "media_source",
             "series": [
                 {"metric": "retained_users", "label": "Retained Users"},
@@ -291,6 +299,7 @@ def test_lambda_handler_accepts_proxy_body_shape():
     body = json.loads(response["body"])
     assert body["spec"] == {
         "type": "line",
+        "selectionReason": "explicit: line",
         "xAxis": "date",
         "series": [{"metric": "sessions", "label": "Sessions"}],
         "data": [{"date": "2026-03-01", "sessions": 10}],
@@ -338,6 +347,7 @@ def test_lambda_handler_bedrock_pie_tolerates_non_json_parameter_literals():
 
     assert body["version"] == "v1"
     assert body["spec"]["type"] == "pie"
+    assert body["spec"]["selectionReason"] == "explicit: pie"
     assert body["spec"]["nameKey"] == "channel_group"
     assert body["spec"]["valueKey"] == "SUM(sessions)"
     assert len(body["spec"]["data"]) == 2

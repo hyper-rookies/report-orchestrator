@@ -38,7 +38,9 @@ def _load_analysis_app():
 
 
 def _load_viz_app():
-    path = Path(__file__).resolve().parents[1] / "services" / "viz-lambda" / "app.py"
+    service_dir = Path(__file__).resolve().parents[1] / "services" / "viz-lambda"
+    sys.path.insert(0, str(service_dir))
+    path = service_dir / "app.py"
     spec = importlib.util.spec_from_file_location("viz_app_bedrock", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
@@ -230,6 +232,7 @@ def test_viz_buildchartspec_bedrock_returns_bedrock_envelope():
     body = _assert_bedrock_envelope(response, "viz", "buildChartSpec")
     assert "spec" in body
     assert body["spec"]["type"] == "bar"
+    assert body["spec"]["selectionReason"] == "explicit: bar"
     assert body["spec"]["xAxis"] == "channel_group"
     assert len(body["spec"]["series"]) == 2
 
@@ -246,6 +249,7 @@ def test_viz_buildchartspec_bedrock_table_type_omits_series():
     }
     body = _assert_bedrock_envelope(viz_app.lambda_handler(event, None), "viz", "buildChartSpec")
     assert body["spec"]["type"] == "table"
+    assert body["spec"]["selectionReason"] == "explicit: table"
     assert "series" not in body["spec"]
 
 
@@ -262,3 +266,21 @@ def test_viz_buildchartspec_bedrock_invalid_chart_type_returns_error_in_envelope
     body = _assert_bedrock_envelope(viz_app.lambda_handler(event, None), "viz", "buildChartSpec")
     assert "error" in body
     assert body["error"]["code"] == "INVALID_CHART_TYPE"
+
+
+def test_viz_buildchartspec_bedrock_auto_mode_returns_selection_reason():
+    event = {
+        "actionGroup": "viz",
+        "function": "buildChartSpec",
+        "parameters": [
+            _param("version", "string", "v1"),
+            _param("rows", "array", json.dumps(_ROWS)),
+            _param("chartType", "string", "auto"),
+            _param("questionIntent", "string", "ranking"),
+            _param("xAxis", "string", "channel_group"),
+            _param("yAxis", "array", json.dumps(["sessions"])),
+        ],
+    }
+    body = _assert_bedrock_envelope(viz_app.lambda_handler(event, None), "viz", "buildChartSpec")
+    assert body["spec"]["type"] == "bar"
+    assert body["spec"]["selectionReason"].startswith("auto:")
