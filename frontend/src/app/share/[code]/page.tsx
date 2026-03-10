@@ -22,6 +22,20 @@ function formatRate(value: number): string {
   return `${(Math.max(0, value) * 100).toFixed(1)}%`;
 }
 
+function formatExpiresAt(expiresAt: string): string {
+  const date = new Date(expiresAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return expiresAt;
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+}
+
 type ResolvedState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -31,6 +45,7 @@ interface ShareApiResponse {
   weekStart: string;
   weekEnd: string;
   weekLabel: string;
+  expiresAt: string;
 }
 
 export default function SharePage() {
@@ -54,7 +69,7 @@ export default function SharePage() {
           setResolved({
             status: "ok",
             range: { start: data.weekStart, end: data.weekEnd, label: data.weekLabel },
-            expiresAt: "7일 후",
+            expiresAt: formatExpiresAt(data.expiresAt),
           });
         }
       })
@@ -139,7 +154,7 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
           </div>
           <p className="text-sm text-muted-foreground">{range.label} 데이터 요약</p>
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            이 공유 링크는 {expiresAt} 만료됩니다.
+            이 공유 링크는 {expiresAt}에 만료됩니다.
           </p>
           {error && (
             <p className="text-xs text-destructive">일부 데이터 로드 실패: {error}</p>
@@ -205,7 +220,7 @@ function SharedDashboard({ range, expiresAt }: { range: WeekRange; expiresAt: st
         </div>
 
         <p className="pb-4 text-center text-xs text-muted-foreground">
-          AI 리포트 서비스의 읽기 전용 공유 뷰입니다. 이 공유 링크는 {expiresAt} 만료됩니다.
+          AI 리포트 서비스의 읽기 전용 공유 뷰입니다. 이 공유 링크는 {expiresAt}에 만료됩니다.
         </p>
       </div>
     </div>

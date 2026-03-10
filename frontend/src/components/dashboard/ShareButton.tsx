@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Copy, Share2, X } from "lucide-react";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Button } from "@/components/ui/button";
@@ -22,13 +22,23 @@ function formatExpiresAt(expiresAt: string): string {
     return expiresAt;
   }
 
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date);
 }
 
 export default function ShareButton({ selectedRange }: ShareButtonProps) {
   const [state, setState] = useState<ShareState>({ status: "idle" });
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setState({ status: "idle" });
+    setCopied(false);
+    setOpen(false);
+  }, [selectedRange.start, selectedRange.end, selectedRange.label]);
 
   const handleShare = async () => {
     if (state.status === "done") {
@@ -60,7 +70,7 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
     } catch (error) {
       setState({
         status: "error",
-        message: error instanceof Error ? error.message : "공유 링크 생성에 실패했습니다.",
+        message: error instanceof Error ? error.message : "공유 링크를 생성하지 못했습니다.",
       });
     }
   };
@@ -115,7 +125,7 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
                 <p className="text-xs text-amber-700 dark:text-amber-400">
                   이 공유 링크는 <strong>{expiresLabel}</strong>에 만료됩니다 (7일).
                   <br />
-                  로그인 없이 누구나 조회할 수 있습니다.
+                  로그인 없이 영구 조회는 지원하지 않습니다.
                 </p>
               </div>
 

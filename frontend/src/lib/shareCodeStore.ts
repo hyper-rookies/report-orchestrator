@@ -32,7 +32,7 @@ export function createCode(jwt: string, expiresAt: Date): string {
   return code;
 }
 
-export function resolveCode(code: string): string | null {
+export function resolveCodeEntry(code: string): { jwt: string; expiresAt: string } | null {
   const store = getStore();
   const entry = store.get(code);
   if (!entry) {
@@ -42,5 +42,13 @@ export function resolveCode(code: string): string | null {
     store.delete(code);
     return null;
   }
-  return entry.jwt;
+
+  return {
+    jwt: entry.jwt,
+    expiresAt: new Date(entry.expiresAt * 1000).toISOString(),
+  };
+}
+
+export function resolveCode(code: string): string | null {
+  return resolveCodeEntry(code)?.jwt ?? null;
 }
