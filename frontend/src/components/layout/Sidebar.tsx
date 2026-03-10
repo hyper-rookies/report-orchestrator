@@ -4,7 +4,9 @@ import Link from "next/link";
 import { LayoutDashboard, MessageSquare, Plus } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
+import SessionListItem from "@/components/layout/SessionListItem";
 import { Button } from "@/components/ui/button";
+import { useSessionContext } from "@/context/SessionContext";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -15,6 +17,7 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { sessions } = useSessionContext();
 
   return (
     <aside className="flex min-h-0 w-64 flex-shrink-0 flex-col overflow-hidden border-r border-sidebar-border/90 bg-sidebar text-sidebar-foreground shadow-[8px_0_24px_-24px_rgba(25,25,25,0.45)]">
@@ -53,7 +56,23 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="flex-1 overflow-y-auto px-3 pb-4 pt-2">{/* FE-07 conversation list */}</div>
+      <div className="flex-1 overflow-y-auto px-3 pb-4 pt-2">
+        {sessions.length > 0 && (
+          <p className="mb-2 px-1 text-xs font-semibold tracking-wide text-muted-foreground">
+            최근 대화
+          </p>
+        )}
+        <div className="space-y-0.5">
+          {sessions.map((session) => (
+            <SessionListItem
+              key={session.sessionId}
+              sessionId={session.sessionId}
+              title={session.title}
+              isActive={pathname === `/sessions/${session.sessionId}`}
+            />
+          ))}
+        </div>
+      </div>
     </aside>
   );
 }
