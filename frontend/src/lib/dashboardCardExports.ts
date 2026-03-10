@@ -147,10 +147,12 @@ export function buildDashboardCardExports(data: DashboardCacheData): DashboardCa
       title: "Campaign Installs Top 10",
       unit: "installs",
       columns: [
+        { key: "rank", header: "Rank" },
         { key: "campaign", header: "Campaign" },
         { key: "installs", header: "Installs" },
       ],
-      rows: data.campaignInstalls.slice(0, 10).map((item) => ({
+      rows: data.campaignInstalls.slice(0, 10).map((item, index) => ({
+        rank: index + 1,
         campaign: item.campaign,
         installs: item.installs,
       })),

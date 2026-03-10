@@ -6,6 +6,7 @@ import CardActionMenu from "@/components/dashboard/CardActionMenu";
 import ChannelPieChart from "@/components/dashboard/ChannelPieChart";
 import ChannelRevenueChart from "@/components/dashboard/ChannelRevenueChart";
 import ConversionChart from "@/components/dashboard/ConversionChart";
+import DashboardCardView from "@/components/dashboard/DashboardCardView";
 import ExportExcelButton from "@/components/dashboard/ExportExcelButton";
 import InstallFunnelChart from "@/components/dashboard/InstallFunnelChart";
 import KpiCard, { type DashboardKpi } from "@/components/dashboard/KpiCard";
@@ -14,7 +15,7 @@ import RetentionCohortChart from "@/components/dashboard/RetentionCohortChart";
 import ShareButton from "@/components/dashboard/ShareButton";
 import TrendLineChart from "@/components/dashboard/TrendLineChart";
 import WeekSelector, { type WeekRange } from "@/components/dashboard/WeekSelector";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useDashboardCache } from "@/hooks/useDashboardCache";
 import {
   buildDashboardCardExports,
@@ -156,79 +157,106 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card className="nhn-panel">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold tracking-wide">
-                {cardExports.channelShare.title}
-              </CardTitle>
-              {renderCardAction(cardExports.channelShare)}
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="h-[260px] animate-pulse rounded-lg bg-muted" />
-              ) : channelShare.length > 0 ? (
+          <DashboardCardView
+            title={cardExports.channelShare.title}
+            selectedRange={selectedRange}
+            exportConfig={cardExports.channelShare}
+            loading={loading}
+            skeletonClassName="h-[260px] animate-pulse rounded-lg bg-muted"
+            chart={
+              channelShare.length > 0 ? (
                 <ChannelPieChart data={channelShare} totalValue={totalSessions} />
               ) : (
                 <p className="text-sm text-muted-foreground">Data unavailable</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="nhn-panel">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold tracking-wide">
-                {cardExports.trend.title}
-              </CardTitle>
-              {renderCardAction(cardExports.trend)}
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="h-[240px] animate-pulse rounded-lg bg-muted" />
-              ) : trend.length > 0 ? (
+              )
+            }
+          />
+          <DashboardCardView
+            title={cardExports.trend.title}
+            selectedRange={selectedRange}
+            exportConfig={cardExports.trend}
+            loading={loading}
+            chart={
+              trend.length > 0 ? (
                 <TrendLineChart data={trend} />
               ) : (
                 <p className="text-sm text-muted-foreground">Data unavailable</p>
-              )}
-            </CardContent>
-          </Card>
+              )
+            }
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <ChannelRevenueChart
-            data={channelRevenue}
-            loading={loading}
+          <DashboardCardView
             title={cardExports.channelRevenue.title}
-            actionSlot={renderCardAction(cardExports.channelRevenue)}
-          />
-          <ConversionChart
-            data={conversionByChannel}
+            selectedRange={selectedRange}
+            exportConfig={cardExports.channelRevenue}
             loading={loading}
+            chart={
+              channelRevenue.length > 0 ? (
+                <ChannelRevenueChart data={channelRevenue} renderCard={false} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Data unavailable</p>
+              )
+            }
+          />
+          <DashboardCardView
             title={cardExports.conversionByChannel.title}
-            actionSlot={renderCardAction(cardExports.conversionByChannel)}
+            selectedRange={selectedRange}
+            exportConfig={cardExports.conversionByChannel}
+            loading={loading}
+            chart={
+              conversionByChannel.length > 0 ? (
+                <ConversionChart data={conversionByChannel} renderCard={false} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Data unavailable</p>
+              )
+            }
           />
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <CampaignInstallsChart
-            data={campaignInstalls}
-            loading={loading}
+          <DashboardCardView
             title={cardExports.campaignInstalls.title}
-            actionSlot={renderCardAction(cardExports.campaignInstalls)}
-          />
-          <InstallFunnelChart
-            data={installFunnel}
+            selectedRange={selectedRange}
+            exportConfig={cardExports.campaignInstalls}
             loading={loading}
+            chart={
+              campaignInstalls.length > 0 ? (
+                <CampaignInstallsChart data={campaignInstalls} renderCard={false} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Data unavailable</p>
+              )
+            }
+          />
+          <DashboardCardView
             title={cardExports.installFunnel.title}
-            actionSlot={renderCardAction(cardExports.installFunnel)}
+            selectedRange={selectedRange}
+            exportConfig={cardExports.installFunnel}
+            loading={loading}
+            chart={
+              installFunnel.length > 0 ? (
+                <InstallFunnelChart data={installFunnel} renderCard={false} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Data unavailable</p>
+              )
+            }
           />
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          <RetentionCohortChart
-            data={retention}
-            loading={loading}
+          <DashboardCardView
             title={cardExports.retention.title}
-            actionSlot={renderCardAction(cardExports.retention)}
+            selectedRange={selectedRange}
+            exportConfig={cardExports.retention}
+            loading={loading}
+            chart={
+              retention.length > 0 ? (
+                <RetentionCohortChart data={retention} renderCard={false} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Data unavailable</p>
+              )
+            }
           />
         </div>
       </div>
