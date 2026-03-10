@@ -39,6 +39,8 @@ logs/
 docs/*
 !docs/tasks/
 !docs/tasks/**
+!docs/superpowers/
+!docs/superpowers/**
 
 # =========================
 # OS
