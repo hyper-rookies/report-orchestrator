@@ -6,12 +6,13 @@ interface SessionShareEntry {
   expiresAt: number;
 }
 
+const TTL_SECONDS = 7 * 24 * 60 * 60;
+const MAX_ENTRIES = 200;
+
 declare global {
   // eslint-disable-next-line no-var
   var __sessionShareStore: Map<string, SessionShareEntry> | undefined;
 }
-
-const TTL_SECONDS = 7 * 24 * 60 * 60;
 
 function getStore(): Map<string, SessionShareEntry> {
   if (!global.__sessionShareStore) {
@@ -19,6 +20,22 @@ function getStore(): Map<string, SessionShareEntry> {
   }
 
   return global.__sessionShareStore;
+}
+
+function pruneStore(store: Map<string, SessionShareEntry>, now: number): void {
+  for (const [key, value] of store.entries()) {
+    if (value.expiresAt < now) {
+      store.delete(key);
+    }
+  }
+
+  while (store.size > MAX_ENTRIES) {
+    const oldestKey = store.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    store.delete(oldestKey);
+  }
 }
 
 export function createSessionShareCode(sessionData: SessionData): {
@@ -35,17 +52,15 @@ export function createSessionShareCode(sessionData: SessionData): {
   });
 
   const now = Math.floor(Date.now() / 1000);
-  for (const [key, value] of store.entries()) {
-    if (value.expiresAt < now) {
-      store.delete(key);
-    }
-  }
+  pruneStore(store, now);
 
   return { code, expiresAt };
 }
 
 export function resolveSessionShareCode(code: string): SessionData | null {
   const store = getStore();
+  // This store is intentionally process-local for now, so links are not durable
+  // across server restarts or load-balanced instance hops.
   const entry = store.get(code);
 
   if (!entry) {

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/shared/"];
+// `/shared/*` is the legacy report share route, while `/share/*` is used by the
+// current dashboard and session share flows.
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/shared/", "/share/"];
 
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

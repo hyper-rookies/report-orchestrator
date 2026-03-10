@@ -32,7 +32,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const code = createCode(jwt, expiresAt);
 
   const origin = req.headers.get("origin") ?? req.nextUrl.origin;
-  const shareUrl = `${origin}/share/${code}`;
+  const shareUrl = `${origin}/share/${code}?token=${encodeURIComponent(jwt)}`;
 
   return NextResponse.json({
     code,

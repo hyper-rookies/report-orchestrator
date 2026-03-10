@@ -1,4 +1,4 @@
-import type { SseFrame } from "@/hooks/useSse";
+import type { ChatMessage } from "@/types/chat";
 
 export interface SessionMeta {
   sessionId: string;
@@ -7,12 +7,7 @@ export interface SessionMeta {
   updatedAt: string;
 }
 
-export interface StoredMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  frames?: SseFrame[];
-}
+export interface StoredMessage extends ChatMessage {}
 
 export interface SessionData extends SessionMeta {
   messages: StoredMessage[];

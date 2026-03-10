@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import CampaignInstallsChart from "@/components/dashboard/CampaignInstallsChart";
 import ChannelPieChart from "@/components/dashboard/ChannelPieChart";
 import ChannelRevenueChart from "@/components/dashboard/ChannelRevenueChart";
@@ -23,20 +23,6 @@ function formatRate(value: number): string {
   return `${(Math.max(0, value) * 100).toFixed(1)}%`;
 }
 
-function formatExpiresAt(expiresAt: string): string {
-  const date = new Date(expiresAt);
-
-  if (Number.isNaN(date.getTime())) {
-    return expiresAt;
-  }
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
-}
-
 type ResolvedState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -51,12 +37,15 @@ interface ShareApiResponse {
 
 export default function SharePage() {
   const { code } = useParams<{ code: string }>();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
   const [resolved, setResolved] = useState<ResolvedState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
+    const query = token ? `?token=${encodeURIComponent(token)}` : "";
 
-    fetch(`/api/share/${code}`)
+    fetch(`/api/share/${code}${query}`)
       .then(async (res) => {
         if (!res.ok) {
           const err = (await res.json()) as { error?: string };
@@ -86,7 +75,7 @@ export default function SharePage() {
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, token]);
 
   if (resolved.status === "loading") {
     return (

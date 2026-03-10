@@ -16,6 +16,10 @@ export interface ShareTokenPayload {
   weekLabel: string;
 }
 
+export interface VerifiedShareTokenPayload extends ShareTokenPayload {
+  expiresAt: string;
+}
+
 export async function signShareToken(payload: ShareTokenPayload): Promise<string> {
   return new SignJWT({ s: payload.weekStart, e: payload.weekEnd, l: payload.weekLabel })
     .setProtectedHeader({ alg: "HS256" })
@@ -24,17 +28,23 @@ export async function signShareToken(payload: ShareTokenPayload): Promise<string
     .sign(getSecret());
 }
 
-export async function verifyShareToken(token: string): Promise<ShareTokenPayload | null> {
+export async function verifyShareToken(token: string): Promise<VerifiedShareTokenPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret());
     if (
       typeof payload.s !== "string" ||
       typeof payload.e !== "string" ||
-      typeof payload.l !== "string"
+      typeof payload.l !== "string" ||
+      typeof payload.exp !== "number"
     ) {
       return null;
     }
-    return { weekStart: payload.s, weekEnd: payload.e, weekLabel: payload.l };
+    return {
+      weekStart: payload.s,
+      weekEnd: payload.e,
+      weekLabel: payload.l,
+      expiresAt: new Date(payload.exp * 1000).toISOString(),
+    };
   } catch {
     return null;
   }

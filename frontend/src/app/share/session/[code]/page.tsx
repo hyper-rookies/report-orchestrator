@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import MessageList from "@/components/chat/MessageList";
-import type { Message } from "@/app/(app)/page";
 import type { SessionData } from "@/types/session";
 import type { SseFrame } from "@/hooks/useSse";
+import type { ChatMessage } from "@/types/chat";
 
 type LoadState =
   | { status: "loading" }
@@ -69,7 +69,7 @@ export default function SharedSessionPage() {
     );
   }
 
-  const messages: Message[] = state.session.messages.map((message) => ({
+  const messages: ChatMessage[] = state.session.messages.map((message) => ({
     id: message.id,
     role: message.role,
     content: message.content,
