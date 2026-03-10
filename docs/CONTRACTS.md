@@ -1,5 +1,7 @@
 # CONTRACTS
 
+Encoding contract: all agents must read and write Markdown, JSON, TypeScript, and text files as UTF-8 (preferably without BOM) to prevent Korean text corruption.
+
 ## SSE Events (Orchestrator -> Frontend)
 
 The orchestrator emits the following SSE event types:
