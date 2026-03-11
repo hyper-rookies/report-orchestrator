@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 import { readAgentAutoApproveSetting } from "@/lib/agentApprovalSetting";
+import { getResponseErrorMessage } from "@/lib/httpError";
 
 export interface SseFrame {
   type: string;
@@ -18,7 +19,7 @@ interface UseSseResult {
   reset: () => void;
 }
 
-const SSE_URL = process.env.NEXT_PUBLIC_SSE_URL!;
+const ORCHESTRATOR_PATH = "/api/orchestrator";
 const USE_MOCK_AUTH = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
 
 async function getIdToken(): Promise<string | null> {
@@ -87,7 +88,7 @@ export function useSse(): UseSseResult {
       abortRef.current = controller;
 
       try {
-        const res = await fetch(SSE_URL, {
+        const res = await fetch(ORCHESTRATOR_PATH, {
           method: "POST",
           headers,
           body: JSON.stringify({ question, autoApproveActions }),
@@ -95,7 +96,9 @@ export function useSse(): UseSseResult {
         });
 
         if (!res.ok || !res.body) {
-          throw new Error(`HTTP ${res.status}`);
+          throw new Error(
+            await getResponseErrorMessage(res, `Orchestrator request failed (HTTP ${res.status}).`)
+          );
         }
 
         const reader = res.body.getReader();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserSub } from "@/lib/sessionAuth";
 import { hasSessionBucket, indexKey, s3Delete, s3GetJson, s3PutJson, sessionKey } from "@/lib/sessionS3";
+import { storageErrorResponse } from "@/lib/storageApiError";
 import type { SessionData, SessionMeta } from "@/types/session";
 
 type Params = { params: Promise<{ id: string }> };
@@ -21,13 +22,17 @@ export async function GET(
     );
   }
 
-  const { id } = await params;
-  const session = await s3GetJson<SessionData>(sessionKey(sub, id));
-  if (!session) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  try {
+    const { id } = await params;
+    const session = await s3GetJson<SessionData>(sessionKey(sub, id));
+    if (!session) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
-  return NextResponse.json(session);
+    return NextResponse.json(session);
+  } catch (error) {
+    return storageErrorResponse("Session storage", error);
+  }
 }
 
 export async function PATCH(
@@ -59,28 +64,32 @@ export async function PATCH(
     return NextResponse.json({ error: "title is required" }, { status: 400 });
   }
 
-  const session = await s3GetJson<SessionData>(sessionKey(sub, id));
-  if (!session) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const session = await s3GetJson<SessionData>(sessionKey(sub, id));
+    if (!session) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const now = new Date().toISOString();
+    const updatedTitle = title.trim();
+    const updated: SessionData = {
+      ...session,
+      title: updatedTitle,
+      updatedAt: now,
+    };
+
+    await s3PutJson(sessionKey(sub, id), updated);
+
+    const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
+    const newIndex = index.map((entry) =>
+      entry.sessionId === id ? { ...entry, title: updatedTitle, updatedAt: now } : entry
+    );
+    await s3PutJson(indexKey(sub), newIndex);
+
+    return NextResponse.json({ sessionId: id, title: updatedTitle, updatedAt: now });
+  } catch (error) {
+    return storageErrorResponse("Session storage", error);
   }
-
-  const now = new Date().toISOString();
-  const updatedTitle = title.trim();
-  const updated: SessionData = {
-    ...session,
-    title: updatedTitle,
-    updatedAt: now,
-  };
-
-  await s3PutJson(sessionKey(sub, id), updated);
-
-  const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
-  const newIndex = index.map((entry) =>
-    entry.sessionId === id ? { ...entry, title: updatedTitle, updatedAt: now } : entry
-  );
-  await s3PutJson(indexKey(sub), newIndex);
-
-  return NextResponse.json({ sessionId: id, title: updatedTitle, updatedAt: now });
 }
 
 export async function DELETE(
@@ -99,15 +108,19 @@ export async function DELETE(
     );
   }
 
-  const { id } = await params;
+  try {
+    const { id } = await params;
 
-  await s3Delete(sessionKey(sub, id));
+    await s3Delete(sessionKey(sub, id));
 
-  const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
-  await s3PutJson(
-    indexKey(sub),
-    index.filter((entry) => entry.sessionId !== id)
-  );
+    const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
+    await s3PutJson(
+      indexKey(sub),
+      index.filter((entry) => entry.sessionId !== id)
+    );
 
-  return NextResponse.json({ deleted: id });
+    return NextResponse.json({ deleted: id });
+  } catch (error) {
+    return storageErrorResponse("Session storage", error);
+  }
 }

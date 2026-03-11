@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserSub } from "@/lib/sessionAuth";
 import { hasSessionBucket, indexKey, s3GetJson, s3PutJson, sessionKey } from "@/lib/sessionS3";
+import { storageErrorResponse } from "@/lib/storageApiError";
 import type { SessionData, SessionMeta } from "@/types/session";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -16,12 +17,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
-  const sorted = [...index].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
+  try {
+    const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
+    const sorted = [...index].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
 
-  return NextResponse.json(sorted);
+    return NextResponse.json(sorted);
+  } catch (error) {
+    return storageErrorResponse("Session storage", error);
+  }
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -61,26 +66,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const now = new Date().toISOString();
-  const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
-  const existing = index.find((session) => session.sessionId === sessionId);
+  try {
+    const now = new Date().toISOString();
+    const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
+    const existing = index.find((session) => session.sessionId === sessionId);
 
-  const meta: SessionMeta = {
-    sessionId,
-    title,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-  };
+    const meta: SessionMeta = {
+      sessionId,
+      title,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
 
-  const sessionData: SessionData = {
-    ...meta,
-    messages: messages as SessionData["messages"],
-  };
+    const sessionData: SessionData = {
+      ...meta,
+      messages: messages as SessionData["messages"],
+    };
 
-  await s3PutJson(sessionKey(sub, sessionId), sessionData);
+    await s3PutJson(sessionKey(sub, sessionId), sessionData);
 
-  const newIndex = [...index.filter((session) => session.sessionId !== sessionId), meta];
-  await s3PutJson(indexKey(sub), newIndex);
+    const newIndex = [...index.filter((session) => session.sessionId !== sessionId), meta];
+    await s3PutJson(indexKey(sub), newIndex);
 
-  return NextResponse.json(meta);
+    return NextResponse.json(meta);
+  } catch (error) {
+    return storageErrorResponse("Session storage", error);
+  }
 }

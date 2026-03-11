@@ -14,8 +14,12 @@ Code changes in this repo assume these settings are prepared before release.
 | Frontend auth | `NEXT_PUBLIC_COGNITO_DOMAIN` | required for OAuth login |
 | Frontend auth | `NEXT_PUBLIC_APP_URL` | required for OAuth redirect |
 | Frontend auth | `NEXT_PUBLIC_USE_MOCK_AUTH` | must be `false` |
+| Frontend server | `ORCHESTRATOR_URL` | required in Vercel; `/api/orchestrator` proxies to this URL |
 | Frontend share | `SHARE_TOKEN_SECRET` | required, 32+ chars |
 | Shared storage | `SESSION_BUCKET` | required |
+| Shared AWS auth | `AWS_ACCESS_KEY_ID` | required unless the runtime already has an attached IAM role |
+| Shared AWS auth | `AWS_SECRET_ACCESS_KEY` | required unless the runtime already has an attached IAM role |
+| Shared AWS auth | `AWS_SESSION_TOKEN` | required only for temporary credentials |
 | Orchestrator | `BEDROCK_AGENT_ID` | required |
 | Orchestrator | `BEDROCK_AGENT_ALIAS_ID` | required |
 | Orchestrator | `COGNITO_USER_POOL_ID` | required |
@@ -30,6 +34,7 @@ Code changes in this repo assume these settings are prepared before release.
 ## Infrastructure Preconditions
 
 - `SESSION_BUCKET` exists and is writable by the Next.js server runtime.
+- The Next.js server runtime can reach `ORCHESTRATOR_URL` over the network.
 - `SESSION_BUCKET` has server-side encryption enabled.
 - `SESSION_BUCKET` has public access blocked.
 - `SESSION_BUCKET` has lifecycle rules for expired share prefixes if long-term cleanup is desired.
@@ -47,8 +52,10 @@ Do not release if any of the following is true:
 
 - `DISABLE_AUTH=true`
 - `NEXT_PUBLIC_USE_MOCK_AUTH=true`
+- `ORCHESTRATOR_URL` is missing
 - `SESSION_BUCKET` is missing
 - `SHARE_TOKEN_SECRET` is missing or short
+- Neither runtime IAM credentials nor `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are configured for the Next.js server runtime
 - `ATHENA_*` env values are unset
 - Bedrock agent/alias IDs are unset
 - The query lambda role can write Athena results outside the approved output location
@@ -63,7 +70,7 @@ Do not release if any of the following is true:
 
 ### Chat / Orchestrator
 
-- Ask a normal supported analytics question and confirm `meta -> progress -> table -> chart/final`.
+- Ask a normal supported analytics question and confirm `POST /api/orchestrator` returns `meta -> progress -> table -> chart/final`.
 - Send malformed JSON to the orchestrator and confirm HTTP `400`.
 - Send an empty `question` and confirm HTTP `400`.
 

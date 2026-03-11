@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { getResponseErrorMessage } from "@/lib/httpError";
 import type { SessionMeta, StoredMessage } from "@/types/session";
 
 interface SaveSessionArgs {
@@ -62,19 +63,6 @@ function sortSessionsByUpdatedAt(items: SessionMeta[]): SessionMeta[] {
   );
 }
 
-async function getErrorMessage(response: Response, fallback: string): Promise<string> {
-  try {
-    const body = (await response.json()) as { error?: unknown };
-    if (typeof body.error === "string" && body.error.trim().length > 0) {
-      return body.error;
-    }
-  } catch {
-    // fall through to fallback
-  }
-
-  return fallback;
-}
-
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [loading, setLoading] = useState(false);
@@ -108,7 +96,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        throw new Error(await getErrorMessage(response, "세션 저장에 실패했습니다."));
+        throw new Error(await getResponseErrorMessage(response, "세션 저장에 실패했습니다."));
       }
 
       const savedMeta = (await response.json()) as SessionMeta;
@@ -133,7 +121,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
 
     if (!response.ok) {
-      throw new Error(await getErrorMessage(response, "세션 이름 변경에 실패했습니다."));
+      throw new Error(await getResponseErrorMessage(response, "세션 이름 변경에 실패했습니다."));
     }
 
     const updated = (await response.json()) as {
@@ -157,7 +145,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const headers = await getAuthHeaders();
     const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE", headers });
     if (!response.ok) {
-      throw new Error(await getErrorMessage(response, "세션 삭제에 실패했습니다."));
+      throw new Error(await getResponseErrorMessage(response, "세션 삭제에 실패했습니다."));
     }
     setSessions((prev) => prev.filter((session) => session.sessionId !== sessionId));
   }, []);
@@ -169,7 +157,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       headers,
     });
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(
+        await getResponseErrorMessage(
+          response,
+          `Session share request failed (HTTP ${response.status}).`
+        )
+      );
     }
 
     return (await response.json()) as ShareResult;

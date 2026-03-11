@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserSub } from "@/lib/sessionAuth";
 import { hasSessionBucket, sessionKey, s3GetJson } from "@/lib/sessionS3";
 import { createSessionShareCode, hasSessionShareStore } from "@/lib/sessionShareStore";
+import { storageErrorResponse } from "@/lib/storageApiError";
 import type { SessionData } from "@/types/session";
 
 type Params = { params: Promise<{ id: string }> };
@@ -45,7 +46,7 @@ export async function POST(
       url: `${origin}/share/session/${code}`,
       expiresAt: expiresAt.toISOString(),
     });
-  } catch {
-    return errorResponse(500, "Failed to create session share link.");
+  } catch (error) {
+    return storageErrorResponse("Session share storage", error);
   }
 }

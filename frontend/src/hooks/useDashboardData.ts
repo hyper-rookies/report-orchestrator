@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
 
+import { getResponseErrorMessage } from "@/lib/httpError";
+
 interface DashboardData {
   totalSessions: number | null;
   totalInstalls: number | null;
@@ -41,7 +43,7 @@ interface DashboardDebug {
   queries: DashboardQueryDebug[];
 }
 
-const SSE_URL = process.env.NEXT_PUBLIC_SSE_URL ?? "";
+const ORCHESTRATOR_PATH = "/api/orchestrator";
 const USE_MOCK_AUTH = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
 
 const INITIAL_DATA: DashboardData = {
@@ -128,12 +130,6 @@ async function runSseQuery(question: string, timeoutMs = 45000): Promise<QueryEx
     rowCount: 0,
     lastEvent: null,
   };
-  if (!SSE_URL) {
-    debug.status = "error";
-    debug.error = "NEXT_PUBLIC_SSE_URL is not configured.";
-    return { rows: [], debug };
-  }
-
   const idToken = await getIdToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -146,12 +142,12 @@ async function runSseQuery(question: string, timeoutMs = 45000): Promise<QueryEx
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
-        res = await fetch(SSE_URL, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ question }),
-          signal: controller.signal,
-        });
+    res = await fetch(ORCHESTRATOR_PATH, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ question }),
+      signal: controller.signal,
+    });
   } catch (err) {
     debug.status = "error";
     debug.error =
@@ -164,7 +160,10 @@ async function runSseQuery(question: string, timeoutMs = 45000): Promise<QueryEx
 
   if (!res.ok || !res.body) {
     debug.status = "error";
-    debug.error = `HTTP ${res.status}`;
+    debug.error = await getResponseErrorMessage(
+      res,
+      `Orchestrator request failed (HTTP ${res.status}).`
+    );
     return { rows: [], debug };
   }
 
