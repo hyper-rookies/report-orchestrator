@@ -1,86 +1,84 @@
-# VZ-05: AssistantMessage — 차트/테이블 토글 switch
+# VZ-05: chart/data toggle in `AssistantMessage`
 
-## 목적
+## Objective
 
-`AssistantMessage.tsx` 의 chart frame 카드에 토글 버튼을 추가한다. 같은 `spec.data` 로 차트 ↔ 데이터 테이블 전환이 가능하도록 한다.
-
----
-
-## 배경
-
-- **계획 문서:** `docs/plans/2026-03-10-auto-chart-selection.md` §8(VZ-05) — 반드시 읽을 것
-- **기존 파일:** `frontend/src/components/chat/AssistantMessage.tsx` — 먼저 읽을 것
-- chart frame 렌더링 시 `spec.data` 가 항상 존재한다
-- 토글 버튼은 **차트 frame 이 있을 때만** 표시한다 (table frame 에는 불필요)
-- 백엔드 변경 없음, 프론트 state 추가만
+Add a small toggle UI to the chart frame in
+`frontend/src/components/chat/AssistantMessage.tsx` so the user can switch
+between chart view and table view using the same `spec.data`.
 
 ---
 
-## 수정 파일
+## Background
 
-| 파일 | 액션 |
-|------|------|
-| `frontend/src/components/chat/AssistantMessage.tsx` | 수정 |
+- Plan reference: `docs/plans/2026-03-10-auto-chart-selection.md`
+- Existing chart rendering already uses `spec.data`.
+- This task is frontend-only. No backend changes are needed.
+- The toggle should appear only when a chart frame exists.
 
 ---
 
-## 수정 내용: `AssistantMessage.tsx`
+## Files To Change
 
-`AssistantMessage.tsx` 를 읽고, 아래 변경사항을 반영한다.
+| File | Action |
+|------|--------|
+| `frontend/src/components/chat/AssistantMessage.tsx` | Modify |
 
-### 변경 1 — useState import 추가
+---
+
+## Required Changes
+
+### 1. Add local state
 
 ```typescript
 import { useState } from "react";
-```
 
-### 변경 2 — showTable state 추가 (컴포넌트 함수 내부 상단)
-
-```typescript
 const [showTable, setShowTable] = useState(false);
 ```
 
-### 변경 3 — chart frame 렌더 영역을 아래로 교체
+### 2. Add toggle buttons to the chart frame
 
-기존:
+Render two compact buttons in the chart card:
+
+- `Chart`
+- `Data`
+
+The buttons should:
+
+- be shown only when a chart frame exists
+- set `showTable` to `false` or `true`
+- use `aria-pressed`
+- match the existing lightweight dashboard/chat button style
+
+### 3. Switch rendering based on `showTable`
+
+Current chart frame behavior:
+
 ```tsx
 {chartFrame && pieSpec && <ReportPieChart spec={pieSpec} />}
 {chartFrame && !pieSpec && barLikeSpec && <ReportBarChart spec={barLikeSpec} />}
 ```
 
-변경 후:
+Update it so:
+
+- `showTable === false` renders the existing chart
+- `showTable === true` renders `DataTable` using `rawChartSpec?.data ?? []`
+
+Example structure:
+
 ```tsx
 {chartFrame && (pieSpec || barLikeSpec) && (
   <div>
     <div className="mb-2 flex justify-end gap-1">
-      <button
-        onClick={() => setShowTable(false)}
-        className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-          !showTable
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-muted-foreground hover:bg-muted/80"
-        }`}
-        aria-pressed={!showTable}
-      >
-        📊 차트
+      <button onClick={() => setShowTable(false)} aria-pressed={!showTable}>
+        Chart
       </button>
-      <button
-        onClick={() => setShowTable(true)}
-        className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-          showTable
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-muted-foreground hover:bg-muted/80"
-        }`}
-        aria-pressed={showTable}
-      >
-        📋 데이터
+      <button onClick={() => setShowTable(true)} aria-pressed={showTable}>
+        Data
       </button>
     </div>
     {showTable ? (
       <DataTable
-        rows={
-          (rawChartSpec?.data as Record<string, unknown>[] | undefined) ?? []
-        }
+        rows={(rawChartSpec?.data as Record<string, unknown>[] | undefined) ?? []}
       />
     ) : (
       <>
@@ -94,20 +92,21 @@ const [showTable, setShowTable] = useState(false);
 
 ---
 
-## 검증
+## Verification
 
 ```bash
 cd frontend
 npx tsc --noEmit
-# exit code 0
 ```
+
+Expected result: exit code `0`.
 
 ---
 
-## 수락 기준
+## Acceptance Checklist
 
-- [ ] `frontend/src/components/chat/AssistantMessage.tsx` 수정됨
-- [ ] chart frame 존재 시 `[📊 차트] [📋 데이터]` 토글 버튼 렌더됨
-- [ ] `showTable === false`: 기존 차트 렌더 (ReportPieChart / ReportBarChart)
-- [ ] `showTable === true`: `spec.data` 를 rows 로 DataTable 렌더
-- [ ] `cd frontend && npx tsc --noEmit` exit code 0
+- [ ] `frontend/src/components/chat/AssistantMessage.tsx` modified
+- [ ] `Chart` and `Data` toggle buttons render when chart frame exists
+- [ ] `showTable === false` renders the current chart path
+- [ ] `showTable === true` renders `DataTable` with `spec.data`
+- [ ] `cd frontend && npx tsc --noEmit` passes

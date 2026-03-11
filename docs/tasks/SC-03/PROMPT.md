@@ -28,7 +28,7 @@ python scripts/precompute_dashboard.py
 ```bash
 ATHENA_DATABASE=hyper_intern_m1c \
 ATHENA_WORKGROUP=hyper-intern-m1c-wg \
-ATHENA_OUTPUT_S3=s3://hyper-intern-m1c-athena-results-bucket/athena-results/precompute/ \
+ATHENA_OUTPUT_LOCATION=s3://hyper-intern-m1c-athena-results-bucket/athena-results/precompute/ \
 AWS_REGION=ap-northeast-2 \
 python scripts/precompute_dashboard.py
 ```

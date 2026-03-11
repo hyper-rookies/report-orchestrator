@@ -9,9 +9,9 @@
 ## Acceptance Criteria
 
 - [ ] `frontend/src/components/chat/AssistantMessage.tsx` modified
-- [ ] Toggle buttons `[📊 차트] [📋 데이터]` rendered when chart frame exists
-- [ ] `showTable === false` → existing chart (ReportPieChart / ReportBarChart)
-- [ ] `showTable === true` → DataTable with spec.data rows
+- [ ] Toggle buttons `[Chart] [Data]` rendered when chart frame exists
+- [ ] `showTable === false` renders the existing chart (`ReportPieChart` / `ReportBarChart`)
+- [ ] `showTable === true` renders `DataTable` with `spec.data` rows
 - [ ] `cd frontend && npx tsc --noEmit` passes (exit code 0)
 
 ---

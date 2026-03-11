@@ -9,10 +9,10 @@
 ## Acceptance Criteria
 
 - [ ] `frontend/src/lib/exportCsv.ts` created
-- [ ] `⬇ CSV` button rendered on table frame card
-- [ ] `⬇ CSV` button rendered on chart frame card
+- [ ] `CSV` button rendered on table frame card
+- [ ] `CSV` button rendered on chart frame card
 - [ ] Click triggers `data.csv` download
-- [ ] Empty rows → no download (early return)
+- [ ] Empty rows do not trigger download (early return)
 - [ ] `cd frontend && npx tsc --noEmit` passes (exit code 0)
 
 ---

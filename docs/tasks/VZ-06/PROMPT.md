@@ -1,41 +1,42 @@
-# VZ-06: 테이블/차트 카드 — CSV 다운로드 버튼
+# VZ-06: CSV download button for table and chart cards
 
-## 목적
+## Objective
 
-`AssistantMessage.tsx` 의 table frame 과 chart frame 카드 모두에 CSV 다운로드 버튼을 추가한다. `spec.data` / `tableRows` 를 `.csv` 파일로 변환해 브라우저 다운로드 트리거.
-
----
-
-## 선행 조건
-
-- **VZ-05 완료 권장** (chart 카드 구조가 변경되어 있어야 함). 단, 독립 태스크로 진행 가능.
+Add CSV download support to both table frames and chart frames in
+`frontend/src/components/chat/AssistantMessage.tsx`.
+Use `spec.data` and `tableRows` to generate a client-side `.csv` download.
 
 ---
 
-## 배경
+## Prerequisite
 
-- **계획 문서:** `docs/plans/2026-03-10-auto-chart-selection.md` §8(VZ-06) — 반드시 읽을 것
-- **기존 파일:** `frontend/src/components/chat/AssistantMessage.tsx` — 먼저 읽을 것
-- CSV 변환은 백엔드 불필요. `spec.data` / `tableRows` 배열이 프론트에 이미 있음.
-- 다운로드 파일명: `data.csv` (고정)
+- VZ-05 recommended, because the chart card layout changes there.
 
 ---
 
-## 생성/수정 파일
+## Background
 
-| 파일 | 액션 |
-|------|------|
-| `frontend/src/lib/exportCsv.ts` | 신규 생성 |
-| `frontend/src/components/chat/AssistantMessage.tsx` | 수정 |
+- Plan reference: `docs/plans/2026-03-10-auto-chart-selection.md`
+- This is frontend-only work.
+- CSV generation should happen in the browser with no backend dependency.
+- Download filename can remain fixed as `data.csv`.
 
 ---
 
-## 신규 파일: `frontend/src/lib/exportCsv.ts`
+## Files To Create Or Change
+
+| File | Action |
+|------|--------|
+| `frontend/src/lib/exportCsv.ts` | Create |
+| `frontend/src/components/chat/AssistantMessage.tsx` | Modify |
+
+---
+
+## New Utility: `frontend/src/lib/exportCsv.ts`
+
+Create a small helper:
 
 ```typescript
-/**
- * exportCsv.ts — CSV export utility for table/chart data
- */
 export function downloadCsv(
   rows: Record<string, unknown>[],
   filename = "data.csv"
@@ -43,12 +44,12 @@ export function downloadCsv(
   if (!rows.length) return;
 
   const headers = Object.keys(rows[0]);
-  const escape = (v: unknown): string =>
-    JSON.stringify(v == null ? "" : v);
+  const escape = (value: unknown): string =>
+    JSON.stringify(value == null ? "" : value);
 
   const lines = [
     headers.join(","),
-    ...rows.map((row) => headers.map((h) => escape(row[h])).join(",")),
+    ...rows.map((row) => headers.map((header) => escape(row[header])).join(",")),
   ];
 
   const blob = new Blob([lines.join("\n")], {
@@ -67,105 +68,52 @@ export function downloadCsv(
 
 ---
 
-## 수정 내용: `AssistantMessage.tsx`
+## Required Changes In `AssistantMessage.tsx`
 
-`AssistantMessage.tsx` 를 읽고, 아래 변경사항을 반영한다.
-
-### 변경 1 — import 추가
+### 1. Add import
 
 ```typescript
 import { downloadCsv } from "@/lib/exportCsv";
 ```
 
-### 변경 2 — table frame 에 다운로드 버튼 추가
+### 2. Add CSV button to table frame
 
-기존:
-```tsx
-{tableFrame && <DataTable rows={tableRows} />}
+Wrap the table frame with a small action row and a `CSV` button.
+The button should:
+
+- call `downloadCsv(tableRows, "data.csv")`
+- be disabled or effectively inert when `tableRows` is empty
+
+### 3. Add CSV button to chart frame
+
+Add a matching `CSV` button to the chart card actions.
+It should download:
+
+```typescript
+(rawChartSpec?.data as Record<string, unknown>[] | undefined) ?? []
 ```
 
-변경 후:
-```tsx
-{tableFrame && (
-  <div>
-    <div className="mb-2 flex justify-end">
-      <button
-        onClick={() => downloadCsv(tableRows, "data.csv")}
-        className="rounded px-2 py-1 text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
-        disabled={tableRows.length === 0}
-      >
-        ⬇ CSV
-      </button>
-    </div>
-    <DataTable rows={tableRows} />
-  </div>
-)}
-```
-
-### 변경 3 — chart frame 토글 영역에 다운로드 버튼 추가
-
-VZ-05 에서 추가된 토글 버튼 행에 CSV 버튼을 함께 추가한다.
-
-```tsx
-{/* 기존 토글 버튼 행을 아래로 교체 */}
-<div className="mb-2 flex items-center justify-between gap-1">
-  <div className="flex gap-1">
-    <button
-      onClick={() => setShowTable(false)}
-      className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-        !showTable
-          ? "bg-primary text-primary-foreground"
-          : "bg-muted text-muted-foreground hover:bg-muted/80"
-      }`}
-      aria-pressed={!showTable}
-    >
-      📊 차트
-    </button>
-    <button
-      onClick={() => setShowTable(true)}
-      className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-        showTable
-          ? "bg-primary text-primary-foreground"
-          : "bg-muted text-muted-foreground hover:bg-muted/80"
-      }`}
-      aria-pressed={showTable}
-    >
-      📋 데이터
-    </button>
-  </div>
-  <button
-    onClick={() =>
-      downloadCsv(
-        (rawChartSpec?.data as Record<string, unknown>[] | undefined) ?? [],
-        "data.csv"
-      )
-    }
-    className="rounded px-2 py-1 text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
-  >
-    ⬇ CSV
-  </button>
-</div>
-```
-
-> **VZ-05 미완료 시:** 토글 버튼 없이 chart frame 에 다운로드 버튼만 단독으로 추가해도 무방하다.
+If VZ-05 is implemented, place the `CSV` button next to the `Chart` / `Data`
+toggle actions.
 
 ---
 
-## 검증
+## Verification
 
 ```bash
 cd frontend
 npx tsc --noEmit
-# exit code 0
 ```
+
+Expected result: exit code `0`.
 
 ---
 
-## 수락 기준
+## Acceptance Checklist
 
-- [ ] `frontend/src/lib/exportCsv.ts` 생성됨
-- [ ] table frame 카드에 `⬇ CSV` 버튼 렌더됨
-- [ ] chart frame 카드에 `⬇ CSV` 버튼 렌더됨
-- [ ] 버튼 클릭 시 `data.csv` 다운로드 트리거
-- [ ] rows 가 빈 배열이면 다운로드 없음 (early return)
-- [ ] `cd frontend && npx tsc --noEmit` exit code 0
+- [ ] `frontend/src/lib/exportCsv.ts` created
+- [ ] `CSV` button rendered on the table frame card
+- [ ] `CSV` button rendered on the chart frame card
+- [ ] Clicking the button triggers `data.csv` download
+- [ ] Empty rows do not trigger a download
+- [ ] `cd frontend && npx tsc --noEmit` passes
