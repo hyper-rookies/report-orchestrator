@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SseFrame } from "@/hooks/useSse";
+import BookmarkButton from "@/components/bookmark/BookmarkButton";
 import DataTable from "@/components/report/DataTable";
 import ReportBarChart from "@/components/report/ReportBarChart";
 import ReportPieChart, { type PieSpec } from "@/components/report/ReportPieChart";
@@ -10,13 +11,14 @@ import ProgressIndicator from "./ProgressIndicator";
 interface Props {
   frames: SseFrame[];
   streaming?: boolean;
+  prompt?: string;
 }
 
 type ChartSpec = Parameters<typeof ReportBarChart>[0]["spec"];
 const ACTION_BUTTON_CLASS =
   "rounded-md border border-input/80 px-2 py-1 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:bg-muted";
 
-export default function AssistantMessage({ frames, streaming }: Props) {
+export default function AssistantMessage({ frames, streaming, prompt }: Props) {
   const [showTable, setShowTable] = useState(false);
   const [selectedChartFrameIndex, setSelectedChartFrameIndex] = useState<number | null>(null);
   const currentChartFrameIndex = frames.findLastIndex((f) => f.type === "chart");
@@ -76,11 +78,17 @@ export default function AssistantMessage({ frames, streaming }: Props) {
   const isShowingCurrentChartTable =
     showTable && currentChartFrameIndex >= 0 && selectedChartFrameIndex === currentChartFrameIndex;
   const showStandaloneTable = Boolean(tableFrame) && (!hasChart || streaming);
+  const showBookmarkAction = !streaming && Boolean(finalFrame) && Boolean(prompt);
 
   return (
     <div className="flex justify-start">
       <div className="nhn-panel max-w-[88%] space-y-3 px-4 py-3">
         {streaming && progressFrames.length > 0 && <ProgressIndicator frames={progressFrames} />}
+        {showBookmarkAction && (
+          <div className="flex justify-end">
+            <BookmarkButton prompt={prompt!} frames={frames} />
+          </div>
+        )}
         {streamingText && <p className="whitespace-pre-wrap text-sm leading-6">{streamingText}</p>}
         {!streamingText && finalSummary && (
           <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{finalSummary}</p>

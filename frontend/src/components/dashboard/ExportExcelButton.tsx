@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Download } from "lucide-react";
 import type { DashboardCacheData } from "@/hooks/useDashboardCache";
+import ExportMenuButton from "@/components/dashboard/ExportMenuButton";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
-import { Button } from "@/components/ui/button";
+import { downloadDashboardCsv } from "@/lib/dashboardCsv";
 import { downloadDashboardExcel } from "@/lib/dashboardExcel";
 
 interface ExportExcelButtonProps {
@@ -16,37 +15,31 @@ export default function ExportExcelButton({
   selectedRange,
   data,
 }: ExportExcelButtonProps) {
-  const [exporting, setExporting] = useState(false);
+  const handleExportExcel = () => {
+    downloadDashboardExcel(
+      {
+        selectedRange,
+        generatedAt: new Date().toISOString(),
+        data,
+      },
+      `dashboard-${selectedRange.start}_${selectedRange.end}.xlsx`
+    );
+  };
 
-  const handleExport = async () => {
-    setExporting(true);
-
-    try {
-      downloadDashboardExcel(
-        {
-          selectedRange,
-          generatedAt: new Date().toISOString(),
-          data,
-        },
-        `dashboard-${selectedRange.start}_${selectedRange.end}.xlsx`
-      );
-    } catch (error) {
-      console.error("Excel export failed:", error);
-    } finally {
-      setExporting(false);
-    }
+  const handleExportCsv = () => {
+    downloadDashboardCsv({
+      selectedRange,
+      data,
+    });
   };
 
   return (
-    <Button
-      variant="outline"
+    <ExportMenuButton
       size="sm"
-      onClick={handleExport}
-      disabled={exporting || data.loading}
-      className="gap-1.5"
-    >
-      <Download className="h-3.5 w-3.5" />
-      {exporting ? "Exporting..." : "Export Excel"}
-    </Button>
+      variant="outline"
+      disabled={data.loading}
+      onExportExcel={handleExportExcel}
+      onExportCsv={handleExportCsv}
+    />
   );
 }

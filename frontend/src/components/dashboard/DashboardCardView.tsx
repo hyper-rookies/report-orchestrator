@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { BarChart3, FileSpreadsheet, Table2 } from "lucide-react";
+import { BarChart3, Table2 } from "lucide-react";
 import DashboardCardTable from "@/components/dashboard/DashboardCardTable";
+import ExportMenuButton from "@/components/dashboard/ExportMenuButton";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DashboardCardExportConfig } from "@/lib/dashboardCardExports";
+import { downloadDashboardCardCsv } from "@/lib/dashboardCsv";
 import { downloadDashboardCardExcel } from "@/lib/dashboardExcel";
 
 interface DashboardCardViewProps {
@@ -28,7 +30,7 @@ export default function DashboardCardView({
 }: DashboardCardViewProps) {
   const [view, setView] = useState<"chart" | "table">("chart");
 
-  const handleExport = () => {
+  const handleExportExcel = () => {
     downloadDashboardCardExcel({
       title: exportConfig.title,
       selectedRange,
@@ -37,6 +39,15 @@ export default function DashboardCardView({
       columns: exportConfig.columns,
       rows: exportConfig.rows,
       sheetName: exportConfig.title.slice(0, 31),
+    });
+  };
+
+  const handleExportCsv = () => {
+    downloadDashboardCardCsv({
+      title: exportConfig.title,
+      selectedRange,
+      columns: exportConfig.columns,
+      rows: exportConfig.rows,
     });
   };
 
@@ -75,16 +86,15 @@ export default function DashboardCardView({
               Table
             </Button>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            disabled={loading || exportConfig.rows.length === 0}
-            onClick={handleExport}
-          >
-            <FileSpreadsheet className="h-3 w-3" />
-            Excel
-          </Button>
+          <div className="inline-flex items-center rounded-md border border-input/80 bg-background p-0.5 shadow-xs">
+            <ExportMenuButton
+              variant="ghost"
+              size="xs"
+              disabled={loading || exportConfig.rows.length === 0}
+              onExportExcel={handleExportExcel}
+              onExportCsv={handleExportCsv}
+            />
+          </div>
         </CardAction>
       </CardHeader>
       <CardContent>

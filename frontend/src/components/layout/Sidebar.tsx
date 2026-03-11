@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, MessageSquare, Plus } from "lucide-react";
+import { Bookmark, LayoutDashboard, MessageSquare, Plus } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import SessionListItem from "@/components/layout/SessionListItem";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
   { href: "/", label: "AI 채팅", icon: MessageSquare },
+  { href: "/bookmarks", label: "보관함", icon: Bookmark },
 ];
 
 export default function Sidebar() {

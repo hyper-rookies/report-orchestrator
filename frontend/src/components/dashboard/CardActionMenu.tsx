@@ -2,15 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Download, MoreHorizontal } from "lucide-react";
+
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Button } from "@/components/ui/button";
 import { CardAction } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import {
-  downloadDashboardCardExcel,
-  type ExcelRow,
-} from "@/lib/dashboardExcel";
 import type { ExcelColumn } from "@/lib/dashboardCardExports";
+import { downloadDashboardCardCsv } from "@/lib/dashboardCsv";
+import { downloadDashboardCardExcel, type ExcelRow } from "@/lib/dashboardExcel";
+import { cn } from "@/lib/utils";
 
 interface CardActionMenuProps {
   title: string;
@@ -49,7 +48,7 @@ export default function CardActionMenu({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [open]);
 
-  const handleExport = async () => {
+  const runExport = async (fn: () => void) => {
     if (exportDisabled) {
       return;
     }
@@ -58,16 +57,9 @@ export default function CardActionMenu({
     setOpen(false);
 
     try {
-      downloadDashboardCardExcel({
-        title,
-        selectedRange,
-        generatedAt: new Date().toISOString(),
-        unit,
-        columns,
-        rows,
-      });
+      fn();
     } catch (error) {
-      console.error(`Excel export failed for ${title}:`, error);
+      console.error(`Dashboard export failed for ${title}:`, error);
     } finally {
       setExporting(false);
     }
@@ -97,7 +89,7 @@ export default function CardActionMenu({
 
         {open && (
           <div
-            className="absolute right-0 top-7 z-20 min-w-36 rounded-lg border bg-card p-1 shadow-lg"
+            className="absolute right-0 top-7 z-20 min-w-40 rounded-lg border bg-card p-1 shadow-lg"
             onClick={(event) => event.stopPropagation()}
           >
             <button
@@ -108,11 +100,45 @@ export default function CardActionMenu({
                   ? "cursor-not-allowed text-muted-foreground/60"
                   : "hover:bg-accent hover:text-accent-foreground"
               )}
-              onClick={() => void handleExport()}
+              onClick={() =>
+                void runExport(() =>
+                  downloadDashboardCardExcel({
+                    title,
+                    selectedRange,
+                    generatedAt: new Date().toISOString(),
+                    unit,
+                    columns,
+                    rows,
+                  })
+                )
+              }
               disabled={exportDisabled}
             >
               <Download className="h-3.5 w-3.5" />
-              Excel 다운로드
+              Excel workbook
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
+                exportDisabled
+                  ? "cursor-not-allowed text-muted-foreground/60"
+                  : "hover:bg-accent hover:text-accent-foreground"
+              )}
+              onClick={() =>
+                void runExport(() =>
+                  downloadDashboardCardCsv({
+                    title,
+                    selectedRange,
+                    columns,
+                    rows,
+                  })
+                )
+              }
+              disabled={exportDisabled}
+            >
+              <Download className="h-3.5 w-3.5" />
+              CSV
             </button>
           </div>
         )}
