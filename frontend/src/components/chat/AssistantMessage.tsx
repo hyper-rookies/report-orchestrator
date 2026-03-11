@@ -76,6 +76,7 @@ export default function AssistantMessage({ frames, streaming }: Props) {
       : null;
 
   const hasChart = chartFrame && (pieSpec || barLikeSpec);
+  const showStandaloneTable = Boolean(tableFrame) && (!hasChart || streaming);
 
   return (
     <div className="flex justify-start">
@@ -85,7 +86,7 @@ export default function AssistantMessage({ frames, streaming }: Props) {
         {!streamingText && finalSummary && (
           <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{finalSummary}</p>
         )}
-        {tableFrame && (
+        {showStandaloneTable && (
           <div className="space-y-2">
             <div className="flex justify-end gap-1">
               <button
