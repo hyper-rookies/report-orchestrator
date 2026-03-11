@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { SseFrame } from "@/hooks/useSse";
 import DataTable from "@/components/report/DataTable";
 import ReportBarChart from "@/components/report/ReportBarChart";
@@ -18,12 +18,9 @@ const ACTION_BUTTON_CLASS =
 
 export default function AssistantMessage({ frames, streaming }: Props) {
   const [showTable, setShowTable] = useState(false);
-  const prevChartFrameRef = useRef(frames.findLast((f) => f.type === "chart"));
-  const currentChartFrame = frames.findLast((f) => f.type === "chart");
-  if (prevChartFrameRef.current !== currentChartFrame) {
-    prevChartFrameRef.current = currentChartFrame;
-    setShowTable(false);
-  }
+  const [selectedChartFrameIndex, setSelectedChartFrameIndex] = useState<number | null>(null);
+  const currentChartFrameIndex = frames.findLastIndex((f) => f.type === "chart");
+  const currentChartFrame = currentChartFrameIndex >= 0 ? frames[currentChartFrameIndex] : undefined;
   const progressFrames = frames.filter((f) => f.type === "progress");
   const chunkFrames = frames.filter((f) => f.type === "chunk");
   const tableFrame = [...frames].reverse().find((f) => f.type === "table");
@@ -76,6 +73,8 @@ export default function AssistantMessage({ frames, streaming }: Props) {
       : null;
 
   const hasChart = chartFrame && (pieSpec || barLikeSpec);
+  const isShowingCurrentChartTable =
+    showTable && currentChartFrameIndex >= 0 && selectedChartFrameIndex === currentChartFrameIndex;
   const showStandaloneTable = Boolean(tableFrame) && (!hasChart || streaming);
 
   return (
@@ -107,16 +106,22 @@ export default function AssistantMessage({ frames, streaming }: Props) {
               <button
                 type="button"
                 className={ACTION_BUTTON_CLASS}
-                onClick={() => setShowTable(false)}
-                aria-pressed={!showTable}
+                onClick={() => {
+                  setShowTable(false);
+                  setSelectedChartFrameIndex(currentChartFrameIndex);
+                }}
+                aria-pressed={!isShowingCurrentChartTable}
               >
                 Chart
               </button>
               <button
                 type="button"
                 className={ACTION_BUTTON_CLASS}
-                onClick={() => setShowTable(true)}
-                aria-pressed={showTable}
+                onClick={() => {
+                  setSelectedChartFrameIndex(currentChartFrameIndex);
+                  setShowTable(true);
+                }}
+                aria-pressed={isShowingCurrentChartTable}
               >
                 Data
               </button>
@@ -129,7 +134,7 @@ export default function AssistantMessage({ frames, streaming }: Props) {
                 CSV
               </button>
             </div>
-            {showTable ? (
+            {isShowingCurrentChartTable ? (
               <DataTable rows={chartRows} />
             ) : (
               <>
