@@ -38,6 +38,9 @@ export default function CampaignInstallsChart({
   actionSlot,
   renderCard = true,
 }: CampaignInstallsChartProps) {
+  const top10 = data.slice(0, 10);
+  const chartHeight = Math.max(240, Math.min(272, top10.length * 26 + 82));
+
   if (loading) {
     return renderCard ? (
       <Card>
@@ -45,17 +48,16 @@ export default function CampaignInstallsChart({
           <CardTitle className="text-sm font-medium">{title}</CardTitle>
           {actionSlot}
         </CardHeader>
-        <CardContent className="h-[300px] animate-pulse rounded bg-muted" />
+        <CardContent className="h-[272px] animate-pulse rounded bg-muted" />
       </Card>
     ) : (
-      <div className="h-[300px] animate-pulse rounded bg-muted" />
+      <div className="h-[272px] animate-pulse rounded bg-muted" />
     );
   }
 
-  const top10 = data.slice(0, 10);
   const chart = (
-    <ResponsiveContainer width="100%" height={320}>
-      <BarChart data={top10} layout="vertical" margin={{ top: 18, right: 20, left: 8, bottom: 18 }}>
+    <ResponsiveContainer width="100%" height={chartHeight}>
+      <BarChart data={top10} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
         <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
         <XAxis
           type="number"
@@ -63,13 +65,13 @@ export default function CampaignInstallsChart({
           tickLine={CHART_TICK_LINE_STYLE}
           axisLine={CHART_AXIS_LINE_STYLE}
           tickMargin={8}
-          height={60}
-          label={{ value: "Installs", position: "insideBottom", offset: 10, ...CHART_AXIS_LABEL_STYLE }}
+          height={52}
+          label={{ value: "Installs", position: "insideBottom", offset: 2, ...CHART_AXIS_LABEL_STYLE }}
         />
         <YAxis
           dataKey="campaign"
           type="category"
-          width={172}
+          width={164}
           tick={CHART_TICK_STYLE_SMALL}
           tickLine={CHART_TICK_LINE_STYLE}
           axisLine={CHART_AXIS_LINE_STYLE}
