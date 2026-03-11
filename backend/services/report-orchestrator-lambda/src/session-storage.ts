@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -15,6 +15,24 @@ export interface SessionMeta {
 
 export interface SessionData extends SessionMeta {
   messages: unknown[];
+}
+
+export interface BookmarkFrame {
+  type: string;
+  data: Record<string, unknown>;
+}
+
+export interface BookmarkMeta {
+  bookmarkId: string;
+  title: string;
+  prompt: string;
+  previewType: "chart" | "table" | "text";
+  chartType?: string;
+  createdAt: string;
+}
+
+export interface BookmarkItem extends BookmarkMeta {
+  frames: BookmarkFrame[];
 }
 
 interface SessionShareEntry {
@@ -81,6 +99,8 @@ async function s3Delete(key: string): Promise<void> {
 const indexKey = (sub: string) => `sessions/${sub}/index.json`;
 const sessionKey = (sub: string, id: string) => `sessions/${sub}/${id}.json`;
 const sessionShareCodeKey = (code: string) => `shares/session/${code}.json`;
+const bookmarkIndexKey = (sub: string) => `bookmarks/${sub}/index.json`;
+const bookmarkItemKey = (sub: string, id: string) => `bookmarks/${sub}/${id}.json`;
 
 export async function listSessions(sub: string): Promise<SessionMeta[]> {
   const index = (await s3GetJson<SessionMeta[]>(indexKey(sub))) ?? [];
@@ -160,6 +180,87 @@ export async function deleteSession(sub: string, sessionId: string): Promise<voi
   await s3PutJson(
     indexKey(sub),
     index.filter((entry) => entry.sessionId !== sessionId)
+  );
+}
+
+export async function listBookmarks(sub: string): Promise<BookmarkMeta[]> {
+  const index = (await s3GetJson<BookmarkMeta[]>(bookmarkIndexKey(sub))) ?? [];
+  return [...index].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
+export async function saveBookmark(
+  sub: string,
+  input: { prompt: string; frames: BookmarkFrame[] }
+): Promise<BookmarkItem> {
+  const normalizedPrompt = input.prompt.trim();
+  const bookmarkFrames = input.frames;
+  let chartFrame: BookmarkFrame | undefined;
+  let tableFrame: BookmarkFrame | undefined;
+  for (let i = bookmarkFrames.length - 1; i >= 0; i -= 1) {
+    const frame = bookmarkFrames[i];
+    if (!chartFrame && frame.type === "chart") {
+      chartFrame = frame;
+    }
+    if (!tableFrame && frame.type === "table") {
+      tableFrame = frame;
+    }
+    if (chartFrame && tableFrame) {
+      break;
+    }
+  }
+
+  const rawSpec = chartFrame?.data.spec;
+  const chartType =
+    typeof rawSpec === "object" &&
+    rawSpec !== null &&
+    !Array.isArray(rawSpec) &&
+    typeof (rawSpec as { type?: unknown }).type === "string"
+      ? ((rawSpec as { type: string }).type)
+      : undefined;
+
+  const item: BookmarkItem = {
+    bookmarkId: randomUUID(),
+    title: normalizedPrompt.slice(0, 60),
+    prompt: normalizedPrompt,
+    previewType: chartFrame ? "chart" : tableFrame ? "table" : "text",
+    chartType,
+    createdAt: new Date().toISOString(),
+    frames: bookmarkFrames,
+  };
+
+  await s3PutJson(bookmarkItemKey(sub, item.bookmarkId), item);
+
+  const index = (await s3GetJson<BookmarkMeta[]>(bookmarkIndexKey(sub))) ?? [];
+  const meta: BookmarkMeta = {
+    bookmarkId: item.bookmarkId,
+    title: item.title,
+    prompt: item.prompt,
+    previewType: item.previewType,
+    chartType: item.chartType,
+    createdAt: item.createdAt,
+  };
+
+  await s3PutJson(bookmarkIndexKey(sub), [
+    ...index.filter((bookmark) => bookmark.bookmarkId !== item.bookmarkId),
+    meta,
+  ]);
+
+  return item;
+}
+
+export async function getBookmark(sub: string, bookmarkId: string): Promise<BookmarkItem | null> {
+  return s3GetJson<BookmarkItem>(bookmarkItemKey(sub, bookmarkId));
+}
+
+export async function deleteBookmark(sub: string, bookmarkId: string): Promise<void> {
+  await s3Delete(bookmarkItemKey(sub, bookmarkId));
+
+  const index = (await s3GetJson<BookmarkMeta[]>(bookmarkIndexKey(sub))) ?? [];
+  await s3PutJson(
+    bookmarkIndexKey(sub),
+    index.filter((bookmark) => bookmark.bookmarkId !== bookmarkId)
   );
 }
 

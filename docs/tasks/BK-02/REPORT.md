@@ -31,6 +31,11 @@
 - Preview metadata is derived from the latest `chart` or `table` frame, matching the bookmark design document.
 - The routes follow the existing `sessionAuth.ts` and session API response patterns for `401`, `503`, and `404`.
 
+## Post-Release Update
+
+- As of 2026-03-11, bookmark CRUD is served by the orchestrator Lambda Function URL, matching session storage.
+- The Next.js bookmark routes now proxy `/bookmarks` requests to the orchestrator instead of reading S3 directly.
+
 ---
 
 ## Test Output

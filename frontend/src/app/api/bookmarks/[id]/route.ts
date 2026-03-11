@@ -1,52 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-
-import { deleteBookmark, getBookmarkItem, hasSessionBucket } from "@/lib/bookmarkS3";
-import { getUserSub } from "@/lib/sessionAuth";
+import { NextRequest } from "next/server";
+import { proxyOrchestratorRequest } from "@/lib/orchestratorProxy";
 
 type Params = { params: Promise<{ id: string }> };
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
   { params }: Params
-): Promise<NextResponse> {
-  const sub = await getUserSub(req);
-  if (!sub) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!hasSessionBucket()) {
-    return NextResponse.json(
-      { error: "Storage unavailable" },
-      { status: 503 }
-    );
-  }
-
+): Promise<Response> {
   const { id } = await params;
-  const item = await getBookmarkItem(sub, id);
-  if (!item) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  return NextResponse.json(item);
+  return proxyOrchestratorRequest(req, `/bookmarks/${encodeURIComponent(id)}`);
 }
 
 export async function DELETE(
   req: NextRequest,
   { params }: Params
-): Promise<NextResponse> {
-  const sub = await getUserSub(req);
-  if (!sub) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!hasSessionBucket()) {
-    return NextResponse.json(
-      { error: "Storage unavailable" },
-      { status: 503 }
-    );
-  }
-
+): Promise<Response> {
   const { id } = await params;
-  await deleteBookmark(sub, id);
-  return NextResponse.json({ deleted: id });
+  return proxyOrchestratorRequest(req, `/bookmarks/${encodeURIComponent(id)}`);
 }

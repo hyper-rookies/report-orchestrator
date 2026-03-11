@@ -1,11 +1,16 @@
 import {
+  type BookmarkFrame,
   createSessionShareCode,
+  deleteBookmark,
   deleteSession,
+  getBookmark,
   getSession,
   hasSessionBucket,
+  listBookmarks,
   listSessions,
   renameSession,
   resolveSessionShareCode,
+  saveBookmark,
   saveSession,
 } from "./session-storage";
 
@@ -35,6 +40,8 @@ export interface JsonResponse {
 
 export type ResolvedRoute =
   | { type: "stream" }
+  | { type: "bookmarks" }
+  | { type: "bookmark"; id: string }
   | { type: "sessions" }
   | { type: "session"; id: string }
   | { type: "sessionShare"; id: string }
@@ -72,6 +79,20 @@ function parseJsonBody(event: HttpEventLike): { ok: true; value: unknown } | { o
   }
 }
 
+function isBookmarkFrame(value: unknown): value is BookmarkFrame {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const frame = value as { type?: unknown; data?: unknown };
+  return (
+    typeof frame.type === "string" &&
+    !!frame.data &&
+    typeof frame.data === "object" &&
+    !Array.isArray(frame.data)
+  );
+}
+
 function getHeader(event: HttpEventLike, name: string): string | undefined {
   const headers = event.headers ?? {};
   const direct = headers[name];
@@ -106,6 +127,28 @@ function sessionStorageError(error: unknown, scope: string): JsonResponse {
   );
 }
 
+function getStorageUnavailableMessage(
+  route: Exclude<ResolvedRoute, { type: "stream" } | { type: "notFound" }>
+): string {
+  if (route.type === "bookmarks" || route.type === "bookmark") {
+    return "Bookmark storage is unavailable. SESSION_BUCKET env var is not set.";
+  }
+
+  return "Session storage is unavailable. SESSION_BUCKET env var is not set.";
+}
+
+function getStorageScope(
+  route: Exclude<ResolvedRoute, { type: "stream" } | { type: "notFound" }>
+): string {
+  if (route.type === "bookmarks" || route.type === "bookmark") {
+    return "Bookmark storage";
+  }
+  if (route.type === "sharedSession") {
+    return "Session share storage";
+  }
+  return "Session storage";
+}
+
 export function getHttpMethod(event: HttpEventLike): string {
   return (
     event.requestContext?.http?.method ??
@@ -124,8 +167,16 @@ export function resolveRoute(path: string): ResolvedRoute {
   if (normalizedPath === "/") {
     return { type: "stream" };
   }
+  if (normalizedPath === "/bookmarks") {
+    return { type: "bookmarks" };
+  }
   if (normalizedPath === "/sessions") {
     return { type: "sessions" };
+  }
+
+  const bookmarkMatch = normalizedPath.match(/^\/bookmarks\/([^/]+)$/);
+  if (bookmarkMatch) {
+    return { type: "bookmark", id: decodeURIComponent(bookmarkMatch[1]) };
   }
 
   const sessionShareMatch = normalizedPath.match(/^\/sessions\/([^/]+)\/share$/);
@@ -157,14 +208,60 @@ export async function handleSessionRoute(
   caller: AuthenticatedCaller | null
 ): Promise<JsonResponse> {
   if (!hasSessionBucket()) {
-    return errorResponse(503, "Session storage is unavailable. SESSION_BUCKET env var is not set.");
+    return errorResponse(503, getStorageUnavailableMessage(route));
   }
 
-  if ((route.type === "sessions" || route.type === "session" || route.type === "sessionShare") && !caller) {
+  if (route.type !== "sharedSession" && !caller) {
     return errorResponse(401, "Unauthorized");
   }
 
   try {
+    if (route.type === "bookmarks") {
+      if (method === "GET") {
+        return { statusCode: 200, body: await listBookmarks(caller!.sub) };
+      }
+
+      if (method === "POST") {
+        const parsed = parseJsonBody(event);
+        if (!parsed.ok) {
+          return errorResponse(400, "Invalid JSON");
+        }
+
+        const { prompt, frames } = parsed.value as { prompt?: unknown; frames?: unknown };
+        if (
+          typeof prompt !== "string" ||
+          prompt.trim().length === 0 ||
+          !Array.isArray(frames) ||
+          !frames.every(isBookmarkFrame)
+        ) {
+          return errorResponse(400, "prompt and frames are required");
+        }
+
+        const bookmark = await saveBookmark(caller!.sub, {
+          prompt,
+          frames: frames as BookmarkFrame[],
+        });
+
+        return { statusCode: 201, body: { bookmarkId: bookmark.bookmarkId } };
+      }
+
+      return errorResponse(405, "Method not allowed");
+    }
+
+    if (route.type === "bookmark") {
+      if (method === "GET") {
+        const bookmark = await getBookmark(caller!.sub, route.id);
+        return bookmark ? { statusCode: 200, body: bookmark } : errorResponse(404, "Not found");
+      }
+
+      if (method === "DELETE") {
+        await deleteBookmark(caller!.sub, route.id);
+        return { statusCode: 200, body: { deleted: route.id } };
+      }
+
+      return errorResponse(405, "Method not allowed");
+    }
+
     if (route.type === "sessions") {
       if (method === "GET") {
         return { statusCode: 200, body: await listSessions(caller!.sub) };
@@ -268,9 +365,6 @@ export async function handleSessionRoute(
     }
     return errorResponse(404, "Share code was not found.");
   } catch (error) {
-    return sessionStorageError(
-      error,
-      route.type === "sharedSession" ? "Session share storage" : "Session storage"
-    );
+    return sessionStorageError(error, getStorageScope(route));
   }
 }

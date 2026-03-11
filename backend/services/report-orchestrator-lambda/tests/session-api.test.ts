@@ -1,11 +1,15 @@
 jest.mock("../src/session-storage", () => ({
   createSessionShareCode: jest.fn(),
+  deleteBookmark: jest.fn(),
   deleteSession: jest.fn(),
+  getBookmark: jest.fn(),
   getSession: jest.fn(),
   hasSessionBucket: jest.fn(),
+  listBookmarks: jest.fn(),
   listSessions: jest.fn(),
   renameSession: jest.fn(),
   resolveSessionShareCode: jest.fn(),
+  saveBookmark: jest.fn(),
   saveSession: jest.fn(),
 }));
 
@@ -16,10 +20,14 @@ import {
 } from "../src/session-api";
 import {
   createSessionShareCode,
+  deleteBookmark,
+  getBookmark,
   getSession,
   hasSessionBucket,
+  listBookmarks,
   listSessions,
   resolveSessionShareCode,
+  saveBookmark,
   saveSession,
 } from "../src/session-storage";
 
@@ -31,6 +39,8 @@ beforeEach(() => {
 });
 
 test("resolveRoute parses session collection, item, share, and public share paths", () => {
+  expect(resolveRoute("/bookmarks")).toEqual({ type: "bookmarks" });
+  expect(resolveRoute("/bookmarks/bk-123")).toEqual({ type: "bookmark", id: "bk-123" });
   expect(resolveRoute("/sessions")).toEqual({ type: "sessions" });
   expect(resolveRoute("/sessions/abc")).toEqual({ type: "session", id: "abc" });
   expect(resolveRoute("/sessions/abc/share")).toEqual({ type: "sessionShare", id: "abc" });
@@ -52,6 +62,130 @@ test("GET /sessions returns the caller's sorted list from storage", async () => 
     body: [{ sessionId: "s1", title: "Title", createdAt: "2026-01-01", updatedAt: "2026-01-02" }],
   });
   expect(listSessions).toHaveBeenCalledWith("user-sub-1");
+});
+
+test("GET /bookmarks returns the caller's bookmark list from storage", async () => {
+  (listBookmarks as jest.Mock).mockResolvedValue([
+    {
+      bookmarkId: "bk-1",
+      title: "Bookmark Title",
+      prompt: "Show me sessions by channel",
+      previewType: "chart",
+      chartType: "bar",
+      createdAt: "2026-03-11T00:00:00.000Z",
+    },
+  ]);
+
+  const result = await handleSessionRoute({ type: "bookmarks" }, "GET", {}, caller);
+
+  expect(result).toEqual({
+    statusCode: 200,
+    body: [
+      {
+        bookmarkId: "bk-1",
+        title: "Bookmark Title",
+        prompt: "Show me sessions by channel",
+        previewType: "chart",
+        chartType: "bar",
+        createdAt: "2026-03-11T00:00:00.000Z",
+      },
+    ],
+  });
+  expect(listBookmarks).toHaveBeenCalledWith("user-sub-1");
+});
+
+test("POST /bookmarks validates required fields", async () => {
+  const result = await handleSessionRoute(
+    { type: "bookmarks" },
+    "POST",
+    { body: JSON.stringify({ prompt: "Hello" }) },
+    caller
+  );
+
+  expect(result).toEqual({
+    statusCode: 400,
+    body: { error: "prompt and frames are required" },
+  });
+});
+
+test("POST /bookmarks persists bookmark data through storage", async () => {
+  (saveBookmark as jest.Mock).mockResolvedValue({
+    bookmarkId: "bk-1",
+    title: "Show me sessions by channel",
+    prompt: "Show me sessions by channel",
+    previewType: "chart",
+    chartType: "bar",
+    createdAt: "2026-03-11T00:00:00.000Z",
+    frames: [
+      {
+        type: "chart",
+        data: { spec: { type: "bar" } },
+      },
+    ],
+  });
+
+  const result = await handleSessionRoute(
+    { type: "bookmarks" },
+    "POST",
+    {
+      body: JSON.stringify({
+        prompt: "Show me sessions by channel",
+        frames: [
+          {
+            type: "chart",
+            data: { spec: { type: "bar" } },
+          },
+        ],
+      }),
+    },
+    caller
+  );
+
+  expect(result).toEqual({
+    statusCode: 201,
+    body: { bookmarkId: "bk-1" },
+  });
+  expect(saveBookmark).toHaveBeenCalledWith("user-sub-1", {
+    prompt: "Show me sessions by channel",
+    frames: [
+      {
+        type: "chart",
+        data: { spec: { type: "bar" } },
+      },
+    ],
+  });
+});
+
+test("GET /bookmarks/{id} returns the stored bookmark", async () => {
+  (getBookmark as jest.Mock).mockResolvedValue({
+    bookmarkId: "bk-1",
+    title: "Bookmark Title",
+    prompt: "Show me sessions by channel",
+    previewType: "chart",
+    chartType: "bar",
+    createdAt: "2026-03-11T00:00:00.000Z",
+    frames: [],
+  });
+
+  const result = await handleSessionRoute({ type: "bookmark", id: "bk-1" }, "GET", {}, caller);
+
+  expect(result.statusCode).toBe(200);
+  expect(getBookmark).toHaveBeenCalledWith("user-sub-1", "bk-1");
+});
+
+test("DELETE /bookmarks/{id} deletes the bookmark", async () => {
+  const result = await handleSessionRoute(
+    { type: "bookmark", id: "bk-1" },
+    "DELETE",
+    {},
+    caller
+  );
+
+  expect(result).toEqual({
+    statusCode: 200,
+    body: { deleted: "bk-1" },
+  });
+  expect(deleteBookmark).toHaveBeenCalledWith("user-sub-1", "bk-1");
 });
 
 test("POST /sessions validates required fields", async () => {

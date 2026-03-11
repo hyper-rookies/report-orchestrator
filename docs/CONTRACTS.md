@@ -162,7 +162,18 @@ Rules:
 - `GET /api/sessions/[id]`, `PATCH /api/sessions/[id]`, and `DELETE /api/sessions/[id]` operate only on the authenticated caller's namespace.
 - `POST /api/sessions/[id]/share` creates a public share code backed by `SESSION_BUCKET`.
 - `GET /api/share/session/[code]` remains public and resolves stored session data until expiry.
-- Bookmark APIs and dashboard share APIs are out of scope for this contract and may still use Next.js-side storage helpers until migrated separately.
+
+## Bookmark Storage Contract
+
+Bookmark storage is also served by the orchestrator Lambda Function URL. The Next.js `app/api` routes proxy to that backend and must not access S3 directly for bookmark CRUD.
+
+Rules:
+
+- `GET /api/bookmarks` lists the authenticated caller's bookmarks sorted by `createdAt` descending.
+- `POST /api/bookmarks` requires a non-empty `prompt` string and a `frames` array of `{ type, data }` objects.
+- `POST /api/bookmarks` derives `title`, `previewType`, and optional `chartType` from the stored frames and returns `{ bookmarkId }`.
+- `GET /api/bookmarks/[id]` and `DELETE /api/bookmarks/[id]` operate only on the authenticated caller's namespace.
+- Dashboard share APIs remain out of scope for this contract and may still use Next.js-side storage helpers until migrated separately.
 
 ## Query Lambda Execute Contract
 
