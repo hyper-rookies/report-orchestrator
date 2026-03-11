@@ -210,10 +210,13 @@ function parseCache(json: DashboardCacheJson): ParsedDashboardCacheMetrics {
     channel: String(r.channel_group ?? "Unknown"),
     revenue: parseNum(r.total_revenue),
   }));
-  const campaignInstalls = json.campaign_installs.map((r) => ({
-    campaign: String(r.campaign ?? "Unknown"),
-    installs: parseNum(r.installs),
-  }));
+  const campaignInstalls = json.campaign_installs
+    .map((r) => ({
+      campaign: String(r.campaign ?? "").trim(),
+      installs: parseNum(r.installs),
+    }))
+    .filter((item) => item.campaign.length > 0 && item.installs > 0)
+    .sort((a, b) => b.installs - a.installs);
   const installFunnel = json.install_funnel.map((r) => ({
     stage: String(r.event_name ?? "Unknown"),
     count: parseNum(r.event_count),
