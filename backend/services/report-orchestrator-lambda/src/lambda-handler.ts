@@ -1,6 +1,13 @@
 import { randomUUID } from "crypto";
 import { BedrockAgentClient, IBedrockAgentClient } from "./bedrock-agent-client";
 import { verifyIdToken } from "./auth";
+import {
+  getHttpMethod,
+  getRawPath,
+  handleSessionRoute,
+  requiresAuthentication,
+  resolveRoute,
+} from "./session-api";
 import { formatSseEvent, generateReportId, utcNow } from "./sse-formatter";
 
 const AGENT_ID = process.env.BEDROCK_AGENT_ID ?? "";
@@ -326,30 +333,66 @@ const streamifyResponse =
     ? runtimeAwsLambda.awslambda.streamifyResponse.bind(runtimeAwsLambda.awslambda)
     : null;
 
+function writeJsonResponse(
+  responseStream: NodeJS.WritableStream,
+  statusCode: number,
+  body: unknown
+): void {
+  const httpStream = runtimeAwsLambda.awslambda!.HttpResponseStream.from(responseStream, {
+    statusCode,
+    headers: { "Content-Type": "application/json" },
+  });
+  httpStream.write(JSON.stringify(body));
+  httpStream.end();
+}
+
 export const handler =
   streamifyResponse?.(
     async (event: unknown, responseStream: NodeJS.WritableStream) => {
       const headers = (event as { headers?: Record<string, string | undefined> })?.headers ?? {};
       const authHeader = headers.authorization ?? headers.Authorization;
+
+      const route = resolveRoute(getRawPath(event as Parameters<typeof getRawPath>[0]));
+      const method = getHttpMethod(event as Parameters<typeof getHttpMethod>[0]);
+
+      if (route.type !== "stream") {
+        if (route.type === "notFound") {
+          writeJsonResponse(responseStream, 404, { error: "Not found" });
+          return;
+        }
+
+        const caller = requiresAuthentication(route)
+          ? await verifyIdToken(authHeader)
+          : null;
+        if (requiresAuthentication(route) && !caller) {
+          writeJsonResponse(responseStream, 401, { error: "Unauthorized" });
+          return;
+        }
+
+        const response = await handleSessionRoute(
+          route,
+          method,
+          event as Parameters<typeof handleSessionRoute>[2],
+          caller
+        );
+        writeJsonResponse(responseStream, response.statusCode, response.body);
+        return;
+      }
+
+      if (method !== "POST") {
+        writeJsonResponse(responseStream, 405, { error: "Method not allowed" });
+        return;
+      }
+
       const _caller = await verifyIdToken(authHeader);
       if (!_caller) {
-        const errStream = runtimeAwsLambda.awslambda!.HttpResponseStream.from(responseStream, {
-          statusCode: 401,
-          headers: { "Content-Type": "application/json" },
-        });
-        errStream.write(JSON.stringify({ error: "Unauthorized" }));
-        errStream.end();
+        writeJsonResponse(responseStream, 401, { error: "Unauthorized" });
         return;
       }
 
       const parsed = parseRequestPayload(event);
       if (!parsed.ok) {
-        const errStream = runtimeAwsLambda.awslambda!.HttpResponseStream.from(responseStream, {
-          statusCode: parsed.statusCode,
-          headers: { "Content-Type": "application/json" },
-        });
-        errStream.write(parsed.body);
-        errStream.end();
+        writeJsonResponse(responseStream, parsed.statusCode, JSON.parse(parsed.body) as unknown);
         return;
       }
       const { question, autoApproveActions: requestedAutoApproveActions } = parsed.payload;

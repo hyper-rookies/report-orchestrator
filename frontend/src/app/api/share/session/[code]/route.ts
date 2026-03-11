@@ -1,40 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { hasSessionShareStore, resolveSessionShareCode } from "@/lib/sessionShareStore";
+import { NextRequest } from "next/server";
+import { proxyOrchestratorRequest } from "@/lib/orchestratorProxy";
 
 type Params = { params: Promise<{ code: string }> };
-
-const SHARE_CODE_PATTERN = /^[A-Za-z0-9_-]{8}$/;
-
-function errorResponse(status: number, error: string): NextResponse {
-  return NextResponse.json({ error }, { status });
-}
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: Params
-): Promise<NextResponse> {
-  if (!hasSessionShareStore()) {
-    return errorResponse(503, "Session share storage is unavailable.");
-  }
-
+): Promise<Response> {
   const { code } = await params;
-  if (!SHARE_CODE_PATTERN.test(code)) {
-    return errorResponse(400, "Malformed share code.");
-  }
-
-  try {
-    const sessionResult = await resolveSessionShareCode(code);
-
-    if (sessionResult.status === "ok") {
-      return NextResponse.json(sessionResult.sessionData);
-    }
-
-    if (sessionResult.status === "expired") {
-      return errorResponse(410, "Share link has expired.");
-    }
-
-    return errorResponse(404, "Share code was not found.");
-  } catch {
-    return errorResponse(500, "Failed to resolve share link.");
-  }
+  return proxyOrchestratorRequest(req, `/share/session/${encodeURIComponent(code)}`);
 }

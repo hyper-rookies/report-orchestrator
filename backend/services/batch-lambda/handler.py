@@ -76,10 +76,20 @@ def _register_partition(
             raise
 
 
+def _parse_target_date(event: dict) -> str:
+    """SQS Event Source Mapping 및 EventBridge 직접 호출 모두 처리."""
+    if "Records" in event:
+        # SQS Event Source Mapping: {"Records": [{"body": "{\"target_date\": \"...\"}"}]}
+        body = json.loads(event["Records"][0]["body"])
+        raw = body.get("target_date")
+    else:
+        # EventBridge 직접 호출 또는 로컬 수동 테스트
+        raw = event.get("target_date")
+    return raw or (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+
+
 def lambda_handler(event, context):  # noqa: ARG001
-    target_date = event.get("target_date") or (
-        datetime.now(timezone.utc).date() - timedelta(days=1)
-    ).isoformat()
+    target_date = _parse_target_date(event)
 
     data_bucket = os.environ["DATA_BUCKET"]
 

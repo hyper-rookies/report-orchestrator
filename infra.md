@@ -114,9 +114,26 @@
 
 ## Failure Handling (Batch Only)
 
-1. Batch Lambda failure → SQS
-2. Retry count > 3 → DLQ
-3. DLQ event → CloudWatch Alarm
+Flow: EventBridge → BatchRetryQueue(SQS) → Batch Lambda → [실패 시 재시도] → BatchDLQ → CloudWatch Alarm → SNS 이메일
+
+1. EventBridge (03:00 KST) → BatchRetryQueue (SQS) 메시지 전송
+2. BatchRetryQueue → Batch Lambda (Event Source Mapping, batchSize=1)
+3. Lambda exception 발생 시 SQS가 visibilityTimeout(30분) 후 재전송
+4. 3회 수신 실패(maxReceiveCount=3) → BatchDLQ 이동
+5. BatchDLQ ApproximateNumberOfMessagesVisible ≥ 1 → CloudWatch Alarm
+6. CloudWatch Alarm → SNS Topic → 이메일 알림
+
+IaC: `infra/` (AWS CDK TypeScript)
+
+- `infra/lib/batch-retry-stack.ts` — BatchRetryQueue, BatchDLQ, EventBridge Rule, CloudWatch Alarm, SNS
+
+배포:
+
+```bash
+cd infra && npm install
+npx cdk bootstrap aws://ACCOUNT_ID/ap-northeast-2
+npx cdk deploy -c notificationEmail=your@email.com -c batchLambdaArn=arn:aws:lambda:ap-northeast-2:ACCOUNT:function:FUNCTION_NAME
+```
 
 ---
 

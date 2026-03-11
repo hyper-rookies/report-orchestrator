@@ -16,16 +16,17 @@ Code changes in this repo assume these settings are prepared before release.
 | Frontend auth | `NEXT_PUBLIC_USE_MOCK_AUTH` | must be `false` |
 | Frontend server | `ORCHESTRATOR_URL` | required in Vercel; `/api/orchestrator` proxies to this URL |
 | Frontend share | `SHARE_TOKEN_SECRET` | required, 32+ chars |
-| Shared storage | `SESSION_BUCKET` | required |
-| Shared AWS auth | `AWS_ACCESS_KEY_ID` | required unless the runtime already has an attached IAM role |
-| Shared AWS auth | `AWS_SECRET_ACCESS_KEY` | required unless the runtime already has an attached IAM role |
-| Shared AWS auth | `AWS_SESSION_TOKEN` | required only for temporary credentials |
+| Frontend storage | `SESSION_BUCKET` | still required for bookmark and dashboard share APIs served by Next.js |
+| Frontend storage | `AWS_ACCESS_KEY_ID` | required unless the runtime already has an attached IAM role |
+| Frontend storage | `AWS_SECRET_ACCESS_KEY` | required unless the runtime already has an attached IAM role |
+| Frontend storage | `AWS_SESSION_TOKEN` | required only for temporary credentials |
 | Orchestrator | `BEDROCK_AGENT_ID` | required |
 | Orchestrator | `BEDROCK_AGENT_ALIAS_ID` | required |
 | Orchestrator | `COGNITO_USER_POOL_ID` | required |
 | Orchestrator | `COGNITO_CLIENT_ID` | required |
 | Orchestrator | `DISABLE_AUTH` | must be `false` |
 | Orchestrator | `BEDROCK_AUTO_APPROVE_ACTIONS` | explicitly set for the environment |
+| Orchestrator | `SESSION_BUCKET` | required for sessions, bookmarks, and share storage |
 | Query lambda | `ATHENA_WORKGROUP` | required |
 | Query lambda | `ATHENA_DATABASE` | required |
 | Query lambda | `ATHENA_OUTPUT_LOCATION` | required |
@@ -33,7 +34,8 @@ Code changes in this repo assume these settings are prepared before release.
 
 ## Infrastructure Preconditions
 
-- `SESSION_BUCKET` exists and is writable by the Next.js server runtime.
+- `SESSION_BUCKET` exists and is writable by the orchestrator Lambda runtime.
+- `SESSION_BUCKET` remains writable by the Next.js runtime for bookmark and dashboard share APIs that still live in `frontend/src/app/api`.
 - The Next.js server runtime can reach `ORCHESTRATOR_URL` over the network.
 - `SESSION_BUCKET` has server-side encryption enabled.
 - `SESSION_BUCKET` has public access blocked.
@@ -55,7 +57,8 @@ Do not release if any of the following is true:
 - `ORCHESTRATOR_URL` is missing
 - `SESSION_BUCKET` is missing
 - `SHARE_TOKEN_SECRET` is missing or short
-- Neither runtime IAM credentials nor `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are configured for the Next.js server runtime
+- Neither runtime IAM credentials nor `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are configured for the Next.js runtime while bookmark/share APIs still depend on S3
+- The orchestrator Lambda role cannot read/write `SESSION_BUCKET`
 - `ATHENA_*` env values are unset
 - Bedrock agent/alias IDs are unset
 - The query lambda role can write Athena results outside the approved output location
@@ -71,6 +74,8 @@ Do not release if any of the following is true:
 ### Chat / Orchestrator
 
 - Ask a normal supported analytics question and confirm `POST /api/orchestrator` returns `meta -> progress -> table -> chart/final`.
+- Call `GET /api/sessions` through the frontend and confirm the orchestrator Function URL returns recent sessions without Vercel-side S3 access.
+- Call `POST /api/bookmarks` or `POST /api/share` and confirm the remaining Next.js storage routes still work with frontend-side AWS credentials.
 - Send malformed JSON to the orchestrator and confirm HTTP `400`.
 - Send an empty `question` and confirm HTTP `400`.
 

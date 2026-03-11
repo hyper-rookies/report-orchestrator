@@ -151,6 +151,19 @@ Rules:
 - `autoApproveActions` is optional and must be a boolean when present.
 - If the client omits `autoApproveActions`, the server falls back to `BEDROCK_AUTO_APPROVE_ACTIONS` and defaults to `true` when the env is unset.
 
+## Session Storage Contract
+
+Session storage is served by the orchestrator Lambda Function URL. The Next.js `app/api` routes proxy to that backend and must not access S3 directly for session CRUD or session share reads.
+
+Rules:
+
+- `GET /api/sessions` lists the authenticated caller's session metadata sorted by `updatedAt` descending.
+- `POST /api/sessions` creates or overwrites a session for the authenticated caller.
+- `GET /api/sessions/[id]`, `PATCH /api/sessions/[id]`, and `DELETE /api/sessions/[id]` operate only on the authenticated caller's namespace.
+- `POST /api/sessions/[id]/share` creates a public share code backed by `SESSION_BUCKET`.
+- `GET /api/share/session/[code]` remains public and resolves stored session data until expiry.
+- Bookmark APIs and dashboard share APIs are out of scope for this contract and may still use Next.js-side storage helpers until migrated separately.
+
 ## Query Lambda Execute Contract
 
 `executeAthenaQuery` only accepts buildSQL-compatible read-only queries.
