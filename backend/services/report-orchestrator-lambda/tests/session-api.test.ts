@@ -1,4 +1,5 @@
 jest.mock("../src/session-storage", () => ({
+  createDashboardShareCode: jest.fn(),
   createSessionShareCode: jest.fn(),
   deleteBookmark: jest.fn(),
   deleteSession: jest.fn(),
@@ -8,17 +9,20 @@ jest.mock("../src/session-storage", () => ({
   listBookmarks: jest.fn(),
   listSessions: jest.fn(),
   renameSession: jest.fn(),
+  resolveDashboardShareCode: jest.fn(),
   resolveSessionShareCode: jest.fn(),
   saveBookmark: jest.fn(),
   saveSession: jest.fn(),
 }));
 
+import { signShareToken } from "../src/share-token";
 import {
   handleSessionRoute,
   resolveRoute,
   type AuthenticatedCaller,
 } from "../src/session-api";
 import {
+  createDashboardShareCode,
   createSessionShareCode,
   deleteBookmark,
   getBookmark,
@@ -27,6 +31,7 @@ import {
   listBookmarks,
   listSessions,
   resolveSessionShareCode,
+  resolveDashboardShareCode,
   saveBookmark,
   saveSession,
 } from "../src/session-storage";
@@ -35,17 +40,23 @@ const caller: AuthenticatedCaller = { sub: "user-sub-1", email: "user@example.co
 
 beforeEach(() => {
   jest.resetAllMocks();
+  process.env.SHARE_TOKEN_SECRET = "12345678901234567890123456789012";
   (hasSessionBucket as jest.Mock).mockReturnValue(true);
 });
 
 test("resolveRoute parses session collection, item, share, and public share paths", () => {
   expect(resolveRoute("/bookmarks")).toEqual({ type: "bookmarks" });
   expect(resolveRoute("/bookmarks/bk-123")).toEqual({ type: "bookmark", id: "bk-123" });
+  expect(resolveRoute("/share")).toEqual({ type: "shares" });
   expect(resolveRoute("/sessions")).toEqual({ type: "sessions" });
   expect(resolveRoute("/sessions/abc")).toEqual({ type: "session", id: "abc" });
   expect(resolveRoute("/sessions/abc/share")).toEqual({ type: "sessionShare", id: "abc" });
   expect(resolveRoute("/share/session/code1234")).toEqual({
     type: "sharedSession",
+    code: "code1234",
+  });
+  expect(resolveRoute("/share/code1234")).toEqual({
+    type: "dashboardShare",
     code: "code1234",
   });
 });
@@ -186,6 +197,93 @@ test("DELETE /bookmarks/{id} deletes the bookmark", async () => {
     body: { deleted: "bk-1" },
   });
   expect(deleteBookmark).toHaveBeenCalledWith("user-sub-1", "bk-1");
+});
+
+test("POST /share creates a dashboard share link using the forwarded origin", async () => {
+  (createDashboardShareCode as jest.Mock).mockResolvedValue({
+    code: "dash1234",
+    expiresAt: new Date("2026-03-18T00:00:00.000Z"),
+  });
+
+  const result = await handleSessionRoute(
+    { type: "shares" },
+    "POST",
+    {
+      headers: { origin: "https://app.example.com" },
+      body: JSON.stringify({
+        weekStart: "2026-03-01",
+        weekEnd: "2026-03-07",
+        weekLabel: "2026 March Week 1",
+      }),
+    },
+    caller
+  );
+
+  expect(result.statusCode).toBe(200);
+  expect(result.body).toMatchObject({
+    code: "dash1234",
+    url: "https://app.example.com/share/dash1234",
+  });
+  expect((result.body as { expiresAt: string }).expiresAt).toMatch(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+  );
+  expect(createDashboardShareCode).toHaveBeenCalledWith(expect.any(String), expect.any(Date));
+});
+
+test("GET /share/{code} returns a dashboard share payload from stored JWT", async () => {
+  const jwt = await signShareToken({
+    weekStart: "2026-03-01",
+    weekEnd: "2026-03-07",
+    weekLabel: "2026 March Week 1",
+  });
+  (resolveDashboardShareCode as jest.Mock).mockResolvedValue({
+    status: "ok",
+    entry: {
+      jwt,
+      expiresAt: "2026-03-18T00:00:00.000Z",
+    },
+  });
+
+  const result = await handleSessionRoute(
+    { type: "dashboardShare", code: "dash1234" },
+    "GET",
+    {},
+    null
+  );
+
+  expect(result).toEqual({
+    statusCode: 200,
+    body: {
+      weekStart: "2026-03-01",
+      weekEnd: "2026-03-07",
+      weekLabel: "2026 March Week 1",
+      expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    },
+  });
+  expect(resolveDashboardShareCode).toHaveBeenCalledWith("dash1234");
+});
+
+test("GET /share/{code} accepts legacy token fallback when storage is unavailable", async () => {
+  (hasSessionBucket as jest.Mock).mockReturnValue(false);
+  const jwt = await signShareToken({
+    weekStart: "2026-03-01",
+    weekEnd: "2026-03-07",
+    weekLabel: "2026 March Week 1",
+  });
+
+  const result = await handleSessionRoute(
+    { type: "dashboardShare", code: "dash1234" },
+    "GET",
+    { queryStringParameters: { token: jwt } },
+    null
+  );
+
+  expect(result.statusCode).toBe(200);
+  expect(result.body).toMatchObject({
+    weekStart: "2026-03-01",
+    weekEnd: "2026-03-07",
+    weekLabel: "2026 March Week 1",
+  });
 });
 
 test("POST /sessions validates required fields", async () => {

@@ -83,6 +83,13 @@ Exit code: 0
 so the equivalent TypeScript compiler entrypoint `.\node_modules\.bin\tsc.cmd --noEmit`
 was used instead.
 
+## Follow-up Note (2026-03-11)
+
+Dashboard share storage was later migrated behind the orchestrator Lambda, matching the
+session and bookmark architecture. `POST /api/share` and `GET /api/share/[code]` keep the
+same external contract, but the Next.js routes are now thin proxies and no longer require
+frontend-side S3 credentials or `SHARE_TOKEN_SECRET`.
+
 ---
 
 ## Questions for Reviewer

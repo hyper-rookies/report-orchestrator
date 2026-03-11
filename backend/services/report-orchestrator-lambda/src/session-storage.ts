@@ -40,8 +40,18 @@ interface SessionShareEntry {
   expiresAt: number;
 }
 
+interface DashboardShareEntry {
+  jwt: string;
+  expiresAt: number;
+}
+
 export type ResolveSessionShareCodeResult =
   | { status: "ok"; sessionData: SessionData; expiresAt: string }
+  | { status: "expired" }
+  | { status: "missing" };
+
+export type ResolveDashboardShareCodeResult =
+  | { status: "ok"; entry: { jwt: string; expiresAt: string } }
   | { status: "expired" }
   | { status: "missing" };
 
@@ -99,6 +109,7 @@ async function s3Delete(key: string): Promise<void> {
 const indexKey = (sub: string) => `sessions/${sub}/index.json`;
 const sessionKey = (sub: string, id: string) => `sessions/${sub}/${id}.json`;
 const sessionShareCodeKey = (code: string) => `shares/session/${code}.json`;
+const dashboardShareCodeKey = (code: string) => `shares/dashboard/${code}.json`;
 const bookmarkIndexKey = (sub: string) => `bookmarks/${sub}/index.json`;
 const bookmarkItemKey = (sub: string, id: string) => `bookmarks/${sub}/${id}.json`;
 
@@ -279,6 +290,20 @@ export async function createSessionShareCode(sessionData: SessionData): Promise<
   return { code, expiresAt };
 }
 
+export async function createDashboardShareCode(
+  jwt: string,
+  expiresAt: Date
+): Promise<{ code: string; expiresAt: Date }> {
+  const code = randomBytes(12).toString("base64url").slice(0, 8);
+
+  await s3PutJson(dashboardShareCodeKey(code), {
+    jwt,
+    expiresAt: Math.floor(expiresAt.getTime() / 1000),
+  });
+
+  return { code, expiresAt };
+}
+
 export async function resolveSessionShareCode(
   code: string
 ): Promise<ResolveSessionShareCodeResult> {
@@ -297,5 +322,28 @@ export async function resolveSessionShareCode(
     status: "ok",
     sessionData: entry.sessionData,
     expiresAt: new Date(entry.expiresAt * 1000).toISOString(),
+  };
+}
+
+export async function resolveDashboardShareCode(
+  code: string
+): Promise<ResolveDashboardShareCodeResult> {
+  const entry = await s3GetJson<DashboardShareEntry>(dashboardShareCodeKey(code));
+
+  if (!entry) {
+    return { status: "missing" };
+  }
+
+  if (Math.floor(Date.now() / 1000) > entry.expiresAt) {
+    await s3Delete(dashboardShareCodeKey(code)).catch(() => undefined);
+    return { status: "expired" };
+  }
+
+  return {
+    status: "ok",
+    entry: {
+      jwt: entry.jwt,
+      expiresAt: new Date(entry.expiresAt * 1000).toISOString(),
+    },
   };
 }

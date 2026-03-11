@@ -173,7 +173,6 @@ Rules:
 - `POST /api/bookmarks` requires a non-empty `prompt` string and a `frames` array of `{ type, data }` objects.
 - `POST /api/bookmarks` derives `title`, `previewType`, and optional `chartType` from the stored frames and returns `{ bookmarkId }`.
 - `GET /api/bookmarks/[id]` and `DELETE /api/bookmarks/[id]` operate only on the authenticated caller's namespace.
-- Dashboard share APIs remain out of scope for this contract and may still use Next.js-side storage helpers until migrated separately.
 
 ## Query Lambda Execute Contract
 
@@ -202,11 +201,14 @@ Athena row mapping rules:
 
 ## Share Link Storage Contract
 
-Share-link creation endpoints persist share metadata in the bucket configured by `SESSION_BUCKET`.
+Dashboard share links are also served by the orchestrator Lambda Function URL. The Next.js `app/api/share` routes proxy to that backend and must not access S3 directly.
 
 Rules:
 
 - `POST /api/share` requires an authenticated caller.
+- `POST /api/share` stores dashboard share metadata in `SESSION_BUCKET` and returns `{ code, url, expiresAt }`.
+- `GET /api/share/[code]` remains public and resolves `{ weekStart, weekEnd, weekLabel, expiresAt }` until expiry.
+- `GET /api/share/[code]` may still accept a legacy `?token=` query parameter during migration, but newly generated links should rely on stored share codes only.
 - `POST /api/sessions/[id]/share` requires an authenticated caller.
 - Shared read routes remain public and enforce expiry on lookup.
 - Expired share entries may be deleted opportunistically during lookup.

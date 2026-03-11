@@ -1,5 +1,6 @@
 import {
   type BookmarkFrame,
+  createDashboardShareCode,
   createSessionShareCode,
   deleteBookmark,
   deleteSession,
@@ -9,10 +10,16 @@ import {
   listBookmarks,
   listSessions,
   renameSession,
+  resolveDashboardShareCode,
   resolveSessionShareCode,
   saveBookmark,
   saveSession,
 } from "./session-storage";
+import {
+  getExpiresAt,
+  signShareToken,
+  verifyShareToken,
+} from "./share-token";
 
 export interface AuthenticatedCaller {
   sub: string;
@@ -21,10 +28,12 @@ export interface AuthenticatedCaller {
 
 export interface HttpEventLike {
   rawPath?: string;
+  rawQueryString?: string;
   path?: string;
   body?: string;
   isBase64Encoded?: boolean;
   headers?: Record<string, string | undefined>;
+  queryStringParameters?: Record<string, string | undefined>;
   requestContext?: {
     http?: {
       method?: string;
@@ -42,6 +51,8 @@ export type ResolvedRoute =
   | { type: "stream" }
   | { type: "bookmarks" }
   | { type: "bookmark"; id: string }
+  | { type: "shares" }
+  | { type: "dashboardShare"; code: string }
   | { type: "sessions" }
   | { type: "session"; id: string }
   | { type: "sessionShare"; id: string }
@@ -93,6 +104,14 @@ function isBookmarkFrame(value: unknown): value is BookmarkFrame {
   );
 }
 
+function isIsoDateString(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 function getHeader(event: HttpEventLike, name: string): string | undefined {
   const headers = event.headers ?? {};
   const direct = headers[name];
@@ -108,6 +127,21 @@ function getHeader(event: HttpEventLike, name: string): string | undefined {
   }
 
   return undefined;
+}
+
+function getQueryParam(event: HttpEventLike, name: string): string | undefined {
+  const direct = event.queryStringParameters?.[name];
+  if (typeof direct === "string") {
+    return direct;
+  }
+
+  if (typeof event.rawQueryString !== "string" || event.rawQueryString.length === 0) {
+    return undefined;
+  }
+
+  const params = new URLSearchParams(event.rawQueryString);
+  const value = params.get(name);
+  return value === null ? undefined : value;
 }
 
 function getOrigin(event: HttpEventLike): string {
@@ -133,6 +167,9 @@ function getStorageUnavailableMessage(
   if (route.type === "bookmarks" || route.type === "bookmark") {
     return "Bookmark storage is unavailable. SESSION_BUCKET env var is not set.";
   }
+  if (route.type === "shares" || route.type === "dashboardShare") {
+    return "Share storage is unavailable. SESSION_BUCKET env var is not set.";
+  }
 
   return "Session storage is unavailable. SESSION_BUCKET env var is not set.";
 }
@@ -142,6 +179,9 @@ function getStorageScope(
 ): string {
   if (route.type === "bookmarks" || route.type === "bookmark") {
     return "Bookmark storage";
+  }
+  if (route.type === "shares" || route.type === "dashboardShare") {
+    return "Share storage";
   }
   if (route.type === "sharedSession") {
     return "Session share storage";
@@ -170,6 +210,9 @@ export function resolveRoute(path: string): ResolvedRoute {
   if (normalizedPath === "/bookmarks") {
     return { type: "bookmarks" };
   }
+  if (normalizedPath === "/share") {
+    return { type: "shares" };
+  }
   if (normalizedPath === "/sessions") {
     return { type: "sessions" };
   }
@@ -194,11 +237,16 @@ export function resolveRoute(path: string): ResolvedRoute {
     return { type: "sharedSession", code: decodeURIComponent(sharedSessionMatch[1]) };
   }
 
+  const dashboardShareMatch = normalizedPath.match(/^\/share\/([^/]+)$/);
+  if (dashboardShareMatch) {
+    return { type: "dashboardShare", code: decodeURIComponent(dashboardShareMatch[1]) };
+  }
+
   return { type: "notFound" };
 }
 
 export function requiresAuthentication(route: ResolvedRoute): boolean {
-  return route.type !== "sharedSession" && route.type !== "notFound";
+  return route.type !== "sharedSession" && route.type !== "dashboardShare" && route.type !== "notFound";
 }
 
 export async function handleSessionRoute(
@@ -207,15 +255,114 @@ export async function handleSessionRoute(
   event: HttpEventLike,
   caller: AuthenticatedCaller | null
 ): Promise<JsonResponse> {
-  if (!hasSessionBucket()) {
+  const fallbackShareToken = route.type === "dashboardShare" ? getQueryParam(event, "token") : undefined;
+  if (
+    route.type === "dashboardShare" &&
+    typeof fallbackShareToken === "string" &&
+    fallbackShareToken.trim().length === 0
+  ) {
+    return errorResponse(400, "Malformed share token.");
+  }
+  const allowDashboardShareTokenFallback =
+    route.type === "dashboardShare" &&
+    typeof fallbackShareToken === "string" &&
+    fallbackShareToken.trim().length > 0;
+
+  if (!hasSessionBucket() && !allowDashboardShareTokenFallback) {
     return errorResponse(503, getStorageUnavailableMessage(route));
   }
 
-  if (route.type !== "sharedSession" && !caller) {
+  if (route.type !== "sharedSession" && route.type !== "dashboardShare" && !caller) {
     return errorResponse(401, "Unauthorized");
   }
 
   try {
+    if (route.type === "shares") {
+      if (method !== "POST") {
+        return errorResponse(405, "Method not allowed");
+      }
+
+      const parsed = parseJsonBody(event);
+      if (!parsed.ok) {
+        return errorResponse(400, "Malformed JSON body.");
+      }
+
+      const { weekStart, weekEnd, weekLabel } = parsed.value as {
+        weekStart?: unknown;
+        weekEnd?: unknown;
+        weekLabel?: unknown;
+      };
+
+      if (
+        !isIsoDateString(weekStart) ||
+        !isIsoDateString(weekEnd) ||
+        !isNonEmptyString(weekLabel)
+      ) {
+        return errorResponse(
+          400,
+          "Malformed share request. weekStart and weekEnd must be YYYY-MM-DD, and weekLabel must be non-empty."
+        );
+      }
+
+      const expiresAt = getExpiresAt();
+      const jwt = await signShareToken({
+        weekStart,
+        weekEnd,
+        weekLabel: weekLabel.trim(),
+      });
+      const { code } = await createDashboardShareCode(jwt, expiresAt);
+      const origin = getOrigin(event);
+      const url = origin ? `${origin}/share/${code}` : `/share/${code}`;
+
+      return {
+        statusCode: 200,
+        body: { code, url, expiresAt: expiresAt.toISOString() },
+      };
+    }
+
+    if (route.type === "dashboardShare") {
+      if (method !== "GET") {
+        return errorResponse(405, "Method not allowed");
+      }
+      if (!SHARE_CODE_PATTERN.test(route.code)) {
+        return errorResponse(400, "Malformed share code.");
+      }
+
+      const entryResult = hasSessionBucket()
+        ? await resolveDashboardShareCode(route.code)
+        : { status: "missing" as const };
+
+      if (entryResult.status === "ok") {
+        const storedTokenResult = await verifyShareToken(entryResult.entry.jwt);
+        if (storedTokenResult.status === "ok") {
+          return { statusCode: 200, body: storedTokenResult.payload };
+        }
+        if (storedTokenResult.status === "expired") {
+          return errorResponse(410, "Share token has expired.");
+        }
+      }
+
+      if (typeof fallbackShareToken === "string") {
+        const tokenResult = await verifyShareToken(fallbackShareToken);
+        if (tokenResult.status === "ok") {
+          return { statusCode: 200, body: tokenResult.payload };
+        }
+        if (tokenResult.status === "expired") {
+          return errorResponse(410, "Share token has expired.");
+        }
+        return errorResponse(400, "Malformed share token.");
+      }
+
+      if (entryResult.status === "expired") {
+        return errorResponse(410, "Share link has expired.");
+      }
+      if (entryResult.status === "missing") {
+        return errorResponse(404, "Share code was not found.");
+      }
+
+      return errorResponse(410, "Share link is no longer available.");
+    }
+
     if (route.type === "bookmarks") {
       if (method === "GET") {
         return { statusCode: 200, body: await listBookmarks(caller!.sub) };

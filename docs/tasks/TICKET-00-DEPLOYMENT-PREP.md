@@ -14,12 +14,7 @@ Code changes in this repo assume these settings are prepared before release.
 | Frontend auth | `NEXT_PUBLIC_COGNITO_DOMAIN` | required for OAuth login |
 | Frontend auth | `NEXT_PUBLIC_APP_URL` | required for OAuth redirect |
 | Frontend auth | `NEXT_PUBLIC_USE_MOCK_AUTH` | must be `false` |
-| Frontend server | `ORCHESTRATOR_URL` | required in Vercel; `/api/orchestrator` proxies to this URL |
-| Frontend share | `SHARE_TOKEN_SECRET` | required, 32+ chars |
-| Frontend storage | `SESSION_BUCKET` | still required for dashboard share APIs served by Next.js |
-| Frontend storage | `AWS_ACCESS_KEY_ID` | required unless the runtime already has an attached IAM role |
-| Frontend storage | `AWS_SECRET_ACCESS_KEY` | required unless the runtime already has an attached IAM role |
-| Frontend storage | `AWS_SESSION_TOKEN` | required only for temporary credentials |
+| Frontend server | `ORCHESTRATOR_URL` | required in Vercel; must be the orchestrator Function URL root |
 | Orchestrator | `BEDROCK_AGENT_ID` | required |
 | Orchestrator | `BEDROCK_AGENT_ALIAS_ID` | required |
 | Orchestrator | `COGNITO_USER_POOL_ID` | required |
@@ -27,6 +22,7 @@ Code changes in this repo assume these settings are prepared before release.
 | Orchestrator | `DISABLE_AUTH` | must be `false` |
 | Orchestrator | `BEDROCK_AUTO_APPROVE_ACTIONS` | explicitly set for the environment |
 | Orchestrator | `SESSION_BUCKET` | required for sessions, bookmarks, and share storage |
+| Orchestrator | `SHARE_TOKEN_SECRET` | required, 32+ chars, used for dashboard share tokens |
 | Query lambda | `ATHENA_WORKGROUP` | required |
 | Query lambda | `ATHENA_DATABASE` | required |
 | Query lambda | `ATHENA_OUTPUT_LOCATION` | required |
@@ -35,7 +31,6 @@ Code changes in this repo assume these settings are prepared before release.
 ## Infrastructure Preconditions
 
 - `SESSION_BUCKET` exists and is writable by the orchestrator Lambda runtime.
-- `SESSION_BUCKET` remains writable by the Next.js runtime for dashboard share APIs that still live in `frontend/src/app/api`.
 - The Next.js server runtime can reach `ORCHESTRATOR_URL` over the network.
 - `SESSION_BUCKET` has server-side encryption enabled.
 - `SESSION_BUCKET` has public access blocked.
@@ -57,7 +52,6 @@ Do not release if any of the following is true:
 - `ORCHESTRATOR_URL` is missing
 - `SESSION_BUCKET` is missing
 - `SHARE_TOKEN_SECRET` is missing or short
-- Neither runtime IAM credentials nor `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are configured for the Next.js runtime while dashboard share APIs still depend on S3
 - The orchestrator Lambda role cannot read/write `SESSION_BUCKET`
 - `ATHENA_*` env values are unset
 - Bedrock agent/alias IDs are unset
@@ -75,7 +69,7 @@ Do not release if any of the following is true:
 
 - Ask a normal supported analytics question and confirm `POST /api/orchestrator` returns `meta -> progress -> table -> chart/final`.
 - Call `GET /api/sessions` and `GET /api/bookmarks` through the frontend and confirm the orchestrator Function URL returns stored data without Vercel-side S3 access.
-- Call `POST /api/share` and confirm the remaining Next.js storage routes still work with frontend-side AWS credentials.
+- Call `POST /api/share` through the frontend and confirm the response is created by the orchestrator-backed share store.
 - Send malformed JSON to the orchestrator and confirm HTTP `400`.
 - Send an empty `question` and confirm HTTP `400`.
 
@@ -89,6 +83,7 @@ Do not release if any of the following is true:
 
 - Create a dashboard share link while logged in and confirm the returned URL does not include `?token=`.
 - Open a dashboard share link without login and confirm read-only access works.
+- Open a legacy dashboard share link with `?token=` in a non-prod environment and confirm the proxied backend still resolves it during migration.
 - Create a session share link, redeploy or recycle the app process, and confirm the link still works.
 - Confirm expired links return `410`.
 

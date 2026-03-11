@@ -30,7 +30,10 @@ export async function proxyOrchestratorRequest(
   }
 
   try {
-    const upstream = await fetch(getUpstreamUrl(path), {
+    const upstreamUrl = new URL(getUpstreamUrl(path));
+    upstreamUrl.search = req.nextUrl.search;
+
+    const upstream = await fetch(upstreamUrl.toString(), {
       method: req.method,
       headers,
       body: req.method === "GET" || req.method === "HEAD" ? undefined : await req.text(),
