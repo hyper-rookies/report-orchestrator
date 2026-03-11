@@ -35,6 +35,15 @@ The orchestrator emits the following SSE event types:
 `chartType` remains required. The additive change is that callers may now set
 `chartType: "auto"` and may optionally provide selection hints.
 
+When the orchestrator invokes the viz action group, it may rewrite the outgoing
+viz parameters using the original user question:
+
+- Explicit user requests such as pie, line, bar, table, or stacked bar override
+  the agent-provided `chartType`.
+- When the user does not explicitly request a chart type, the orchestrator forces
+  `chartType: "auto"` and injects prompt-derived hints such as `questionIntent`,
+  `compositionMode`, `comparisonMode`, and `isTimeSeries`.
+
 ### Optional Request Hint Fields
 
 | Field | Type | Description |

@@ -176,6 +176,7 @@ test("auto-approves returnControl and continues with same session", async () => 
     actionGroup: "query",
     functionName: "buildSQL",
     parameters: undefined,
+    userPrompt: "test",
   });
 });
 

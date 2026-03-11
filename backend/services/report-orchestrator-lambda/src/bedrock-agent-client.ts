@@ -144,6 +144,7 @@ export class BedrockAgentClient implements IBedrockAgentClient {
         actionGroup: input.functionInvocationInput.actionGroup ?? "",
         functionName: input.functionInvocationInput.function ?? "",
         parameters: input.functionInvocationInput.parameters,
+        userPrompt: params.inputText,
       });
     }
 

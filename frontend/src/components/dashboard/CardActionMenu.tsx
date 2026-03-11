@@ -1,15 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Download, MoreHorizontal } from "lucide-react";
-
+import ExportMenuButton from "@/components/dashboard/ExportMenuButton";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
-import { Button } from "@/components/ui/button";
 import { CardAction } from "@/components/ui/card";
 import type { ExcelColumn } from "@/lib/dashboardCardExports";
 import { downloadDashboardCardCsv } from "@/lib/dashboardCsv";
 import { downloadDashboardCardExcel, type ExcelRow } from "@/lib/dashboardExcel";
-import { cn } from "@/lib/utils";
 
 interface CardActionMenuProps {
   title: string;
@@ -28,41 +24,25 @@ export default function CardActionMenu({
   rows,
   disabled = false,
 }: CardActionMenuProps) {
-  const [open, setOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const exportDisabled = disabled || rows.length === 0 || exporting;
+  const handleExportExcel = () => {
+    downloadDashboardCardExcel({
+      title,
+      selectedRange,
+      generatedAt: new Date().toISOString(),
+      unit,
+      columns,
+      rows,
+      sheetName: title.slice(0, 31),
+    });
+  };
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [open]);
-
-  const runExport = async (fn: () => void) => {
-    if (exportDisabled) {
-      return;
-    }
-
-    setExporting(true);
-    setOpen(false);
-
-    try {
-      fn();
-    } catch (error) {
-      console.error(`Dashboard export failed for ${title}:`, error);
-    } finally {
-      setExporting(false);
-    }
+  const handleExportCsv = () => {
+    downloadDashboardCardCsv({
+      title,
+      selectedRange,
+      columns,
+      rows,
+    });
   };
 
   return (
@@ -71,77 +51,14 @@ export default function CardActionMenu({
       data-pdf-export-hide="true"
       data-html2canvas-ignore="true"
     >
-      <div ref={menuRef} className="relative">
-        <Button
-          type="button"
+      <div className="inline-flex items-center rounded-md border border-input/80 bg-background p-0.5 shadow-xs">
+        <ExportMenuButton
           variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground hover:text-foreground"
-          aria-label={`${title} 작업 메뉴`}
-          onClick={(event) => {
-            event.stopPropagation();
-            setOpen((current) => !current);
-          }}
-          disabled={disabled}
-        >
-          <MoreHorizontal className="h-3.5 w-3.5" />
-        </Button>
-
-        {open && (
-          <div
-            className="absolute right-0 top-7 z-20 min-w-40 rounded-lg border bg-card p-1 shadow-lg"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                exportDisabled
-                  ? "cursor-not-allowed text-muted-foreground/60"
-                  : "hover:bg-accent hover:text-accent-foreground"
-              )}
-              onClick={() =>
-                void runExport(() =>
-                  downloadDashboardCardExcel({
-                    title,
-                    selectedRange,
-                    generatedAt: new Date().toISOString(),
-                    unit,
-                    columns,
-                    rows,
-                  })
-                )
-              }
-              disabled={exportDisabled}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Excel workbook
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                exportDisabled
-                  ? "cursor-not-allowed text-muted-foreground/60"
-                  : "hover:bg-accent hover:text-accent-foreground"
-              )}
-              onClick={() =>
-                void runExport(() =>
-                  downloadDashboardCardCsv({
-                    title,
-                    selectedRange,
-                    columns,
-                    rows,
-                  })
-                )
-              }
-              disabled={exportDisabled}
-            >
-              <Download className="h-3.5 w-3.5" />
-              CSV
-            </button>
-          </div>
-        )}
+          size="xs"
+          disabled={disabled || rows.length === 0}
+          onExportExcel={handleExportExcel}
+          onExportCsv={handleExportCsv}
+        />
       </div>
     </CardAction>
   );
