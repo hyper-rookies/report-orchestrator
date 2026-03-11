@@ -2,11 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { fetchAuthSession } from "aws-amplify/auth";
 import { Check, Copy, Share2 } from "lucide-react";
 import type { WeekRange } from "@/components/dashboard/WeekSelector";
 import { Button } from "@/components/ui/button";
 import { formatShareExpiry, isShareLinkReusable } from "@/lib/shareExpiry";
 import { formatWeekRangeLabel } from "@/lib/weekRangeLabel";
+
+const USE_MOCK_AUTH = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (USE_MOCK_AUTH) {
+    return {};
+  }
+
+  try {
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 interface ShareButtonProps {
   selectedRange: WeekRange;
@@ -105,9 +122,10 @@ export default function ShareButton({ selectedRange }: ShareButtonProps) {
     setOpen(true);
 
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch("/api/share", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({
           weekStart: selectedRange.start,
           weekEnd: selectedRange.end,

@@ -149,8 +149,8 @@ function findPreviousWeekRange(
 function parseCache(json: DashboardCacheJson): ParsedDashboardCacheMetrics {
   const sessionsByChannel = new Map<string, number>();
   for (const row of json.sessions) {
-    const ch = String(row.channel_group ?? "湲고?");
-    sessionsByChannel.set(ch, (sessionsByChannel.get(ch) ?? 0) + parseNum(row.sessions));
+    const channel = String(row.channel_group ?? "기타");
+    sessionsByChannel.set(channel, (sessionsByChannel.get(channel) ?? 0) + parseNum(row.sessions));
   }
   const totalSessions = Array.from(sessionsByChannel.values()).reduce((a, b) => a + b, 0);
 
@@ -200,37 +200,37 @@ function parseCache(json: DashboardCacheJson): ParsedDashboardCacheMetrics {
   const trend = Array.from(trendMap.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .slice(-7)
-    .map(([date, v]) => ({
+    .map(([date, value]) => ({
       date,
-      sessions: Math.round(v.sessions),
-      installs: Math.round(v.installs),
+      sessions: Math.round(value.sessions),
+      installs: Math.round(value.installs),
     }));
 
-  const channelRevenue = json.channel_revenue.map((r) => ({
-    channel: String(r.channel_group ?? "Unknown"),
-    revenue: parseNum(r.total_revenue),
+  const channelRevenue = json.channel_revenue.map((row) => ({
+    channel: String(row.channel_group ?? "Unknown"),
+    revenue: parseNum(row.total_revenue),
   }));
   const campaignInstalls = json.campaign_installs
-    .map((r) => ({
-      campaign: String(r.campaign ?? "").trim(),
-      installs: parseNum(r.installs),
+    .map((row) => ({
+      campaign: String(row.campaign ?? "").trim(),
+      installs: parseNum(row.installs),
     }))
     .filter((item) => item.campaign.length > 0 && item.installs > 0)
     .sort((a, b) => b.installs - a.installs);
-  const installFunnel = json.install_funnel.map((r) => ({
-    stage: String(r.event_name ?? "Unknown"),
-    count: parseNum(r.event_count),
+  const installFunnel = json.install_funnel.map((row) => ({
+    stage: String(row.event_name ?? "Unknown"),
+    count: parseNum(row.event_count),
   }));
   const retention = json.retention
-    .map((r) => {
-      const cohortSize = parseNum(r.cohort_size);
+    .map((row) => {
+      const cohortSize = parseNum(row.cohort_size);
       if (cohortSize <= 0) return null;
       return {
-        day: parseNum(r.cohort_day),
-        retentionRate: parseNum(r.retained_users) / cohortSize,
+        day: parseNum(row.cohort_day),
+        retentionRate: parseNum(row.retained_users) / cohortSize,
       };
     })
-    .filter((x): x is { day: number; retentionRate: number } => x !== null)
+    .filter((value): value is { day: number; retentionRate: number } => value !== null)
     .sort((a, b) => a.day - b.day);
 
   return {
@@ -315,7 +315,7 @@ export function useDashboardCache(selectedRange: WeekRange): DashboardCacheData 
           setData((prev) => ({
             ...prev,
             loading: false,
-            error: err instanceof Error ? err.message : "罹먯떆 濡쒕뱶 ?ㅽ뙣",
+            error: err instanceof Error ? err.message : "캐시 로드 실패",
           }));
         }
       }

@@ -9,7 +9,12 @@ VERSION = "v1"
 
 # ── Bedrock Action Group adapter ──────────────────────────────────────────────
 
-def _parse_bedrock_array(v: str) -> list[Any]:
+def _parse_bedrock_array(v: Any) -> list[Any]:
+    if isinstance(v, list):
+        return v
+    if not isinstance(v, str):
+        raise ValueError("Array parameter must be a string or array.")
+
     try:
         parsed = json.loads(v)
         if isinstance(parsed, list):
@@ -26,12 +31,21 @@ def _parse_bedrock_array(v: str) -> list[Any]:
 
     stripped = v.strip()
     if stripped.startswith("[") and stripped.endswith("]"):
-        inner = stripped[1:-1]
+        inner = stripped[1:-1].strip()
+        if not inner:
+            return []
+        if any(token in inner for token in ("{", "}", ":", "=")):
+            raise ValueError("Array parameter must be a valid list literal.")
         return [item.strip() for item in inner.split(",") if item.strip()]
     return [v]
 
 
-def _parse_bedrock_object(v: str) -> dict[str, Any]:
+def _parse_bedrock_object(v: Any) -> dict[str, Any]:
+    if isinstance(v, dict):
+        return v
+    if not isinstance(v, str):
+        raise ValueError("Object parameter must be a string or object.")
+
     try:
         parsed = json.loads(v)
         if isinstance(parsed, dict):
@@ -49,12 +63,36 @@ def _parse_bedrock_object(v: str) -> dict[str, Any]:
     raise ValueError("Object parameter must be a JSON object.")
 
 
+def _parse_bedrock_boolean(v: Any) -> bool:
+    if isinstance(v, bool):
+        return v
+    if not isinstance(v, str):
+        raise ValueError("Boolean parameter must be a string or boolean.")
+    return v.lower() == "true"
+
+
+def _invalid_bedrock_param(name: str, declared_type: str) -> "AnalysisError":
+    hints = {
+        "array": "Use a JSON array.",
+        "object": "Use a JSON object.",
+        "boolean": "Use true or false.",
+        "integer": "Use an integer value.",
+        "number": "Use a numeric value.",
+    }
+    hint = hints.get(declared_type, "Use a valid value.")
+    return AnalysisError(
+        "SCHEMA_VIOLATION",
+        f"Invalid '{name}' {declared_type} parameter. {hint}",
+        status_code=400,
+    )
+
+
 _BEDROCK_TYPE_PARSERS = {
     "array": _parse_bedrock_array,
     "object": _parse_bedrock_object,
     "integer": int,
     "number": float,
-    "boolean": lambda v: v.lower() == "true",
+    "boolean": _parse_bedrock_boolean,
 }
 
 
@@ -65,8 +103,19 @@ def _is_bedrock_event(event: Any) -> bool:
 def _parse_bedrock_params(event: dict[str, Any]) -> dict[str, Any]:
     params: dict[str, Any] = {}
     for p in event.get("parameters", []):
-        parser = _BEDROCK_TYPE_PARSERS.get(p.get("type", "string"), lambda v: v)
-        params[p["name"]] = parser(p["value"])
+        name = p.get("name")
+        if not isinstance(name, str) or not name:
+            raise AnalysisError(
+                "SCHEMA_VIOLATION",
+                "Each parameter must include a non-empty name.",
+                status_code=400,
+            )
+        declared_type = p.get("type", "string")
+        parser = _BEDROCK_TYPE_PARSERS.get(declared_type, lambda v: v)
+        try:
+            params[name] = parser(p.get("value"))
+        except (TypeError, ValueError, SyntaxError) as exc:
+            raise _invalid_bedrock_param(name, declared_type) from exc
     # Inject version so the agent doesn't need to include it as a parameter
     params.setdefault("version", VERSION)
     return params

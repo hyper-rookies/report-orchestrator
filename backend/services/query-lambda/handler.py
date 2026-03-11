@@ -7,7 +7,7 @@ import os
 import uuid
 from typing import Any
 
-from policy_guard import QueryError, validate_build_sql_payload
+from policy_guard import QueryError, validate_build_sql_payload, validate_execute_sql
 from sql_builder import build_sql
 
 VERSION = "v1"
@@ -198,8 +198,7 @@ def _handle_execute_athena_query(payload: dict[str, Any]) -> dict[str, Any]:
     from row_mapper import map_result_set
 
     sql = payload.get("sql")
-    if not isinstance(sql, str) or not sql.strip():
-        raise QueryError("UNKNOWN", "sql is required and must be a non-empty string.")
+    validated_sql = validate_execute_sql(sql)
 
     timeout_seconds = payload.get("timeoutSeconds") or 30
     if not isinstance(timeout_seconds, int) or timeout_seconds <= 0:
@@ -213,20 +212,20 @@ def _handle_execute_athena_query(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(poll_interval_ms, int) or poll_interval_ms < 200:
         poll_interval_ms = 500
 
-    workgroup = payload.get("workgroup") or os.environ.get("ATHENA_WORKGROUP")
-    database = payload.get("database") or os.environ.get("ATHENA_DATABASE")
-    output_location = payload.get("outputLocation") or os.environ.get("ATHENA_OUTPUT_LOCATION")
+    workgroup = os.environ.get("ATHENA_WORKGROUP")
+    database = os.environ.get("ATHENA_DATABASE")
+    output_location = os.environ.get("ATHENA_OUTPUT_LOCATION")
 
     if not workgroup or not database or not output_location:
         raise QueryError(
             "UNKNOWN",
             "Athena workgroup, database, and outputLocation are required "
-            "(set in request or env ATHENA_WORKGROUP / ATHENA_DATABASE / ATHENA_OUTPUT_LOCATION).",
+            "(set env ATHENA_WORKGROUP / ATHENA_DATABASE / ATHENA_OUTPUT_LOCATION).",
         )
 
     try:
         qid, result_set = run_query(
-            sql=sql,
+            sql=validated_sql,
             workgroup=workgroup,
             database=database,
             output_location=output_location,
@@ -250,8 +249,6 @@ def _handle_execute_athena_query(payload: dict[str, Any]) -> dict[str, Any]:
         "truncated": truncated,
         "queryExecutionId": qid,
     }
-
-
 def _parse_event_payload(event: Any) -> dict[str, Any]:
     if not isinstance(event, dict):
         return {}

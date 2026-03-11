@@ -40,6 +40,7 @@ def run_query(
     deadline = time.monotonic() + timeout_seconds
     while True:
         if time.monotonic() > deadline:
+            _try_stop_query(client, query_execution_id)
             raise QueryError(
                 "QUERY_TIMEOUT",
                 f"Athena query exceeded {timeout_seconds}s timeout.",
@@ -59,6 +60,13 @@ def run_query(
 
     result_set = _fetch_result_set(client, query_execution_id, max_rows)
     return query_execution_id, result_set
+
+
+def _try_stop_query(client: Any, query_execution_id: str) -> None:
+    try:
+        client.stop_query_execution(QueryExecutionId=query_execution_id)
+    except Exception:
+        return
 
 
 def _fetch_result_set(

@@ -7,7 +7,7 @@ Required env vars (set in PowerShell before running):
     $env:AWS_REGION          = "ap-northeast-2"
     $env:ATHENA_WORKGROUP    = "hyper-intern-m1c-wg"
     $env:ATHENA_DATABASE     = "hyper_intern_m1c"
-    $env:ATHENA_OUTPUT_S3    = "s3://hyper-intern-m1c-athena-results-bucket/athena-results/"
+    $env:ATHENA_OUTPUT_LOCATION = "s3://hyper-intern-m1c-athena-results-bucket/athena-results/"
     $env:DATA_BUCKET         = "hyper-intern-m1c-data-bucket"
 
 Usage (PowerShell):
@@ -35,7 +35,7 @@ def main() -> None:
     region = os.environ["AWS_REGION"]
     workgroup = os.environ["ATHENA_WORKGROUP"]
     database = os.environ.get("ATHENA_DATABASE", "hyper_intern_m1c")
-    output_s3 = os.environ["ATHENA_OUTPUT_S3"]
+    output_location = os.environ["ATHENA_OUTPUT_LOCATION"]
 
     try:
         import boto3  # noqa: PLC0415
@@ -49,14 +49,14 @@ def main() -> None:
     print(f"  region    : {region}")
     print(f"  workgroup : {workgroup}")
     print(f"  database  : {database}")
-    print(f"  output    : {output_s3}")
+    print(f"  output    : {output_location}")
     print()
 
     resp = athena.start_query_execution(
         QueryString="SELECT 1",
         QueryExecutionContext={"Database": database},
         WorkGroup=workgroup,
-        ResultConfiguration={"OutputLocation": output_s3},
+        ResultConfiguration={"OutputLocation": output_location},
     )
     query_id = resp["QueryExecutionId"]
     print(f"Query submitted: {query_id}")

@@ -38,7 +38,7 @@ export default function SharedSessionPage() {
         if (!cancelled) {
           setState({
             status: "error",
-            message: error instanceof Error ? error.message : "링크를 불러올 수 없습니다.",
+            message: error instanceof Error ? error.message : "공유 링크를 불러올 수 없습니다.",
           });
         }
       });
@@ -96,7 +96,7 @@ export default function SharedSessionPage() {
       <div className="mx-auto flex min-h-[calc(100vh-57px)] w-full max-w-5xl flex-col px-4">
         <MessageList messages={messages} streamingFrames={[]} scrollContainerRef={scrollRef} />
         <p className="pb-6 text-center text-xs text-muted-foreground">
-          AI 리포트 서비스의 읽기 전용 공유 뷰입니다. 이 링크는 공유 후 7일 뒤 만료됩니다.
+          AI 리포트 서비스의 읽기 전용 공유 뷰입니다. 이 링크는 공유 후 7일에 만료됩니다.
         </p>
       </div>
     </div>

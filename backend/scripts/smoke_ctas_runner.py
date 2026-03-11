@@ -7,14 +7,14 @@ Required env vars:
     AWS_REGION          ap-northeast-2
     ATHENA_WORKGROUP    hyper-intern-m1c-wg
     ATHENA_DATABASE     hyper_intern_m1c
-    ATHENA_OUTPUT_S3    s3://hyper-intern-m1c-athena-results-bucket/athena-results/
+    ATHENA_OUTPUT_LOCATION
     DATA_BUCKET         hyper-intern-m1c-data-bucket
 
 PowerShell — set env vars once, then run:
     $env:AWS_REGION       = "ap-northeast-2"
     $env:ATHENA_WORKGROUP = "hyper-intern-m1c-wg"
     $env:ATHENA_DATABASE  = "hyper_intern_m1c"
-    $env:ATHENA_OUTPUT_S3 = "s3://hyper-intern-m1c-athena-results-bucket/athena-results/"
+    $env:ATHENA_OUTPUT_LOCATION = "s3://hyper-intern-m1c-athena-results-bucket/athena-results/"
     $env:DATA_BUCKET      = "hyper-intern-m1c-data-bucket"
 
     # Dry-run (print CTAS SQL, no AWS calls):

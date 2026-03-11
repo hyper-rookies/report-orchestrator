@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import zip_longest
 from typing import Any
 
 _INT_TYPES = frozenset({"bigint", "int", "integer", "smallint", "tinyint"})
@@ -10,7 +11,7 @@ _DENIED_COLUMNS = frozenset({"_run_rank", "run_id"})
 def map_result_set(
     result_set: dict[str, Any],
     max_rows: int,
-) -> tuple[list[dict[str, Any]], bool]:
+) -> tuple[list[dict[str, int | float | str | None]], bool]:
     """
     Maps a merged ResultSet dict (header already stripped) to typed rows.
 
@@ -29,13 +30,16 @@ def map_result_set(
     ]
     raw_rows: list[dict] = result_set["Rows"][:max_rows]
 
-    rows: list[dict[str, Any]] = []
+    rows: list[dict[str, int | float | str | None]] = []
     for raw_row in raw_rows:
-        record: dict[str, Any] = {}
-        for (name, col_type), cell in zip(columns, raw_row["Data"]):
+        record: dict[str, int | float | str | None] = {}
+        for column, cell in zip_longest(columns, raw_row.get("Data", []), fillvalue=None):
+            if column is None:
+                break
+            name, col_type = column
             if name in _DENIED_COLUMNS:
                 continue
-            raw_value: str = cell.get("VarCharValue", "")
+            raw_value = cell.get("VarCharValue") if isinstance(cell, dict) else None
             record[name] = _coerce(raw_value, col_type)
         rows.append(record)
 
@@ -43,7 +47,9 @@ def map_result_set(
     return rows, truncated
 
 
-def _coerce(value: str, col_type: str) -> int | float | str:
+def _coerce(value: str | None, col_type: str) -> int | float | str | None:
+    if value is None:
+        return None
     if col_type in _INT_TYPES:
         return int(value)
     if col_type in _FLOAT_TYPES:

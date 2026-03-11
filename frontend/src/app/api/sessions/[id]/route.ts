@@ -9,7 +9,7 @@ export async function GET(
   req: NextRequest,
   { params }: Params
 ): Promise<NextResponse> {
-  const sub = getUserSub(req);
+  const sub = await getUserSub(req);
   if (!sub) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -34,7 +34,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: Params
 ): Promise<NextResponse> {
-  const sub = getUserSub(req);
+  const sub = await getUserSub(req);
   if (!sub) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -87,7 +87,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: Params
 ): Promise<NextResponse> {
-  const sub = getUserSub(req);
+  const sub = await getUserSub(req);
   if (!sub) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

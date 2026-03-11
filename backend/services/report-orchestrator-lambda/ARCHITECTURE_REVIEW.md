@@ -1,230 +1,186 @@
 # Architecture Compatibility Review
-## Lambda Orchestrator ↔ Python Ingestion/Curation Pipeline
+## Orchestrator and Athena Catalog Status
 
----
+Last updated: 2026-03-10
 
-## 1. Existing Curated View / Table Inventory
+## Summary
 
-Created by `run_e2e_smoke.py` Phase 7.5 (`CREATE OR REPLACE VIEW`):
+The current repository and the currently deployed Athena catalog are not in the same state.
 
-| View name                             | Base table                    | Source      | Status    |
-|---------------------------------------|-------------------------------|-------------|-----------|
-| `v_latest_ga4_acquisition_daily`      | `ga4_acquisition_daily`       | ga4         | ✅ Exists |
-| `v_latest_ga4_engagement_daily`       | `ga4_engagement_daily`        | ga4         | ✅ Exists |
-| `v_latest_appsflyer_installs_daily`   | `appsflyer_installs_daily`    | appsflyer   | ✅ Exists |
-| `v_latest_appsflyer_events_daily`     | `appsflyer_events_daily`      | appsflyer   | ✅ Exists |
-| `v_latest_appsflyer_retention_daily`  | `appsflyer_retention_daily`   | appsflyer   | ⚠️ Exists (NOT in orchestrator scope — no data source yet) |
+- Repository intent at `HEAD`: curated tables are run-versioned and the `v_latest_*` views resolve the latest run per `dt` using `run_id`.
+- Verified deployed Athena state on 2026-03-10: `appsflyer_installs_daily` exposes only `dt` partitions, and `run_id` cannot be resolved.
+- Result: queries against `hyper_intern_m1c.v_latest_appsflyer_installs_daily` can fail even though the view itself exists.
 
-**View SQL pattern** (from `run_e2e_smoke.py:494`):
+This mismatch is the main reason the existing docs were confusing.
+
+## History Confirmed From Git
+
+The relevant schema changes did happen in the repo, and the docs did not fully keep up.
+
+| Date | Commit | What changed | Why it matters |
+|------|--------|--------------|----------------|
+| 2026-02-27 | `7a79188` | Introduced run-versioned curation in `ctas.py` and `run_e2e_smoke.py` | Curated output moved to `curated/<dataset>/dt=<dt>/run=<run_id>/`, curated tables moved to `PARTITIONED BY (dt, run_id)`, and `v_latest_*` views began ranking by `run_id DESC` |
+| 2026-03-06 | `3f4f358` | Renamed retention artifacts from `appsflyer_retention_daily` to `appsflyer_cohort_daily` | Older docs mentioning `appsflyer_retention_daily` became stale |
+
+The previous version of this review still mixed pre-`run_id` assumptions, post-`run_id` design notes, and the old retention dataset name.
+
+## Current Repo Design
+
+The repository currently expects the following shape.
+
+### CTAS output
+
+`backend/src/report_system/infrastructure/athena/ctas.py` now:
+
+- writes curated output under `curated/<dataset_id>/dt=<dt>/run=<run_id>/`
+- appends a literal `run_id` column to the CTAS `SELECT` body when `run_id` is provided
+- treats `run_id` as execution-version metadata for curated outputs
+
+### Curated table DDL and views
+
+`backend/scripts/run_e2e_smoke.py` now:
+
+- creates curated external tables as `PARTITIONED BY (dt STRING, run_id STRING)`
+- registers curated partitions with `ADD IF NOT EXISTS PARTITION (dt='...', run_id='...')`
+- creates `v_latest_<dataset>` views using:
+
 ```sql
-CREATE OR REPLACE VIEW {database}.v_latest_{dataset} AS
 SELECT * FROM (
   SELECT *,
          DENSE_RANK() OVER (PARTITION BY dt ORDER BY run_id DESC) AS _run_rank
-  FROM {database}.{dataset}
+  FROM <base_table>
 ) t
 WHERE t._run_rank = 1
 ```
 
-**Consequence**: `_run_rank` (BIGINT) is included in `SELECT *` output.
-The orchestrator and discovery script MUST filter it. ✅ Already handled in `catalog_discovered.json`.
+### Query-layer assumptions
 
----
+The query and orchestrator layer also assume this design:
 
-## 2. Fits As-Is
+- `backend/services/query-lambda/reporting_policy.json` denies `_run_rank` and `run_id`
+- `backend/services/query-lambda/catalog_discovered.json` models the `v_latest_*` views, including internal `run_id`
+- `backend/services/query-lambda/row_mapper.py` strips `_run_rank` and `run_id` from results
 
-| Item | Detail |
-|------|--------|
-| View naming convention | `v_latest_*` — stable, predictable, no orchestrator changes needed |
-| Partition scheme | `PARTITIONED BY (dt STRING, run_id STRING)` — orchestrator queries views, never the base tables, so compound partition is transparent |
-| S3 layout | `curated/{dataset}/dt={dt}/run={run_id}/` — orchestrator does not need to know this |
-| Athena workgroup | `hyper-intern-m1c-wg` — reuse for orchestrator Athena queries |
-| Database name | `hyper_intern_m1c` — matches `env_guard.py` expected values |
-| Region | `ap-northeast-2` (Seoul) — matches `env_guard.py` guard |
-| GA4 schema | `_CURATED_SCHEMAS` for `ga4_acquisition_daily` and `ga4_engagement_daily` match actual CTAS SQL — no conflict |
+## Verified Deployed Athena State
 
----
+Based on Athena console diagnostics run on 2026-03-10:
 
-## 3. Confirmed Conflicts (exact locations)
+### `hyper_intern_m1c.v_latest_appsflyer_installs_daily`
 
-### CONFLICT 1 — CRITICAL: `_CURATED_SCHEMAS` stale for AppsFlyer tables
+- `SHOW CREATE VIEW hyper_intern_m1c.v_latest_appsflyer_installs_daily` succeeds
+- the view exists in Glue/Athena
 
-**File**: `scripts/run_e2e_smoke.py:86-107`
+### `hyper_intern_m1c.appsflyer_installs_daily`
 
-The AppsFlyer curated table DDL in `_CURATED_SCHEMAS` does NOT match the CTAS SELECT bodies in `ctas.py`.
+- `SHOW PARTITIONS hyper_intern_m1c.appsflyer_installs_daily` succeeds
+- returned partitions are `dt=...` only
+- no `run_id=...` partition entries were observed
+- queries referencing `run_id` fail with:
 
-| Dataset | `_CURATED_SCHEMAS` declares | CTAS actually writes |
-|---------|-----------------------------|----------------------|
-| `appsflyer_installs_daily` | `media_source, campaign, is_organic BOOLEAN, installs` (4 cols) | `media_source, campaign, keyword, adset, ad, channel, app_version, campaign_type, match_type, store_reinstall, installs` (11 cols) |
-| `appsflyer_events_daily` | `media_source, campaign, event_name, is_organic BOOLEAN, event_count, event_revenue` (6 cols) | `media_source, campaign, event_name, keyword, adset, ad, channel, app_version, campaign_type, match_type, store_reinstall, event_count, event_revenue` (13 cols) |
-
-**Impact**: If `run_e2e_smoke.py --recreate-curated-tables` is run, the Glue table is created with the OLD 4/6-column schema. Parquet files written by CTAS have 12/14 columns. Athena's `SELECT *` via the view returns wrong/missing columns. `catalog_discovered.json` would then contain wrong column info.
-
-**Fix required** (additive, in `run_e2e_smoke.py`):
-```python
-# Replace _CURATED_SCHEMAS["appsflyer_installs_daily"] with:
-"appsflyer_installs_daily": (
-    "  media_source    STRING,\n"
-    "  campaign        STRING,\n"
-    "  keyword         STRING,\n"
-    "  adset           STRING,\n"
-    "  ad              STRING,\n"
-    "  channel         STRING,\n"
-    "  app_version     STRING,\n"
-    "  campaign_type   STRING,\n"
-    "  match_type      STRING,\n"
-    "  store_reinstall STRING,\n"
-    "  installs        BIGINT"
-),
-# Replace _CURATED_SCHEMAS["appsflyer_events_daily"] with:
-"appsflyer_events_daily": (
-    "  media_source    STRING,\n"
-    "  campaign        STRING,\n"
-    "  event_name      STRING,\n"
-    "  keyword         STRING,\n"
-    "  adset           STRING,\n"
-    "  ad              STRING,\n"
-    "  channel         STRING,\n"
-    "  app_version     STRING,\n"
-    "  campaign_type   STRING,\n"
-    "  match_type      STRING,\n"
-    "  store_reinstall STRING,\n"
-    "  event_count     BIGINT,\n"
-    "  event_revenue   DOUBLE"
-),
-```
-After editing, run `--recreate-curated-tables` once, then re-run the smoke test.
-
----
-
-### CONFLICT 2 — LOW: `CtasCurateAndRegisterUseCase` broken for compound partition
-
-**File**: `src/report_system/application/curation/use_cases.py:61`
-
-```python
-self._registrar.add_partition(table=dataset_id, dt=dt, location=curated_location)
+```text
+COLUMN_NOT_FOUND: Column 'run_id' cannot be resolved
 ```
 
-`AthenaPartitionManager.add_partition()` only generates `ALTER TABLE ... PARTITION (dt='...')`.
-The new scheme requires `PARTITION (dt='...', run_id='...')`.
+### Practical implication
 
-**Impact**: The curation use case cannot register partitions. The smoke script bypasses this with raw SQL. No orchestrator impact — the orchestrator queries views, not base tables — but the production Lambda ingestion pipeline would fail at the partition registration step.
+The deployed base table is still effectively a `dt`-only table, while the repo now expects a `dt + run_id` table.
 
-**Fix required**: Not needed for orchestrator Phase 1. Log as a backlog item for the production ingestion pipeline.
+That means one of the following is true in the deployed environment:
 
----
+1. the curated tables were never migrated to the newer `PARTITIONED BY (dt, run_id)` design
+2. the curated tables were recreated back to `dt`-only after the repo moved on
+3. the `v_latest_*` views were recreated using the newer SQL against an older base table
 
-### CONFLICT 3 — LOW: `store_reinstall` is STRING, not BOOLEAN
+Any of those states will break `v_latest_appsflyer_installs_daily` at query time.
 
-**File**: `ctas.py:110` (AppsFlyer installs SELECT), `ctas.py:121` (events SELECT)
+## What Was Actually Stale
 
-The CTAS stores `store_reinstall` as `STRING` (`'true'` / `'false'`). The old schema had `is_organic BOOLEAN`. Policy doc and LLM must use `store_reinstall != 'true'` (string comparison), not `store_reinstall = FALSE`.
+The previous review had multiple stale statements.
 
-Already documented in `reporting_policy.json`. No code conflict, but LLM prompt engineering must be explicit.
+### Stale item 1: retention dataset name
 
----
+Old docs referred to:
 
-## 4. Minimal-Change Plan
+- `appsflyer_retention_daily`
+- `v_latest_appsflyer_retention_daily`
 
-All changes are additive or in the smoke script only.
+Current repo code uses:
 
-| Priority | Action | File | Type |
-|----------|--------|------|------|
-| P0 — Before running orchestrator | Fix `_CURATED_SCHEMAS` for appsflyer tables | `run_e2e_smoke.py:86-107` | Edit |
-| P0 — Before running orchestrator | Run `--recreate-curated-tables` for appsflyer tables only | CLI | One-time |
-| P0 — Before running orchestrator | Regenerate `catalog_discovered.json` | `npx ts-node scripts/discover-catalog.ts` | Script |
-| P1 — Orchestrator bootstrap | Create TS package scaffold | `services/report-orchestrator-lambda/` | New |
-| P2 — Backlog | Fix `CtasCurateAndRegisterUseCase` compound partition | `application/curation/use_cases.py` | Edit |
+- `appsflyer_cohort_daily`
+- `v_latest_appsflyer_cohort_daily`
 
----
+### Stale item 2: AppsFlyer curated schema conflict
 
-## 5. Risks / Concerns to Record
+The old review said `_CURATED_SCHEMAS` in `run_e2e_smoke.py` was stale for AppsFlyer installs/events.
 
-### R1 — Glue does NOT return column list for Athena views ⚠️
-**Concern**: `GetTable` for an Athena view returns `StorageDescriptor.Columns = []`.
-Actual columns are only available via `SHOW COLUMNS IN view_name` or parsing `ViewOriginalText` (stored as base64 in some Athena versions).
-**Evidence looked at**: AWS Glue GetTable API behavior for views is documented as returning empty Columns.
-**Mitigation in discovery script**: Three-tier fallback implemented. Phase 1 uses static fallback from existing `catalog_discovered.json`.
-**Action required**: Validate after running `discover-catalog.ts` that column counts are correct; if Glue returns 0 columns, verify the static fallback is used.
+That was true before, but it is no longer true at `HEAD`.
 
-### R2 — `_CURATED_SCHEMAS` and CTAS SQL are two sources of truth ⚠️
-**Concern**: The Glue external table DDL (in `run_e2e_smoke.py`) and the CTAS SELECT (in `ctas.py`) can drift silently. They are not generated from a single source.
-**Evidence**: Already drifted — appsflyer schemas are stale (Conflict 1 above).
-**Mitigation**: Consider generating `_CURATED_SCHEMAS` from the CTAS registry at a future point. For now, treat `ctas.py` SELECT bodies as the canonical source and keep `_CURATED_SCHEMAS` in sync manually.
+Current `run_e2e_smoke.py` already matches `ctas.py` for:
 
-### R3 — `run_id` column appears in `SELECT *` from views ⚠️
-**Concern**: `run_id` is a Hive partition column. `SELECT *` from the base table includes it. The view uses `SELECT *`, so `run_id` is visible to the orchestrator.
-**Evidence**: `run_e2e_smoke.py:497` view SQL is `SELECT *`.
-**Mitigation**: `run_id` is classified as `"role": "internal"` in `catalog_discovered.json` and listed in `denied_columns_global` in `reporting_policy.json`. The orchestrator must strip it during allowlist enforcement.
+- `appsflyer_installs_daily`
+- `appsflyer_events_daily`
+- `appsflyer_cohort_daily`
 
-### R4 — Views may not exist on a fresh account / environment ⚠️
-**Concern**: `v_latest_*` views are created by `run_e2e_smoke.py` Phase 7.5, not by any Terraform/CDK. If the environment is recreated (different Glue database), views must be manually recreated.
-**Evidence**: No IaC code found in the repo that manages views.
-**Mitigation**: Add view creation to a CDK/CloudFormation stack before production deployment.
+### Stale item 3: the main risk was framed as code conflict only
 
-### R5 — `appsflyer_retention_daily` has no data source ⚠️
-**Concern**: `REGISTRY` in `ctas.py` contains `appsflyer_retention_daily`. The CTAS exists. A `v_latest_appsflyer_retention_daily` view is created by the smoke script. But there is no connector or use case for the AppsFlyer Cohort API (retention data).
-**Evidence**: Comment from previous design session — "retention not from Pull API; Cohort API out of scope Phase 1".
-**Mitigation**: Exclude `v_latest_appsflyer_retention_daily` from `allowed_views` in `reporting_policy.json` (already excluded). The empty table will remain in Glue but is never queried.
+The larger active problem is not just code drift inside the repo.
 
-### R6 — Function URL SSE: Lambda response streaming constraints ⚠️
-**Concern**: AWS Lambda Function URL supports streaming responses (SSE) only via `responseStream` mode using `awslambda.streamifyResponse()`. This requires Node.js 18+ runtime and `InvokeMode: RESPONSE_STREAM` on the Function URL.
-**Evidence**: Not yet implemented; no Lambda code exists.
-**Mitigation**: Document this constraint. Lambda IAM policy must include `lambda:InvokeFunctionUrl`.
+The current active problem is:
 
-### R7 — Bedrock model IAM permissions scope ⚠️
-**Concern**: `bedrock:InvokeModel` must specify the exact model ARN. If `claude-3-sonnet` is used for the orchestrator, the model must be enabled in `ap-northeast-2`. Not all Bedrock models are available in Seoul.
-**Evidence**: Not verified — no Bedrock code exists yet.
-**Mitigation**: Verify model availability in `ap-northeast-2` before implementing.
+- repo design expects `run_id`
+- deployed Athena catalog does not currently expose `run_id`
 
-### R8 — `is_organic` removal changes historical query compatibility
-**Concern**: If any existing Athena queries, Superset dashboards, or BI tools use `is_organic` on AppsFlyer curated tables, they will break after `--recreate-curated-tables`.
-**Evidence**: Only the smoke script currently queries these tables.
-**Mitigation**: Safe to proceed for Phase 1 (no downstream consumers yet). Document for future stakeholder awareness.
+That is an environment drift problem.
 
----
+## Recommended Recovery Paths
 
-## 6. Recommended TypeScript Package Folder Layout (DDD style)
+### Option A: Align Athena to the repo design
 
-```
-services/
-  report-orchestrator-lambda/
-    src/
-      domain/
-        report/
-          report-request.ts          # value object: {viewName, dateRange, dimensions, metrics}
-          query-plan.ts              # value object: validated JSON the LLM produces
-          report-result.ts           # value object: {rows, columnHeaders, rowCount, truncated}
-          allowlist.ts               # pure functions: validateRequest(request, policy)
-      application/
-        generate-report.use-case.ts  # orchestrates: validate → prompt → execute → format
-      infrastructure/
-        athena/
-          athena-query-runner.ts     # StartQueryExecution + poll + GetResults
-          result-mapper.ts           # Athena ResultSet → ReportResult
-        bedrock/
-          bedrock-client.ts          # InvokeModelWithResponseStream
-          prompt-builder.ts          # builds system prompt from catalog + policy
-        glue/
-          catalog-loader.ts          # loads catalog_discovered.json (local file, no runtime Glue call)
-      interface/
-        lambda-handler.ts            # Function URL entry point; SSE via awslambda.streamifyResponse
-        sse-formatter.ts             # chunks ReportResult into SSE events
-      shared/
-        catalog_discovered.json      # AUTO-GENERATED (committed)
-        reporting_policy.json        # HAND-MANAGED (committed)
-    scripts/
-      discover-catalog.ts            # npm run discover-catalog
-    tests/
-      unit/
-        allowlist.test.ts
-        prompt-builder.test.ts
-        result-mapper.test.ts
-      integration/
-        athena-query-runner.test.ts  # requires real AWS creds
-    package.json
-    tsconfig.json
-    .env.example
+Recommended if `v_latest_*` is supposed to mean "latest run per day".
+
+1. Recreate curated base tables as `PARTITIONED BY (dt STRING, run_id STRING)`.
+2. Register curated partitions with both `dt` and `run_id`.
+3. Recreate the `v_latest_*` views.
+4. Regenerate and redeploy `catalog_discovered.json` if needed.
+
+This matches the current code and avoids more special cases.
+
+### Option B: Emergency compatibility fallback
+
+Recommended only if you need the chat product working immediately and cannot migrate Athena today.
+
+1. Rebuild `v_latest_appsflyer_installs_daily` against the current `dt`-only base table.
+2. Remove the `run_id` ranking logic from that view.
+3. Accept that "latest run" semantics are temporarily lost.
+
+This makes the environment match the older table shape, not the current repo design.
+
+## Minimal Diagnostic Checklist
+
+Use these commands to distinguish repo design from deployed reality.
+
+```sql
+SHOW CREATE VIEW hyper_intern_m1c.v_latest_appsflyer_installs_daily;
 ```
 
-**Key design principle**: `catalog_discovered.json` and `reporting_policy.json` are loaded at Lambda cold-start as local files (not fetched from Glue/S3 at runtime). This keeps query latency low and makes the allowlist enforcement deterministic. Re-deploy the Lambda when schemas change.
+```sql
+SHOW PARTITIONS hyper_intern_m1c.appsflyer_installs_daily;
+```
+
+```sql
+SELECT
+  media_source,
+  SUM(installs) AS installs
+FROM hyper_intern_m1c.appsflyer_installs_daily
+WHERE dt BETWEEN '2024-11-01' AND '2024-11-30'
+GROUP BY 1
+ORDER BY 2 DESC;
+```
+
+If `SHOW PARTITIONS` returns only `dt=...` and `run_id` queries fail, the deployment has not been migrated to the repo's run-versioned design.
+
+## Decision
+
+Treat the repo's `run_id` model as the intended design.
+
+Treat the currently deployed Athena catalog as behind that design until the curated tables and views are migrated together.

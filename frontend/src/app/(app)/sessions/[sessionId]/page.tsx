@@ -4,15 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { fetchAuthSession } from "aws-amplify/auth";
 
-import MessageList from "@/components/chat/MessageList";
 import ChatInput from "@/components/chat/ChatInput";
+import MessageList from "@/components/chat/MessageList";
 import { useSessionContext } from "@/context/SessionContext";
+import { useSse, type SseFrame } from "@/hooks/useSse";
 import {
   createSaveFailure,
   prepareSessionSave,
   type FailedSessionSave,
 } from "@/lib/sessionPersistence";
-import { useSse, type SseFrame } from "@/hooks/useSse";
 import type { ChatMessage } from "@/types/chat";
 import type { StoredMessage } from "@/types/session";
 
@@ -61,7 +61,7 @@ export default function SessionPage() {
       const headers = await getAuthHeaders();
       const response = await fetch(`/api/sessions/${sessionId}`, { headers });
       if (!response.ok) {
-        setLoadError("?몄뀡??李얠쓣 ???놁뒿?덈떎.");
+        setLoadError("세션을 불러오지 못했습니다.");
         return;
       }
 
@@ -133,7 +133,7 @@ export default function SessionPage() {
             data: {
               version: "v1",
               code: "EMPTY_RESPONSE",
-              message: "?묐떟 ?꾨젅?꾩씠 鍮꾩뼱 ?덉뒿?덈떎.",
+              message: "응답이 비어 있습니다.",
               retryable: false,
             },
           } satisfies SseFrame,
@@ -173,7 +173,7 @@ export default function SessionPage() {
         <div className="space-y-2 text-center">
           <p className="text-destructive">{loadError}</p>
           <button className="text-sm underline" onClick={() => router.push("/")}>
-            ??????쒖옉
+            홈으로 돌아가기
           </button>
         </div>
       </div>

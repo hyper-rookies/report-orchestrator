@@ -73,7 +73,7 @@ export default function SharePage() {
         if (!cancelled) {
           setResolved({
             status: "error",
-            message: error instanceof Error ? error.message : "공유 링크를 불러오지 못했습니다.",
+            message: error instanceof Error ? error.message : "공유 링크 정보를 불러오지 못했습니다.",
           });
         }
       });

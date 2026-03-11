@@ -5,6 +5,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 First, run the development server:
 
 ```bash
+cd frontend
 npm run dev
 # or
 yarn dev
@@ -13,6 +14,8 @@ pnpm dev
 # or
 bun dev
 ```
+
+This package pins the Next.js workspace root to the `frontend/` directory. That avoids module-resolution issues on machines where a parent folder also contains a separate `package.json`.
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 

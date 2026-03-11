@@ -23,7 +23,7 @@ _add_service_path()
 
 def _make_result_set(
     columns: list[tuple[str, str]],  # (name, type)
-    data_rows: list[list[str]],       # each inner list = one row of VarCharValues
+    data_rows: list[list[str | None]],  # each inner list = one row of VarCharValues
 ) -> dict:
     """Helper: build a merged ResultSet dict (header already stripped)."""
     return {
@@ -31,7 +31,7 @@ def _make_result_set(
             "ColumnInfo": [{"Name": n, "Type": t} for n, t in columns]
         },
         "Rows": [
-            {"Data": [{"VarCharValue": v} for v in row]}
+            {"Data": [({"VarCharValue": v} if v is not None else {}) for v in row]}
             for row in data_rows
         ],
     }
@@ -134,6 +134,19 @@ def test_row_mapper_slices_to_max_rows():
     assert truncated is True
 
 
+def test_row_mapper_null_numeric_value_stays_none():
+    from row_mapper import map_result_set
+
+    result_set = _make_result_set(
+        columns=[("sessions", "BIGINT"), ("channel_group", "VARCHAR")],
+        data_rows=[[None, "organic"]],
+    )
+    rows, _ = map_result_set(result_set, max_rows=100)
+
+    assert rows[0]["sessions"] is None
+    assert rows[0]["channel_group"] == "organic"
+
+
 # --- athena_runner tests (mock boto3) ---
 
 
@@ -191,6 +204,7 @@ def test_athena_runner_timeout():
 
     assert exc_info.value.code == "QUERY_TIMEOUT"
     assert "30s" in exc_info.value.message
+    mock_client.stop_query_execution.assert_called_once_with(QueryExecutionId="qid-timeout")
 
 
 def test_athena_runner_failed_state():
@@ -306,7 +320,12 @@ query_handler_v2 = _load_handler_module()
 def _execute_event(overrides: dict | None = None) -> dict:
     base = {
         "version": "v1",
-        "sql": "SELECT channel_group, sessions FROM hyper_intern_m1c.v_latest_ga4_acquisition_daily WHERE dt BETWEEN '2026-01-01' AND '2026-01-31' LIMIT 1000",
+        "sql": (
+            "SELECT channel_group, SUM(sessions) AS sessions "
+            "FROM hyper_intern_m1c.v_latest_ga4_acquisition_daily "
+            "WHERE dt BETWEEN '2026-01-01' AND '2026-01-31' "
+            "GROUP BY 1 ORDER BY sessions DESC LIMIT 1000"
+        ),
         "workgroup": "test-wg",
         "database": "test-db",
         "outputLocation": "s3://test-bucket/results/",
@@ -323,8 +342,11 @@ def _mock_athena_success() -> unittest.mock.MagicMock:
     return mock_client
 
 
-def test_handler_execute_athena_query_success():
+def test_handler_execute_athena_query_success(monkeypatch):
     """Happy path through lambda_handler for executeAthenaQuery."""
+    monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
+    monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
     mock_client = _mock_athena_success()
 
     with (
@@ -343,8 +365,11 @@ def test_handler_execute_athena_query_success():
     assert isinstance(body["truncated"], bool)
 
 
-def test_handler_execute_athena_query_missing_timeout_uses_default_30():
+def test_handler_execute_athena_query_missing_timeout_uses_default_30(monkeypatch):
     """If timeoutSeconds is omitted, handler should default to 30."""
+    monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
+    monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
     event = {k: v for k, v in _execute_event().items() if k != "timeoutSeconds"}
     result_set = _make_result_set(
         columns=[("channel_group", "VARCHAR"), ("sessions", "BIGINT")],
@@ -363,8 +388,11 @@ def test_handler_execute_athena_query_missing_timeout_uses_default_30():
     assert run_query_mock.call_args.kwargs["timeout_seconds"] == 30
 
 
-def test_handler_execute_athena_query_missing_maxrows_uses_default_500():
+def test_handler_execute_athena_query_missing_maxrows_uses_default_500(monkeypatch):
     """If maxRows is omitted, handler should default to 500."""
+    monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
+    monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
     event = {k: v for k, v in _execute_event().items() if k != "maxRows"}
     result_set = _make_result_set(
         columns=[("channel_group", "VARCHAR"), ("sessions", "BIGINT")],
@@ -383,15 +411,19 @@ def test_handler_execute_athena_query_missing_maxrows_uses_default_500():
     assert run_query_mock.call_args.kwargs["max_rows"] == 500
 
 
-def test_handler_env_defaults_for_workgroup_database_output(monkeypatch):
-    """workgroup/database/outputLocation resolve from env when not in payload."""
+def test_handler_ignores_request_connection_overrides(monkeypatch):
+    """workgroup/database/outputLocation always resolve from env, not from payload."""
     monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
-    monkeypatch.setenv("ATHENA_DATABASE", "env-db")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
     monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
 
-    # Payload omits workgroup/database/outputLocation
-    event = {k: v for k, v in _execute_event().items()
-             if k not in ("workgroup", "database", "outputLocation")}
+    event = _execute_event(
+        {
+            "workgroup": "payload-wg",
+            "database": "payload-db",
+            "outputLocation": "s3://payload-bucket/results/",
+        }
+    )
 
     mock_client = _mock_athena_success()
 
@@ -406,15 +438,14 @@ def test_handler_env_defaults_for_workgroup_database_output(monkeypatch):
     body = json.loads(response["body"])
     assert "queryExecutionId" in body
 
-    # Verify boto3 was called with env-resolved values
     call_kwargs = mock_client.start_query_execution.call_args[1]
     assert call_kwargs["WorkGroup"] == "env-wg"
-    assert call_kwargs["QueryExecutionContext"]["Database"] == "env-db"
+    assert call_kwargs["QueryExecutionContext"]["Database"] == "hyper_intern_m1c"
     assert call_kwargs["ResultConfiguration"]["OutputLocation"] == "s3://env-bucket/results/"
 
 
 def test_handler_returns_unknown_when_all_connection_fields_missing(monkeypatch):
-    """UNKNOWN error when workgroup/database/outputLocation absent from both payload and env."""
+    """UNKNOWN error when workgroup/database/outputLocation absent from env."""
     monkeypatch.delenv("ATHENA_WORKGROUP", raising=False)
     monkeypatch.delenv("ATHENA_DATABASE", raising=False)
     monkeypatch.delenv("ATHENA_OUTPUT_LOCATION", raising=False)
@@ -427,11 +458,13 @@ def test_handler_returns_unknown_when_all_connection_fields_missing(monkeypatch)
     body = json.loads(response["body"])
     assert body["error"]["code"] == "UNKNOWN"
     assert "workgroup" in body["error"]["message"].lower() or "required" in body["error"]["message"].lower()
-
-
 def test_handler_returns_query_timeout_from_athena_runner(monkeypatch):
     """QUERY_TIMEOUT propagates from athena_runner through lambda_handler."""
     from policy_guard import QueryError
+
+    monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
+    monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
 
     with unittest.mock.patch(
         "athena_runner.run_query",
@@ -442,6 +475,57 @@ def test_handler_returns_query_timeout_from_athena_runner(monkeypatch):
     body = json.loads(response["body"])
     assert body["error"]["code"] == "QUERY_TIMEOUT"
     assert body["error"]["actionGroup"] == "query"
+
+
+def test_handler_rejects_non_select_sql(monkeypatch):
+    monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
+    monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
+
+    response = query_handler_v2.lambda_handler(
+        _execute_event({"sql": "DELETE FROM hyper_intern_m1c.v_latest_ga4_acquisition_daily"}),
+        None,
+    )
+    body = json.loads(response["body"])
+
+    assert body["error"]["code"] == "SCHEMA_VIOLATION"
+
+
+def test_handler_rejects_sql_that_is_not_buildsql_compatible(monkeypatch):
+    monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
+    monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
+
+    response = query_handler_v2.lambda_handler(
+        _execute_event({"sql": "SELECT * FROM hyper_intern_m1c.v_latest_ga4_acquisition_daily LIMIT 10"}),
+        None,
+    )
+    body = json.loads(response["body"])
+
+    assert body["error"]["code"] == "SCHEMA_VIOLATION"
+
+
+def test_handler_rejects_subqueries(monkeypatch):
+    monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
+    monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
+
+    response = query_handler_v2.lambda_handler(
+        _execute_event(
+            {
+                "sql": (
+                    "SELECT channel_group, (SELECT 1) AS n "
+                    "FROM hyper_intern_m1c.v_latest_ga4_acquisition_daily "
+                    "WHERE dt BETWEEN '2026-01-01' AND '2026-01-31' "
+                    "GROUP BY 1 ORDER BY n DESC LIMIT 1000"
+                )
+            }
+        ),
+        None,
+    )
+    body = json.loads(response["body"])
+
+    assert body["error"]["code"] == "SCHEMA_VIOLATION"
 
 
 def test_handler_buildsql_still_works_after_routing_added():
@@ -480,8 +564,11 @@ def test_explicit_operation_buildsql_routes_correctly():
     assert "WHERE dt BETWEEN" in body["sql"]
 
 
-def test_explicit_operation_executeathenaquery_routes_correctly():
+def test_explicit_operation_executeathenaquery_routes_correctly(monkeypatch):
     """operation='executeAthenaQuery' routes to Athena execution path."""
+    monkeypatch.setenv("ATHENA_WORKGROUP", "env-wg")
+    monkeypatch.setenv("ATHENA_DATABASE", "hyper_intern_m1c")
+    monkeypatch.setenv("ATHENA_OUTPUT_LOCATION", "s3://env-bucket/results/")
     event = _execute_event({"operation": "executeAthenaQuery"})
     mock_client = _mock_athena_success()
 

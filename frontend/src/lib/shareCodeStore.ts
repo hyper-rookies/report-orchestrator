@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { hasSessionBucket, s3Delete, s3GetJson, s3PutJson } from "./sessionS3";
 
 interface ShareEntry {
   jwt: string;
@@ -10,48 +11,32 @@ export type ResolveShareCodeEntryResult =
   | { status: "expired" }
   | { status: "missing" };
 
-const MAX_ENTRIES = 500;
+export const dashboardShareCodeKey = (code: string) => `shares/dashboard/${code}.json`;
 
-declare global {
-  var __shareCodeStore: Map<string, ShareEntry> | undefined;
+export function hasShareStore(): boolean {
+  return hasSessionBucket();
 }
 
-function getStore(): Map<string, ShareEntry> {
-  if (!global.__shareCodeStore) {
-    global.__shareCodeStore = new Map();
+export async function createCode(jwt: string, expiresAt: Date): Promise<string> {
+  if (!hasShareStore()) {
+    throw new Error("Share storage is unavailable.");
   }
-  return global.__shareCodeStore;
-}
 
-function pruneStore(store: Map<string, ShareEntry>): void {
-  while (store.size > MAX_ENTRIES) {
-    const oldestKey = store.keys().next().value;
-    if (!oldestKey) {
-      break;
-    }
-    store.delete(oldestKey);
-  }
-}
-
-export function createCode(jwt: string, expiresAt: Date): string {
-  const store = getStore();
   const code = nanoid(8);
-  store.set(code, { jwt, expiresAt: Math.floor(expiresAt.getTime() / 1000) });
-
-  pruneStore(store);
-
+  await s3PutJson(dashboardShareCodeKey(code), {
+    jwt,
+    expiresAt: Math.floor(expiresAt.getTime() / 1000),
+  });
   return code;
 }
 
-export function resolveCodeEntry(code: string): ResolveShareCodeEntryResult {
-  const store = getStore();
-  // This is only a process-local short-code cache. Restarts or multi-instance routing
-  // can miss entries until the signed-token fallback is used by the caller.
-  const entry = store.get(code);
+export async function resolveCodeEntry(code: string): Promise<ResolveShareCodeEntryResult> {
+  const entry = await s3GetJson<ShareEntry>(dashboardShareCodeKey(code));
   if (!entry) {
     return { status: "missing" };
   }
   if (Math.floor(Date.now() / 1000) > entry.expiresAt) {
+    await s3Delete(dashboardShareCodeKey(code)).catch(() => undefined);
     return { status: "expired" };
   }
 
@@ -64,7 +49,7 @@ export function resolveCodeEntry(code: string): ResolveShareCodeEntryResult {
   };
 }
 
-export function resolveCode(code: string): string | null {
-  const result = resolveCodeEntry(code);
+export async function resolveCode(code: string): Promise<string | null> {
+  const result = await resolveCodeEntry(code);
   return result.status === "ok" ? result.entry.jwt : null;
 }

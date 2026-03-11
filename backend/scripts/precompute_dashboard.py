@@ -106,7 +106,7 @@ def main() -> None:
     database = os.environ.get("ATHENA_DATABASE", "hyper_intern_m1c")
     workgroup = os.environ.get("ATHENA_WORKGROUP", "hyper-intern-m1c-wg")
     output_location = os.environ.get(
-        "ATHENA_OUTPUT_S3",
+        "ATHENA_OUTPUT_LOCATION",
         "s3://hyper-intern-m1c-athena-results-bucket/athena-results/precompute/",
     )
     repo_root = Path(__file__).parent.parent.parent

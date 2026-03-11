@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import MessageList from "@/components/chat/MessageList";
 import ChatInput from "@/components/chat/ChatInput";
+import MessageList from "@/components/chat/MessageList";
 import { useSessionContext } from "@/context/SessionContext";
+import { type SseFrame, useSse } from "@/hooks/useSse";
 import {
   applySaveSuccess,
   createSaveFailure,
   prepareSessionSave,
   type FailedSessionSave,
 } from "@/lib/sessionPersistence";
-import { type SseFrame, useSse } from "@/hooks/useSse";
 import type { ChatMessage } from "@/types/chat";
 
 const SKIP_TYPES = new Set(["chunk", "status", "delta"]);
@@ -26,10 +26,12 @@ export default function ChatPage() {
   const [persisting, setPersisting] = useState(false);
   const { frames, streaming, error, ask } = useSse();
   const messageScrollRef = useRef<HTMLDivElement>(null);
-  const sessionIdsRef = useRef<{ persistedSessionId: string | null; draftSessionId: string | null }>({
-    persistedSessionId: null,
-    draftSessionId: null,
-  });
+  const sessionIdsRef = useRef<{ persistedSessionId: string | null; draftSessionId: string | null }>(
+    {
+      persistedSessionId: null,
+      draftSessionId: null,
+    }
+  );
 
   const hasRenderableFrame = (allFrames: SseFrame[]) =>
     allFrames.some((frame) => {
@@ -113,7 +115,7 @@ export default function ChatPage() {
               version: "v1",
               code: "EMPTY_RESPONSE",
               message:
-                "?묐떟 ?꾨젅?꾩씠 鍮꾩뼱 ?덉뒿?덈떎. ?몄쬆(401) ?먮뒗 SSE ?묐떟 ?뺤떇???뺤씤??二쇱꽭??",
+                "응답이 비어 있습니다. 인증(401) 또는 SSE 연결 상태를 확인해 주세요.",
               retryable: false,
             },
           } satisfies SseFrame,

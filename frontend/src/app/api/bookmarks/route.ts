@@ -22,13 +22,16 @@ function isFrame(
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const sub = getUserSub(req);
+  const sub = await getUserSub(req);
   if (!sub) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   if (!hasSessionBucket()) {
-    return NextResponse.json([]);
+    return NextResponse.json(
+      { error: "Storage unavailable" },
+      { status: 503 }
+    );
   }
 
   const list = await listBookmarks(sub);
@@ -36,7 +39,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const sub = getUserSub(req);
+  const sub = await getUserSub(req);
   if (!sub) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

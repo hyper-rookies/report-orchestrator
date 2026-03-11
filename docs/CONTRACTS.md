@@ -24,7 +24,54 @@ The orchestrator emits the following SSE event types:
   "spec": {
     "type": "bar | line | table | pie | stackedBar",
     "title": "optional",
+    "selectionReason": "required",
     "data": []
+  }
+}
+```
+
+## Additive Viz Contract Fields
+
+`chartType` remains required. The additive change is that callers may now set
+`chartType: "auto"` and may optionally provide selection hints.
+
+### Optional Request Hint Fields
+
+| Field | Type | Description |
+|------|------|-------------|
+| `questionIntent` | string | Intent hint such as `ranking`, `comparison`, `composition`, `time_series`, `raw_detail`, `single_kpi`, `funnel`, `retention`, or `generic` |
+| `isTimeSeries` | boolean | Whether the request is a time-series question |
+| `compositionMode` | boolean | Whether the request asks for a composition or breakdown |
+| `comparisonMode` | boolean | Whether the request compares groups or periods |
+| `deltaIncluded` | boolean | Whether delta or change values are included |
+| `categoryCount` | integer | Optional category count hint |
+| `metricCount` | integer | Optional metric count hint |
+| `rowCount` | integer | Optional row count hint |
+
+### Additive Response Field
+
+| Field | Path | Description |
+|------|------|-------------|
+| `selectionReason` | `spec.selectionReason` | Reason for the selected chart type, for example `"auto: ranking, categoryCount=5<=15 -> bar"` or `"explicit: bar"` |
+
+Example response:
+
+```json
+{
+  "version": "v1",
+  "spec": {
+    "type": "bar",
+    "title": "Sessions by Channel",
+    "selectionReason": "auto: ranking, categoryCount=3<=15 -> bar",
+    "xAxis": "channel",
+    "series": [
+      { "metric": "sessions", "label": "Sessions" }
+    ],
+    "data": [
+      { "channel": "Organic", "sessions": 100 },
+      { "channel": "Paid", "sessions": 80 },
+      { "channel": "Referral", "sessions": 20 }
+    ]
   }
 }
 ```
@@ -35,6 +82,7 @@ The orchestrator emits the following SSE event types:
 {
   "type": "bar",
   "title": "optional",
+  "selectionReason": "required",
   "xAxis": "dimension_column",
   "series": [
     { "metric": "sessions", "label": "Sessions" }
@@ -51,6 +99,7 @@ The orchestrator emits the following SSE event types:
 {
   "type": "stackedBar",
   "title": "optional",
+  "selectionReason": "required",
   "xAxis": "dimension_column",
   "series": [
     { "metric": "retained_users", "label": "Retained Users" },
@@ -66,6 +115,7 @@ The orchestrator emits the following SSE event types:
 {
   "type": "pie",
   "title": "optional",
+  "selectionReason": "required",
   "nameKey": "channel_group",
   "valueKey": "sessions",
   "data": []
@@ -78,7 +128,62 @@ The orchestrator emits the following SSE event types:
 {
   "type": "table",
   "title": "optional",
+  "selectionReason": "required",
   "data": []
 }
 ```
+
+## Orchestrator Request Contract
+
+`POST` body for the report orchestrator:
+
+```json
+{
+  "question": "required non-empty string",
+  "autoApproveActions": "optional boolean, defaults to true"
+}
+```
+
+Rules:
+
+- `question` is required, trimmed, and must be 2000 characters or fewer.
+- Malformed JSON must return HTTP `400`.
+- `autoApproveActions` is optional and must be a boolean when present.
+- If the client omits `autoApproveActions`, the server falls back to `BEDROCK_AUTO_APPROVE_ACTIONS` and defaults to `true` when the env is unset.
+
+## Query Lambda Execute Contract
+
+`executeAthenaQuery` only accepts buildSQL-compatible read-only queries.
+
+Rules:
+
+- Only single-statement `SELECT` queries are allowed.
+- SQL comments, `SELECT *`, DDL/DML, and advanced query forms such as `JOIN`, `UNION`, `WITH`, `INTERSECT`, and `EXCEPT` are rejected.
+- The `FROM` dataset must match an allowed view in `catalog_discovered.json` and `reporting_policy.json`.
+- `workgroup`, `database`, and `outputLocation` are resolved only from server env:
+  - `ATHENA_WORKGROUP`
+  - `ATHENA_DATABASE`
+  - `ATHENA_OUTPUT_LOCATION`
+- Request-level overrides for Athena connection settings are ignored.
+
+## Row Mapping Contract
+
+Athena row mapping rules:
+
+- Integer types map to `int`
+- Floating types map to `float`
+- String-like types map to `str`
+- `NULL` cells map to `null`
+- `_run_rank` and `run_id` are stripped from the response
+
+## Share Link Storage Contract
+
+Share-link creation endpoints persist share metadata in the bucket configured by `SESSION_BUCKET`.
+
+Rules:
+
+- `POST /api/share` requires an authenticated caller.
+- `POST /api/sessions/[id]/share` requires an authenticated caller.
+- Shared read routes remain public and enforce expiry on lookup.
+- Expired share entries may be deleted opportunistically during lookup.
 

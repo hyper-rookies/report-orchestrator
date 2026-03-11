@@ -50,7 +50,7 @@ event_revenue double
 AWS_REGION=ap-northeast-2 \
 ATHENA_WORKGROUP=hyper-intern-m1c-wg \
 ATHENA_DATABASE=hyper_intern_m1c \
-ATHENA_OUTPUT_S3="s3://hyper-intern-m1c-athena-results-bucket/athena-results/" \
+ATHENA_OUTPUT_LOCATION="s3://hyper-intern-m1c-athena-results-bucket/athena-results/" \
 DATA_BUCKET=hyper-intern-m1c-data-bucket \
 python scripts/run_e2e_smoke.py \
   --dt 2024-12-28 \

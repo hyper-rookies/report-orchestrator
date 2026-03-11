@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import type { SessionData } from "@/types/session";
+import { hasSessionBucket, s3Delete, s3GetJson, s3PutJson } from "./sessionS3";
 
 interface SessionShareEntry {
   sessionData: SessionData;
@@ -12,59 +13,40 @@ export type ResolveSessionShareCodeResult =
   | { status: "missing" };
 
 const TTL_SECONDS = 7 * 24 * 60 * 60;
-const MAX_ENTRIES = 200;
 
-declare global {
-  var __sessionShareStore: Map<string, SessionShareEntry> | undefined;
+export const sessionShareCodeKey = (code: string) => `shares/session/${code}.json`;
+
+export function hasSessionShareStore(): boolean {
+  return hasSessionBucket();
 }
 
-function getStore(): Map<string, SessionShareEntry> {
-  if (!global.__sessionShareStore) {
-    global.__sessionShareStore = new Map();
-  }
-
-  return global.__sessionShareStore;
-}
-
-function pruneStore(store: Map<string, SessionShareEntry>): void {
-  while (store.size > MAX_ENTRIES) {
-    const oldestKey = store.keys().next().value;
-    if (!oldestKey) {
-      break;
-    }
-    store.delete(oldestKey);
-  }
-}
-
-export function createSessionShareCode(sessionData: SessionData): {
+export async function createSessionShareCode(sessionData: SessionData): Promise<{
   code: string;
   expiresAt: Date;
-} {
-  const store = getStore();
+}> {
+  if (!hasSessionShareStore()) {
+    throw new Error("Session share storage is unavailable.");
+  }
+
   const code = nanoid(8);
   const expiresAt = new Date(Date.now() + TTL_SECONDS * 1000);
 
-  store.set(code, {
+  await s3PutJson(sessionShareCodeKey(code), {
     sessionData,
     expiresAt: Math.floor(expiresAt.getTime() / 1000),
   });
-
-  pruneStore(store);
-
   return { code, expiresAt };
 }
 
-export function resolveSessionShareCode(code: string): ResolveSessionShareCodeResult {
-  const store = getStore();
-  // This store is intentionally process-local for now, so links are not durable
-  // across server restarts or load-balanced instance hops.
-  const entry = store.get(code);
+export async function resolveSessionShareCode(code: string): Promise<ResolveSessionShareCodeResult> {
+  const entry = await s3GetJson<SessionShareEntry>(sessionShareCodeKey(code));
 
   if (!entry) {
     return { status: "missing" };
   }
 
   if (Math.floor(Date.now() / 1000) > entry.expiresAt) {
+    await s3Delete(sessionShareCodeKey(code)).catch(() => undefined);
     return { status: "expired" };
   }
 

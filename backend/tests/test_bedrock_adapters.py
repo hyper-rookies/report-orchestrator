@@ -191,6 +191,40 @@ def test_analysis_computedelta_bedrock_computes_correct_delta():
     assert abs(organic["pctChange"]["sessions"] - 0.2) < 1e-9
 
 
+def test_analysis_computedelta_bedrock_accepts_python_style_row_arrays():
+    event = {
+        "actionGroup": "analysis",
+        "function": "computeDelta",
+        "parameters": [
+            _param("version", "string", "v1"),
+            _param("baseline", "array", str(_BASELINE)),
+            _param("comparison", "array", str(_COMPARISON)),
+            _param("groupBy", "array", "[channel_group]"),
+            _param("metrics", "array", "[sessions]"),
+        ],
+    }
+    body = _assert_bedrock_envelope(analysis_app.lambda_handler(event, None), "analysis", "computeDelta")
+    organic = next(d for d in body["deltas"] if d["key"]["channel_group"] == "organic")
+    assert organic["comparison"]["sessions"] == 12000
+
+
+def test_analysis_computedelta_bedrock_invalid_object_array_returns_schema_violation():
+    event = {
+        "actionGroup": "analysis",
+        "function": "computeDelta",
+        "parameters": [
+            _param("version", "string", "v1"),
+            _param("baseline", "array", "[{channel_group=organic, sessions=10000}]"),
+            _param("comparison", "array", json.dumps(_COMPARISON)),
+            _param("groupBy", "array", json.dumps(["channel_group"])),
+            _param("metrics", "array", json.dumps(["sessions"])),
+        ],
+    }
+    body = _assert_bedrock_envelope(analysis_app.lambda_handler(event, None), "analysis", "computeDelta")
+    assert body["error"]["code"] == "SCHEMA_VIOLATION"
+    assert body["error"]["message"] == "Invalid 'baseline' array parameter. Use a JSON array."
+
+
 def test_analysis_computedelta_bedrock_invalid_payload_returns_error_in_envelope():
     event = {
         "actionGroup": "analysis",

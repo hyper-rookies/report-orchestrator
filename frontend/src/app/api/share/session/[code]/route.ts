@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveSessionShareCode } from "@/lib/sessionShareStore";
+import { hasSessionShareStore, resolveSessionShareCode } from "@/lib/sessionShareStore";
 
 type Params = { params: Promise<{ code: string }> };
 
@@ -13,13 +13,17 @@ export async function GET(
   _req: NextRequest,
   { params }: Params
 ): Promise<NextResponse> {
+  if (!hasSessionShareStore()) {
+    return errorResponse(503, "Session share storage is unavailable.");
+  }
+
   const { code } = await params;
   if (!SHARE_CODE_PATTERN.test(code)) {
     return errorResponse(400, "Malformed share code.");
   }
 
   try {
-    const sessionResult = resolveSessionShareCode(code);
+    const sessionResult = await resolveSessionShareCode(code);
 
     if (sessionResult.status === "ok") {
       return NextResponse.json(sessionResult.sessionData);

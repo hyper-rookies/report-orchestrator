@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyShareToken } from "@/lib/shareToken";
-import { resolveCodeEntry } from "@/lib/shareCodeStore";
+import { hasShareStore, resolveCodeEntry } from "@/lib/shareCodeStore";
 
 const SHARE_CODE_PATTERN = /^[A-Za-z0-9_-]{8}$/;
 
@@ -37,7 +37,9 @@ export async function GET(
   }
 
   try {
-    const entryResult = resolveCodeEntry(code);
+    const entryResult = hasShareStore()
+      ? await resolveCodeEntry(code)
+      : { status: "missing" as const };
 
     if (entryResult.status === "ok") {
       const storedTokenResult = await verifyShareToken(entryResult.entry.jwt);
@@ -48,6 +50,10 @@ export async function GET(
       if (storedTokenResult.status === "expired") {
         return errorResponse(410, "Share token has expired.");
       }
+    }
+
+    if (!hasShareStore() && fallbackToken === null) {
+      return errorResponse(503, "Share storage is unavailable.");
     }
 
     if (fallbackToken !== null) {

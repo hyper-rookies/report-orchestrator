@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { signShareToken, getExpiresAt } from "@/lib/shareToken";
-import { createCode } from "@/lib/shareCodeStore";
+import { createCode, hasShareStore } from "@/lib/shareCodeStore";
+import { getUserSub } from "@/lib/sessionAuth";
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -17,6 +18,15 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const sub = await getUserSub(req);
+  if (!sub) {
+    return errorResponse(401, "Unauthorized");
+  }
+
+  if (!hasShareStore()) {
+    return errorResponse(503, "Share storage is unavailable. SESSION_BUCKET env var is not set.");
+  }
+
   let body: unknown;
   try {
     body = await req.json();
@@ -48,10 +58,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       weekEnd,
       weekLabel: weekLabel.trim(),
     });
-    const code = createCode(jwt, expiresAt);
+    const code = await createCode(jwt, expiresAt);
 
     const origin = req.headers.get("origin") ?? req.nextUrl.origin;
-    const shareUrl = `${origin}/share/${code}?token=${encodeURIComponent(jwt)}`;
+    const shareUrl = `${origin}/share/${code}`;
 
     return NextResponse.json({
       code,

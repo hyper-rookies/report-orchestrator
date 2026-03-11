@@ -1,7 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useRef, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
+
+import { readAgentAutoApproveSetting } from "@/lib/agentApprovalSetting";
 
 export interface SseFrame {
   type: string;
@@ -75,6 +77,7 @@ export function useSse(): UseSseResult {
       const collected: SseFrame[] = [];
 
       const idToken = await getIdToken();
+      const autoApproveActions = readAgentAutoApproveSetting();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -87,7 +90,7 @@ export function useSse(): UseSseResult {
         const res = await fetch(SSE_URL, {
           method: "POST",
           headers,
-          body: JSON.stringify({ question, autoApproveActions: true }),
+          body: JSON.stringify({ question, autoApproveActions }),
           signal: controller.signal,
         });
 

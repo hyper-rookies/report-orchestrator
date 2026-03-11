@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -8,10 +9,21 @@ from typing import Any
 VERSION = "v1"
 DEFAULT_LIMIT = 1000
 MAX_LIMIT = 10000
-DATABASE_NAME = "hyper_intern_m1c"
+DEFAULT_DATABASE_NAME = "hyper_intern_m1c"
 ALLOWED_FILTER_OPS = {"=", "!=", ">", "<", ">=", "<=", "LIKE", "IN"}
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DML_PATTERN = re.compile(r"\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE|CREATE|ALTER)\b", re.IGNORECASE)
+COMMENT_PATTERN = re.compile(r"--|/\*|\*/")
+FORBIDDEN_EXECUTE_SQL_PATTERN = re.compile(
+    r"\b(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE|CREATE|ALTER|MERGE|UNLOAD|MSCK|CALL|GRANT|REVOKE|SET|RESET|USE|SHOW|DESCRIBE)\b",
+    re.IGNORECASE,
+)
+ADVANCED_QUERY_PATTERN = re.compile(r"\b(?:WITH|JOIN|UNION|INTERSECT|EXCEPT)\b", re.IGNORECASE)
+SUPPORTED_EXECUTE_SQL_PATTERN = re.compile(
+    r"^\s*SELECT\s+.+\s+FROM\s+(?P<database>[A-Za-z_][A-Za-z0-9_]*)\.(?P<view>[A-Za-z_][A-Za-z0-9_]*)\s+"
+    r"WHERE\s+.+\s+GROUP\s+BY\s+[\d,\s]+\s+ORDER\s+BY\s+[A-Za-z_][A-Za-z0-9_]*\s+DESC\s+LIMIT\s+(?P<limit>\d+)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
 AGGREGATE_METRIC_PATTERN = re.compile(
     r"^(?P<func>SUM|AVG|MIN|MAX|COUNT)\s*\(\s*(?P<column>[A-Za-z_][A-Za-z0-9_]*)\s*\)"
     r"(?:\s+AS\s+[A-Za-z_][A-Za-z0-9_]*)?$",
@@ -83,7 +95,7 @@ def validate_build_sql_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "version": VERSION,
-        "database": DATABASE_NAME,
+        "database": _database_name(),
         "view": view,
         "dateRange": {"start": start, "end": end},
         "dimensions": dimensions,
@@ -213,3 +225,58 @@ def _normalize_metric_column(metric: str) -> str:
     if match:
         return match.group("column")
     return metric
+
+
+def validate_execute_sql(sql: str) -> str:
+    if not isinstance(sql, str) or not sql.strip():
+        raise QueryError("SCHEMA_VIOLATION", "sql is required and must be a non-empty string.")
+
+    stripped = sql.strip()
+    normalized = _strip_sql_string_literals(stripped)
+
+    if ";" in normalized:
+        raise QueryError("SCHEMA_VIOLATION", "Only a single SQL statement is allowed.")
+    if COMMENT_PATTERN.search(normalized):
+        raise QueryError("SCHEMA_VIOLATION", "SQL comments are not allowed.")
+    if FORBIDDEN_EXECUTE_SQL_PATTERN.search(normalized):
+        raise QueryError("SCHEMA_VIOLATION", "Only read-only SELECT queries are allowed.")
+    if ADVANCED_QUERY_PATTERN.search(normalized):
+        raise QueryError("SCHEMA_VIOLATION", "JOIN, UNION, WITH, INTERSECT, and EXCEPT are not allowed.")
+    if len(re.findall(r"\bSELECT\b", normalized, re.IGNORECASE)) != 1:
+        raise QueryError("SCHEMA_VIOLATION", "Subqueries are not allowed in executeAthenaQuery.")
+    if len(re.findall(r"\bFROM\b", normalized, re.IGNORECASE)) != 1:
+        raise QueryError("SCHEMA_VIOLATION", "Only a single dataset is allowed in executeAthenaQuery.")
+    if re.search(r"\b(?:run_id|_run_rank)\b", normalized, re.IGNORECASE):
+        raise QueryError("SCHEMA_VIOLATION", "Denied columns are not allowed in executeAthenaQuery.")
+    if re.match(r"^\s*SELECT\s+\*", normalized, re.IGNORECASE | re.DOTALL):
+        raise QueryError("SCHEMA_VIOLATION", "SELECT * is not allowed in executeAthenaQuery.")
+
+    match = SUPPORTED_EXECUTE_SQL_PATTERN.match(normalized)
+    if not match:
+        raise QueryError(
+            "SCHEMA_VIOLATION",
+            "executeAthenaQuery only accepts buildSQL-compatible read-only SELECT queries.",
+        )
+
+    policy = _load_json("reporting_policy.json")
+    catalog = _load_json("catalog_discovered.json")
+    database = match.group("database")
+    view = match.group("view")
+    limit = int(match.group("limit"))
+
+    if database != _database_name():
+        raise QueryError("SCHEMA_VIOLATION", f"Database '{database}' is not allowed.")
+    if view not in set(policy["allowed_views"]) or view not in catalog["datasets"]:
+        raise QueryError("SCHEMA_VIOLATION", f"View '{view}' is not allowed.")
+    if limit <= 0 or limit > MAX_LIMIT:
+        raise QueryError("SCHEMA_VIOLATION", f"LIMIT must be between 1 and {MAX_LIMIT}.")
+
+    return stripped
+
+
+def _database_name() -> str:
+    return os.environ.get("ATHENA_DATABASE") or DEFAULT_DATABASE_NAME
+
+
+def _strip_sql_string_literals(sql: str) -> str:
+    return re.sub(r"'(?:''|[^'])*'", "''", sql)

@@ -8,7 +8,7 @@ Required environment variables
 AWS_REGION          ap-northeast-2
 ATHENA_WORKGROUP    hyper-intern-m1c-wg
 ATHENA_DATABASE     hyper_intern_m1c
-ATHENA_OUTPUT_S3    s3://hyper-intern-m1c-athena-results-bucket/athena-results/
+ATHENA_OUTPUT_LOCATION
 DATA_BUCKET         hyper-intern-m1c-data-bucket
 """
 from __future__ import annotations
@@ -19,8 +19,6 @@ _EXPECTED_REGION = "ap-northeast-2"
 _EXPECTED_DATA_BUCKET = "hyper-intern-m1c-data-bucket"
 _EXPECTED_RESULTS_BUCKET = "hyper-intern-m1c-athena-results-bucket"
 _EXPECTED_WORKGROUP = "hyper-intern-m1c-wg"
-
-
 def assert_prod_env() -> None:
     """Assert all required env vars are set and point to Seoul resources.
 
@@ -29,7 +27,7 @@ def assert_prod_env() -> None:
                     lists every violation so the caller can fix them all at once.
     """
     region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION", "")
-    output_s3 = os.environ.get("ATHENA_OUTPUT_S3", "")
+    output_location = os.environ.get("ATHENA_OUTPUT_LOCATION", "")
     data_bucket = os.environ.get("DATA_BUCKET", "")
     workgroup = os.environ.get("ATHENA_WORKGROUP", "")
 
@@ -40,10 +38,10 @@ def assert_prod_env() -> None:
             f"AWS_REGION must be '{_EXPECTED_REGION}' (Seoul), got '{region}'"
         )
 
-    if _EXPECTED_RESULTS_BUCKET not in output_s3:
+    if _EXPECTED_RESULTS_BUCKET not in output_location:
         errors.append(
-            f"ATHENA_OUTPUT_S3 must contain '{_EXPECTED_RESULTS_BUCKET}', "
-            f"got '{output_s3 or '(not set)'}'"
+            f"ATHENA_OUTPUT_LOCATION must contain '{_EXPECTED_RESULTS_BUCKET}', "
+            f"got '{output_location or '(not set)'}'"
         )
 
     if data_bucket != _EXPECTED_DATA_BUCKET:

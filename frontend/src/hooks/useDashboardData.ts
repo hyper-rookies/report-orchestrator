@@ -146,12 +146,12 @@ async function runSseQuery(question: string, timeoutMs = 45000): Promise<QueryEx
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(SSE_URL, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ question, autoApproveActions: true }),
-      signal: controller.signal,
-    });
+        res = await fetch(SSE_URL, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ question }),
+          signal: controller.signal,
+        });
   } catch (err) {
     debug.status = "error";
     debug.error =

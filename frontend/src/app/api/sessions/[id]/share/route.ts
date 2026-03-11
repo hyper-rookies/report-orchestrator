@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserSub } from "@/lib/sessionAuth";
 import { hasSessionBucket, sessionKey, s3GetJson } from "@/lib/sessionS3";
-import { createSessionShareCode } from "@/lib/sessionShareStore";
+import { createSessionShareCode, hasSessionShareStore } from "@/lib/sessionShareStore";
 import type { SessionData } from "@/types/session";
 
 type Params = { params: Promise<{ id: string }> };
@@ -14,13 +14,16 @@ export async function POST(
   req: NextRequest,
   { params }: Params
 ): Promise<NextResponse> {
-  const sub = getUserSub(req);
+  const sub = await getUserSub(req);
   if (!sub) {
     return errorResponse(401, "Unauthorized");
   }
 
   if (!hasSessionBucket()) {
     return errorResponse(503, "Session storage is unavailable. SESSION_BUCKET env var is not set.");
+  }
+  if (!hasSessionShareStore()) {
+    return errorResponse(503, "Session share storage is unavailable.");
   }
 
   const { id } = await params;
@@ -34,7 +37,7 @@ export async function POST(
       return errorResponse(404, "Session was not found.");
     }
 
-    const { code, expiresAt } = createSessionShareCode(session);
+    const { code, expiresAt } = await createSessionShareCode(session);
     const origin = req.headers.get("origin") ?? req.nextUrl.origin;
 
     return NextResponse.json({

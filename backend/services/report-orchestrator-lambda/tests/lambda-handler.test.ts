@@ -1,4 +1,8 @@
-import { buildSseEvents } from "../src/lambda-handler";
+import {
+  buildSseEvents,
+  parseRequestPayload,
+  resolveAutoApproveActions,
+} from "../src/lambda-handler";
 import { AgentEvent, IBedrockAgentClient } from "../src/bedrock-agent-client";
 
 async function collect(
@@ -209,6 +213,28 @@ test("query action group lambda crash payload is surfaced as ACTION_GROUP_CRASH"
   expect(error?.data.message).toBe("Sandbox.TimedOut: Task timed out after 30.03 seconds");
 });
 
+test("analysis action group lambda crash payload is surfaced as ACTION_GROUP_CRASH", async () => {
+  const frames = await collect("q", [
+    {
+      type: "actionGroupOutput",
+      actionGroup: "analysis",
+      output: JSON.stringify({
+        errorMessage: "Expecting property name enclosed in double quotes: line 1 column 3 (char 2)",
+        errorType: "JSONDecodeError",
+      }),
+    },
+  ]);
+  const types = frames.map((f) => f.type);
+  const error = frames.find((f) => f.type === "error");
+  expect(types[0]).toBe("meta");
+  expect(types[types.length - 1]).toBe("error");
+  expect(types).not.toContain("final");
+  expect(error?.data.code).toBe("ACTION_GROUP_CRASH");
+  expect(error?.data.message).toBe(
+    "JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)"
+  );
+});
+
 test("stream with no table data and no agent summary emits NO_DATA error and no final", async () => {
   const frames = await collect("q", []);
   const types = frames.map((f) => f.type);
@@ -312,4 +338,68 @@ test("SCHEMA_VIOLATION from query emits progress and does NOT terminate stream",
   const lastFrame = frames[frames.length - 1];
   expect(lastFrame.type).toBe("error");
   expect(lastFrame.data.code).toBe("UNSUPPORTED_METRIC");
+});
+
+test("parseRequestPayload rejects malformed JSON request bodies", () => {
+  expect(parseRequestPayload({ body: "{" })).toEqual({
+    ok: false,
+    statusCode: 400,
+    body: JSON.stringify({ error: "Invalid JSON body." }),
+  });
+});
+
+test("parseRequestPayload rejects empty questions", () => {
+  expect(parseRequestPayload({ body: JSON.stringify({ question: "   " }) })).toEqual({
+    ok: false,
+    statusCode: 400,
+    body: JSON.stringify({ error: "question is required." }),
+  });
+});
+
+test("parseRequestPayload trims valid questions", () => {
+  expect(parseRequestPayload({ body: JSON.stringify({ question: "  hello  " }) })).toEqual({
+    ok: true,
+    payload: { question: "hello" },
+  });
+});
+
+test("parseRequestPayload accepts optional autoApproveActions", () => {
+  expect(
+    parseRequestPayload({
+      body: JSON.stringify({ question: "hello", autoApproveActions: false }),
+    })
+  ).toEqual({
+    ok: true,
+    payload: { question: "hello", autoApproveActions: false },
+  });
+});
+
+test("parseRequestPayload rejects non-boolean autoApproveActions", () => {
+  expect(
+    parseRequestPayload({
+      body: JSON.stringify({ question: "hello", autoApproveActions: "yes" }),
+    })
+  ).toEqual({
+    ok: false,
+    statusCode: 400,
+    body: JSON.stringify({ error: "autoApproveActions must be a boolean." }),
+  });
+});
+
+test("resolveAutoApproveActions defaults to true", () => {
+  delete process.env.BEDROCK_AUTO_APPROVE_ACTIONS;
+  expect(resolveAutoApproveActions()).toBe(true);
+});
+
+test("resolveAutoApproveActions respects client override", () => {
+  process.env.BEDROCK_AUTO_APPROVE_ACTIONS = "false";
+  expect(resolveAutoApproveActions(true)).toBe(true);
+  expect(resolveAutoApproveActions(false)).toBe(false);
+  delete process.env.BEDROCK_AUTO_APPROVE_ACTIONS;
+});
+
+test("resolveAutoApproveActions reads explicit false env", () => {
+  process.env.BEDROCK_AUTO_APPROVE_ACTIONS = "false";
+  expect(resolveAutoApproveActions()).toBe(false);
+  delete process.env.BEDROCK_AUTO_APPROVE_ACTIONS;
 });
