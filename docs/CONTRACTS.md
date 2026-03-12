@@ -42,7 +42,10 @@ viz parameters using the original user question:
   the agent-provided `chartType`.
 - When the user does not explicitly request a chart type, the orchestrator forces
   `chartType: "auto"` and injects prompt-derived hints such as `questionIntent`,
-  `compositionMode`, `comparisonMode`, and `isTimeSeries`.
+  `compositionMode`, `shareMode`, `comparisonMode`, and `isTimeSeries`.
+- `compositionMode` is broader than `shareMode`: generic "composition" questions
+  may still render as bar or stacked bar, while share / proportion / ratio
+  questions are the primary path that prefers pie charts in auto mode.
 
 ### Optional Request Hint Fields
 
@@ -51,6 +54,7 @@ viz parameters using the original user question:
 | `questionIntent` | string | Intent hint such as `ranking`, `comparison`, `composition`, `time_series`, `raw_detail`, `single_kpi`, `funnel`, `retention`, or `generic` |
 | `isTimeSeries` | boolean | Whether the request is a time-series question |
 | `compositionMode` | boolean | Whether the request asks for a composition or breakdown |
+| `shareMode` | boolean | Whether the request explicitly asks for share / ratio / proportion style output |
 | `comparisonMode` | boolean | Whether the request compares groups or periods |
 | `deltaIncluded` | boolean | Whether delta or change values are included |
 | `categoryCount` | integer | Optional category count hint |
@@ -159,6 +163,7 @@ Rules:
 - Malformed JSON must return HTTP `400`.
 - `autoApproveActions` is optional and must be a boolean when present.
 - If the client omits `autoApproveActions`, the server falls back to `BEDROCK_AUTO_APPROVE_ACTIONS` and defaults to `true` when the env is unset.
+- The current web client always sends `autoApproveActions: true`; manual approve / reject continuation is not exposed in the frontend yet.
 
 ## Session Storage Contract
 
