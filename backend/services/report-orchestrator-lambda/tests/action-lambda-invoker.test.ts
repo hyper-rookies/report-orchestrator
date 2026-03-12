@@ -15,7 +15,7 @@ test("prepareActionParameters preserves non-viz invocations", () => {
     actionGroup: "query",
     functionName: "buildSQL",
     parameters: original,
-    userPrompt: "파이차트로 보여줘",
+    userPrompt: "show sessions by source",
   });
 
   expect(result).toEqual(original);
@@ -30,14 +30,14 @@ test("prepareActionParameters forces explicit pie chart requests for viz", () =>
       { name: "xAxis", type: "string", value: "channel" },
       { name: "yAxis", type: "array", value: '["sessions"]' },
     ],
-    userPrompt: "채널 비중을 파이차트로 보여줘",
+    userPrompt: "show source share as a pie chart",
   });
 
   expect(getParameterValue(result, "chartType")).toBe("pie");
   expect(getParameterValue(result, "xAxis")).toBe("channel");
 });
 
-test("prepareActionParameters switches viz calls into auto mode with prompt-derived hints", () => {
+test("prepareActionParameters injects auto hints for share-style questions", () => {
   const result = prepareActionParameters({
     actionGroup: "viz",
     functionName: "buildChartSpec",
@@ -46,22 +46,39 @@ test("prepareActionParameters switches viz calls into auto mode with prompt-deri
       { name: "xAxis", type: "string", value: "channel" },
       { name: "yAxis", type: "array", value: '["sessions"]' },
     ],
-    userPrompt: "채널별 비중 비교를 보여줘",
+    userPrompt: "show source share",
   });
 
   expect(getParameterValue(result, "chartType")).toBe("auto");
-  expect(getParameterValue(result, "questionIntent")).toBe("comparison");
+  expect(getParameterValue(result, "questionIntent")).toBe("composition");
   expect(getParameterValue(result, "compositionMode")).toBe("true");
-  expect(getParameterValue(result, "comparisonMode")).toBe("true");
+  expect(getParameterValue(result, "shareMode")).toBe("true");
+});
+
+test("prepareActionParameters keeps generic composition separate from share mode", () => {
+  const result = prepareActionParameters({
+    actionGroup: "viz",
+    functionName: "buildChartSpec",
+    parameters: [
+      { name: "chartType", type: "string", value: "bar" },
+      { name: "xAxis", type: "string", value: "source" },
+      { name: "yAxis", type: "array", value: '["sessions","installs"]' },
+    ],
+    userPrompt: "show source composition",
+  });
+
+  expect(getParameterValue(result, "chartType")).toBe("auto");
+  expect(getParameterValue(result, "compositionMode")).toBe("true");
+  expect(getParameterValue(result, "shareMode")).toBe("false");
 });
 
 test("inferVizPromptHints detects explicit chart requests and auto hints", () => {
-  expect(inferVizPromptHints("pie chart로 보여줘").explicitChartType).toBe("pie");
-  expect(inferVizPromptHints("월별 추이를 보여줘")).toMatchObject({
+  expect(inferVizPromptHints("show this as a pie chart").explicitChartType).toBe("pie");
+  expect(inferVizPromptHints("show the weekly trend")).toMatchObject({
     questionIntent: "time_series",
     isTimeSeries: true,
   });
-  expect(inferVizPromptHints("원본 데이터 테이블로 보여줘")).toMatchObject({
+  expect(inferVizPromptHints("show the raw table data")).toMatchObject({
     explicitChartType: "table",
     questionIntent: "raw_detail",
   });

@@ -45,6 +45,7 @@ def test_auto_composition_small_category_count_returns_pie() -> None:
             "xAxis": "channel",
             "yAxis": ["sessions"],
             "compositionMode": True,
+            "shareMode": True,
             "categoryCount": 3,
         }
     )
@@ -93,10 +94,31 @@ def test_auto_uses_x_axis_distinct_count_for_category_calculation() -> None:
             "xAxis": "channel",
             "yAxis": ["sessions"],
             "compositionMode": True,
+            "shareMode": True,
         }
     )
 
     assert result["spec"]["type"] == "pie"
+
+
+def test_auto_generic_composition_without_share_mode_returns_bar() -> None:
+    result = build_chart_spec(
+        {
+            "version": "v1",
+            "chartType": "auto",
+            "rows": [
+                {"channel": "Organic", "sessions": 100},
+                {"channel": "Paid", "sessions": 80},
+                {"channel": "Referral", "sessions": 20},
+            ],
+            "xAxis": "channel",
+            "yAxis": ["sessions"],
+            "compositionMode": True,
+            "categoryCount": 3,
+        }
+    )
+
+    assert result["spec"]["type"] == "bar"
 
 
 def test_auto_string_false_hint_does_not_enable_time_series_mode() -> None:

@@ -33,6 +33,51 @@ const DEFAULT_ACTION_GROUP_FUNCTIONS: Record<string, string> = {
   viz: "hyper-intern-m1c-viz-lambda",
 };
 
+const EXPLICIT_CHART_PATTERNS: Array<{
+  chartType: VizPromptHints["explicitChartType"];
+  pattern: RegExp;
+}> = [
+  { chartType: "stackedBar", pattern: /\bstacked\s*bar\b/i },
+  { chartType: "stackedBar", pattern: /\bstacked\s*column\b/i },
+  { chartType: "stackedBar", pattern: /누적\s*(막대|바|차트|그래프)/i },
+  { chartType: "pie", pattern: /\bpie\s*chart\b/i },
+  { chartType: "pie", pattern: /\bpie\b/i },
+  { chartType: "pie", pattern: /파이\s*차트/i },
+  { chartType: "pie", pattern: /도넛\s*차트/i },
+  { chartType: "pie", pattern: /원형\s*차트/i },
+  { chartType: "line", pattern: /\bline\s*chart\b/i },
+  { chartType: "line", pattern: /\bline\b/i },
+  { chartType: "line", pattern: /라인\s*차트/i },
+  { chartType: "line", pattern: /꺾은선/i },
+  { chartType: "table", pattern: /\btable\b/i },
+  { chartType: "table", pattern: /테이블/i },
+  { chartType: "table", pattern: /표로/i },
+  { chartType: "table", pattern: /원본\s*데이터/i },
+  { chartType: "bar", pattern: /\bbar\s*chart\b/i },
+  { chartType: "bar", pattern: /\bbar\b/i },
+  { chartType: "bar", pattern: /바\s*차트/i },
+  { chartType: "bar", pattern: /막대\s*(차트|그래프)/i },
+];
+
+type VizPromptHints = {
+  explicitChartType?: "bar" | "line" | "table" | "pie" | "stackedBar";
+  questionIntent:
+    | "ranking"
+    | "comparison"
+    | "composition"
+    | "time_series"
+    | "raw_detail"
+    | "single_kpi"
+    | "funnel"
+    | "retention"
+    | "generic";
+  isTimeSeries: boolean;
+  compositionMode: boolean;
+  shareMode: boolean;
+  comparisonMode: boolean;
+  deltaIncluded: boolean;
+};
+
 export class SignedActionLambdaInvoker implements IActionLambdaInvoker {
   private readonly region: string;
   private readonly signer: SignatureV4;
@@ -99,47 +144,6 @@ export class SignedActionLambdaInvoker implements IActionLambdaInvoker {
   }
 }
 
-const EXPLICIT_CHART_PATTERNS: Array<{ chartType: string; pattern: RegExp }> = [
-  { chartType: "stackedBar", pattern: /\bstacked\s*bar\b/i },
-  { chartType: "stackedBar", pattern: /\bstacked\s*column\b/i },
-  { chartType: "stackedBar", pattern: /누적\s*(막대|바|차트|그래프)/i },
-  { chartType: "pie", pattern: /\bpie\s*chart\b/i },
-  { chartType: "pie", pattern: /\bpie\b/i },
-  { chartType: "pie", pattern: /파이\s*차트/i },
-  { chartType: "pie", pattern: /도넛\s*차트/i },
-  { chartType: "pie", pattern: /원형\s*차트/i },
-  { chartType: "line", pattern: /\bline\s*chart\b/i },
-  { chartType: "line", pattern: /\bline\b/i },
-  { chartType: "line", pattern: /라인\s*차트/i },
-  { chartType: "line", pattern: /꺾은선/i },
-  { chartType: "table", pattern: /\btable\b/i },
-  { chartType: "table", pattern: /테이블/i },
-  { chartType: "table", pattern: /표로/i },
-  { chartType: "table", pattern: /원본\s*데이터/i },
-  { chartType: "bar", pattern: /\bbar\s*chart\b/i },
-  { chartType: "bar", pattern: /\bbar\b/i },
-  { chartType: "bar", pattern: /바\s*차트/i },
-  { chartType: "bar", pattern: /막대\s*(차트|그래프)/i },
-];
-
-type VizPromptHints = {
-  explicitChartType?: "bar" | "line" | "table" | "pie" | "stackedBar";
-  questionIntent:
-    | "ranking"
-    | "comparison"
-    | "composition"
-    | "time_series"
-    | "raw_detail"
-    | "single_kpi"
-    | "funnel"
-    | "retention"
-    | "generic";
-  isTimeSeries: boolean;
-  compositionMode: boolean;
-  comparisonMode: boolean;
-  deltaIncluded: boolean;
-};
-
 export function prepareActionParameters(invocation: ActionInvocation): ActionParameter[] {
   const parameters = cloneParameters(invocation.parameters);
 
@@ -160,6 +164,7 @@ export function prepareActionParameters(invocation: ActionInvocation): ActionPar
   upsertParameter(parameters, "questionIntent", "string", hints.questionIntent);
   upsertParameter(parameters, "isTimeSeries", "boolean", String(hints.isTimeSeries));
   upsertParameter(parameters, "compositionMode", "boolean", String(hints.compositionMode));
+  upsertParameter(parameters, "shareMode", "boolean", String(hints.shareMode));
   upsertParameter(parameters, "comparisonMode", "boolean", String(hints.comparisonMode));
   upsertParameter(parameters, "deltaIncluded", "boolean", String(hints.deltaIncluded));
 
@@ -197,12 +202,18 @@ export function inferVizPromptHints(userPrompt?: string): VizPromptHints {
     /\bweekly\b/i.test(text) ||
     /\bmonthly\b/i.test(text) ||
     /추이|시간\s*흐름|일별|주별|월별/.test(text);
-  const compositionMode =
+  const shareMode =
     /\bshare\b/i.test(text) ||
+    /\bportion\b/i.test(text) ||
+    /\bratio\b/i.test(text) ||
+    /\bpercent(?:age)?\b/i.test(text) ||
+    /비중|구성비|점유율|비율|퍼센트|백분율/.test(text);
+  const compositionMode =
+    shareMode ||
     /\bbreakdown\b/i.test(text) ||
     /\bmix\b/i.test(text) ||
-    /\bportion\b/i.test(text) ||
-    /비중|구성|브레이크다운|점유율/.test(text);
+    /\bcomposition\b/i.test(text) ||
+    /구성|브레이크다운|믹스/.test(text);
   const comparisonMode =
     /\bcompare\b/i.test(text) ||
     /\bversus\b/i.test(text) ||
@@ -226,6 +237,7 @@ export function inferVizPromptHints(userPrompt?: string): VizPromptHints {
     questionIntent,
     isTimeSeries,
     compositionMode,
+    shareMode,
     comparisonMode,
     deltaIncluded,
   };
@@ -236,7 +248,7 @@ function detectExplicitChartType(
 ): VizPromptHints["explicitChartType"] {
   for (const entry of EXPLICIT_CHART_PATTERNS) {
     if (entry.pattern.test(text)) {
-      return entry.chartType as VizPromptHints["explicitChartType"];
+      return entry.chartType;
     }
   }
   return undefined;
@@ -246,13 +258,18 @@ function detectQuestionIntent(
   text: string,
   flags: Pick<VizPromptHints, "isTimeSeries" | "compositionMode" | "comparisonMode">
 ): VizPromptHints["questionIntent"] {
-  if (/\braw\s*rows\b/i.test(text) || /\bshow\s+the\s+data\b/i.test(text) || /원본|로우|테이블|데이터\s*보여/.test(text)) {
+  if (
+    /\braw\s*rows\b/i.test(text) ||
+    /\braw\s*table\b/i.test(text) ||
+    /\bshow\s+the\s+data\b/i.test(text) ||
+    /원본|로우|테이블\s*데이터\s*보여/.test(text)
+  ) {
     return "raw_detail";
   }
   if (/\bfunnel\b/i.test(text) || /퍼널|단계\s*전환율/.test(text)) {
     return "funnel";
   }
-  if (/\bretention\b/i.test(text) || /리텐션|잔존율/.test(text)) {
+  if (/\bretention\b/i.test(text) || /리텐션|잔존/.test(text)) {
     return "retention";
   }
   if (flags.isTimeSeries) {
@@ -263,7 +280,7 @@ function detectQuestionIntent(
     /\brank\b/i.test(text) ||
     /\bhighest\b/i.test(text) ||
     /\blowest\b/i.test(text) ||
-    /상위|순위|가장\s*높|가장\s*낮/.test(text)
+    /상위|순위|가장\s*큰|가장\s*작은/.test(text)
   ) {
     return "ranking";
   }

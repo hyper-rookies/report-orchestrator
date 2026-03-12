@@ -19,6 +19,7 @@ def select_chart_type(hints: dict, rows: list[dict]) -> tuple[str, str]:
     intent = hints.get("questionIntent", "generic")
     is_time_series = hints.get("isTimeSeries", False)
     composition = hints.get("compositionMode", False)
+    share_mode = hints.get("shareMode", False)
     comparison = hints.get("comparisonMode", False)
     delta = hints.get("deltaIncluded", False)
     x_axis = hints.get("xAxis")
@@ -47,9 +48,11 @@ def select_chart_type(hints: dict, rows: list[dict]) -> tuple[str, str]:
         return "stackedBar", f"auto: composition + metricCount={metric_count} -> stackedBar"
 
     if composition:
-        if category_count <= MAX_PIE_CATEGORIES:
-            return "pie", f"auto: composition, categoryCount={category_count}<=6 -> pie"
-        return "bar", f"auto: composition, categoryCount={category_count}>6 -> bar"
+        if share_mode and category_count <= MAX_PIE_CATEGORIES:
+            return "pie", f"auto: share composition, categoryCount={category_count}<=6 -> pie"
+        if share_mode:
+            return "bar", f"auto: share composition, categoryCount={category_count}>6 -> bar"
+        return "bar", "auto: composition without shareMode -> bar"
 
     if comparison and delta:
         return "table", "auto: comparison+delta -> table"

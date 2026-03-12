@@ -83,7 +83,7 @@ def test_composition_with_multiple_metrics_returns_stacked_bar() -> None:
 
 def test_composition_small_category_count_returns_pie() -> None:
     chart, _ = select_chart_type(
-        {"compositionMode": True, "categoryCount": 4},
+        {"compositionMode": True, "shareMode": True, "categoryCount": 4},
         _rows(4),
     )
     assert chart == "pie"
@@ -91,7 +91,7 @@ def test_composition_small_category_count_returns_pie() -> None:
 
 def test_composition_boundary_at_six_returns_pie() -> None:
     chart, _ = select_chart_type(
-        {"compositionMode": True, "categoryCount": MAX_PIE_CATEGORIES},
+        {"compositionMode": True, "shareMode": True, "categoryCount": MAX_PIE_CATEGORIES},
         _rows(MAX_PIE_CATEGORIES),
     )
     assert chart == "pie"
@@ -99,8 +99,16 @@ def test_composition_boundary_at_six_returns_pie() -> None:
 
 def test_composition_large_category_count_returns_bar() -> None:
     chart, _ = select_chart_type(
-        {"compositionMode": True, "categoryCount": MAX_PIE_CATEGORIES + 1},
+        {"compositionMode": True, "shareMode": True, "categoryCount": MAX_PIE_CATEGORIES + 1},
         _rows(MAX_PIE_CATEGORIES + 1),
+    )
+    assert chart == "bar"
+
+
+def test_generic_composition_without_share_mode_returns_bar() -> None:
+    chart, _ = select_chart_type(
+        {"compositionMode": True, "categoryCount": 4},
+        _rows(4),
     )
     assert chart == "bar"
 
@@ -249,7 +257,7 @@ def test_x_axis_distinct_count_changes_chart_selection() -> None:
         {"channel": "Organic", "sessions": 150},
     ]
     chart, _ = select_chart_type(
-        {"compositionMode": True, "xAxis": "channel"},
+        {"compositionMode": True, "shareMode": True, "xAxis": "channel"},
         rows,
     )
     assert chart == "pie"

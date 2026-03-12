@@ -250,10 +250,7 @@ test("stream with no table data but with agent summary emits UNSUPPORTED_METRIC 
   expect(types[types.length - 1]).toBe("error");
   expect(types).not.toContain("final");
   expect(error?.data.code).toBe("UNSUPPORTED_METRIC");
-  expect(typeof error?.data.message).toBe("string");
-  expect((error?.data.message as string).startsWith("Agent responded without querying data:")).toBe(
-    true
-  );
+  expect(error?.data.message).toBe("sorry, unsupported metric request");
 });
 
 test("chunk text is accumulated in final.agentSummary", async () => {

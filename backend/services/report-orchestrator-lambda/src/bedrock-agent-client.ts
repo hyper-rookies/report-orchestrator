@@ -88,7 +88,7 @@ export class BedrockAgentClient implements IBedrockAgentClient {
 
           const invocationResults = [];
           for (const invocationInput of invocationInputs) {
-            const invocationResult = await this.invokeAction(invocationInput);
+            const invocationResult = await this.invokeAction(invocationInput, params.inputText);
             invocationResults.push(invocationResult);
             yield {
               type: "actionGroupOutput",
@@ -138,13 +138,16 @@ export class BedrockAgentClient implements IBedrockAgentClient {
     }
   }
 
-  private async invokeAction(input: InvocationInputMember): Promise<ActionInvocationResult> {
+  private async invokeAction(
+    input: InvocationInputMember,
+    userPrompt: string
+  ): Promise<ActionInvocationResult> {
     if ("functionInvocationInput" in input && input.functionInvocationInput) {
       return this.actionInvoker.invoke({
         actionGroup: input.functionInvocationInput.actionGroup ?? "",
         functionName: input.functionInvocationInput.function ?? "",
         parameters: input.functionInvocationInput.parameters,
-        userPrompt: params.inputText,
+        userPrompt,
       });
     }
 

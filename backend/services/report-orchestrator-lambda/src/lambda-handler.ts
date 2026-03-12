@@ -205,7 +205,7 @@ export async function* buildSseEvents(
     if (!tableEmitted) {
       const code = agentSummary ? "UNSUPPORTED_METRIC" : "NO_DATA";
       const message = agentSummary
-        ? `Agent responded without querying data: ${agentSummary.slice(0, 200)}`
+        ? agentSummary.trim().slice(0, 200)
         : "Agent completed without returning query results.";
       yield formatSseEvent("error", {
         version: "v1",

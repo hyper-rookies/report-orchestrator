@@ -257,6 +257,7 @@ def build_chart_spec(payload: dict[str, Any]) -> dict[str, Any]:
             "questionIntent": payload.get("questionIntent", "generic"),
             "isTimeSeries": _coerce_auto_bool_hint(payload.get("isTimeSeries", False)),
             "compositionMode": _coerce_auto_bool_hint(payload.get("compositionMode", False)),
+            "shareMode": _coerce_auto_bool_hint(payload.get("shareMode", False)),
             "comparisonMode": _coerce_auto_bool_hint(payload.get("comparisonMode", False)),
             "deltaIncluded": _coerce_auto_bool_hint(payload.get("deltaIncluded", False)),
             "categoryCount": _coerce_auto_count_hint(payload.get("categoryCount")),
