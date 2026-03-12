@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ChatInput from "@/components/chat/ChatInput";
 import MessageList from "@/components/chat/MessageList";
 import { useSessionContext } from "@/context/SessionContext";
+import { useQuestionQueue } from "@/hooks/useQuestionQueue";
 import { type SseFrame, useSse } from "@/hooks/useSse";
 import {
   applySaveSuccess,
@@ -17,6 +18,38 @@ import type { ChatMessage } from "@/types/chat";
 
 const SKIP_TYPES = new Set(["chunk", "status", "delta"]);
 
+const EMPTY_RESPONSE_FRAME: SseFrame = {
+  type: "error",
+  data: {
+    version: "v1",
+    code: "EMPTY_RESPONSE",
+    message: "응답이 비어 있습니다. 인증 상태 또는 SSE 연결 상태를 확인해 주세요.",
+    retryable: false,
+  },
+};
+
+function hasRenderableFrame(allFrames: SseFrame[]) {
+  return allFrames.some((frame) => {
+    if (
+      frame.type === "chunk" ||
+      frame.type === "table" ||
+      frame.type === "chart" ||
+      frame.type === "error"
+    ) {
+      return true;
+    }
+
+    if (frame.type !== "final") {
+      return false;
+    }
+
+    const summary =
+      (frame.data.agentSummary as string | undefined) ??
+      (frame.data.summary as string | undefined);
+    return typeof summary === "string" && summary.trim().length > 0;
+  });
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const { saveSession } = useSessionContext();
@@ -24,6 +57,7 @@ export default function ChatPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [retryableSave, setRetryableSave] = useState<FailedSessionSave | null>(null);
   const [persisting, setPersisting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { frames, streaming, error, ask } = useSse();
   const messageScrollRef = useRef<HTMLDivElement>(null);
   const sessionIdsRef = useRef<{ persistedSessionId: string | null; draftSessionId: string | null }>(
@@ -33,123 +67,147 @@ export default function ChatPage() {
     }
   );
 
-  const hasRenderableFrame = (allFrames: SseFrame[]) =>
-    allFrames.some((frame) => {
-      if (
-        frame.type === "chunk" ||
-        frame.type === "table" ||
-        frame.type === "chart" ||
-        frame.type === "error"
-      ) {
+  const persistSession = useCallback(
+    async (failedSave: FailedSessionSave) => {
+      setPersisting(true);
+      setSaveError(null);
+
+      try {
+        const savedMeta = await saveSession(failedSave.request);
+        const nextIds = applySaveSuccess(sessionIdsRef.current, savedMeta.sessionId);
+        sessionIdsRef.current = nextIds;
+        setRetryableSave(null);
+
+        if (failedSave.shouldNavigateOnSuccess && nextIds.navigateTo) {
+          router.replace(nextIds.navigateTo);
+        }
+
         return true;
-      }
-      if (frame.type !== "final") {
+      } catch (saveFailureError) {
+        const nextFailure = createSaveFailure(
+          failedSave.request,
+          failedSave.shouldNavigateOnSuccess,
+          saveFailureError
+        );
+        setRetryableSave(nextFailure);
+        setSaveError(nextFailure.message);
         return false;
+      } finally {
+        setPersisting(false);
       }
-      const summary =
-        (frame.data.agentSummary as string | undefined) ??
-        (frame.data.summary as string | undefined);
-      return typeof summary === "string" && summary.trim().length > 0;
-    });
+    },
+    [router, saveSession]
+  );
 
-  const persistSession = async (failedSave: FailedSessionSave) => {
-    setPersisting(true);
-    setSaveError(null);
+  const {
+    queuedQuestions,
+    enqueueQuestion,
+    removeQueuedQuestion,
+    clearQueuedQuestions,
+    takeNextQueuedQuestion,
+  } = useQuestionQueue();
 
-    try {
-      const savedMeta = await saveSession(failedSave.request);
-      const nextIds = applySaveSuccess(sessionIdsRef.current, savedMeta.sessionId);
-      sessionIdsRef.current = nextIds;
-      setRetryableSave(null);
+  const runQuestionRef = useRef<(question: string) => void>(() => undefined);
 
-      if (failedSave.shouldNavigateOnSuccess && nextIds.navigateTo) {
-        router.replace(nextIds.navigateTo);
-      }
-    } catch (saveFailureError) {
-      const nextFailure = createSaveFailure(
-        failedSave.request,
-        failedSave.shouldNavigateOnSuccess,
-        saveFailureError
-      );
-      setRetryableSave(nextFailure);
-      setSaveError(nextFailure.message);
-    } finally {
-      setPersisting(false);
+  const continueQueuedQuestions = useCallback(() => {
+    const nextQuestion = takeNextQueuedQuestion();
+    if (nextQuestion) {
+      runQuestionRef.current(nextQuestion.question);
     }
+  }, [takeNextQueuedQuestion]);
+
+  const runQuestion = useCallback(
+    async (question: string) => {
+      setSubmitting(true);
+      setSaveError(null);
+      setRetryableSave(null);
+      let saveSucceeded = false;
+
+      try {
+        const userMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "user",
+          content: question,
+        };
+
+        const nextMessages = [...messages, userMessage];
+        setMessages(nextMessages);
+
+        const completedFrames = await ask(question);
+        const normalizedFrames = hasRenderableFrame(completedFrames)
+          ? completedFrames
+          : [EMPTY_RESPONSE_FRAME];
+
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "",
+          frames: normalizedFrames,
+        };
+
+        const updatedMessages = [...nextMessages, assistantMessage];
+        setMessages(updatedMessages);
+
+        const pendingSave = prepareSessionSave({
+          ...sessionIdsRef.current,
+          persistedTitle: null,
+          loadedTitle: null,
+          question,
+          messages: updatedMessages,
+          skipFrameTypes: SKIP_TYPES,
+          createSessionId: () => crypto.randomUUID(),
+        });
+
+        sessionIdsRef.current = {
+          ...sessionIdsRef.current,
+          draftSessionId: pendingSave.request.sessionId,
+        };
+
+        saveSucceeded = await persistSession({
+          message: "",
+          request: pendingSave.request,
+          shouldNavigateOnSuccess: pendingSave.shouldNavigateOnSuccess,
+        });
+      } finally {
+        setSubmitting(false);
+      }
+
+      if (saveSucceeded) {
+        continueQueuedQuestions();
+      }
+    },
+    [ask, continueQueuedQuestions, messages, persistSession]
+  );
+
+  runQuestionRef.current = (question: string) => {
+    void runQuestion(question);
   };
 
   useEffect(() => {
     if (messages.length === 0 && frames.length === 0) {
       return;
     }
+
     const container = messageScrollRef.current;
     if (!container) {
       return;
     }
+
     container.scrollTo({
       top: container.scrollHeight,
       behavior: "smooth",
     });
   }, [messages, frames]);
 
-  const handleSubmit = async (question: string) => {
-    setSaveError(null);
-    setRetryableSave(null);
+  const handleRetrySave = () => {
+    if (!retryableSave) {
+      return;
+    }
 
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: question,
-    };
-
-    const nextMessages = [...messages, userMsg];
-    setMessages(nextMessages);
-
-    const completedFrames = await ask(question);
-    const normalizedFrames = hasRenderableFrame(completedFrames)
-      ? completedFrames
-      : [
-          {
-            type: "error",
-            data: {
-              version: "v1",
-              code: "EMPTY_RESPONSE",
-              message:
-                "응답이 비어 있습니다. 인증(401) 또는 SSE 연결 상태를 확인해 주세요.",
-              retryable: false,
-            },
-          } satisfies SseFrame,
-        ];
-
-    const assistantMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: "",
-      frames: normalizedFrames,
-    };
-
-    const updatedMessages = [...nextMessages, assistantMsg];
-    setMessages(updatedMessages);
-
-    const pendingSave = prepareSessionSave({
-      ...sessionIdsRef.current,
-      persistedTitle: null,
-      loadedTitle: null,
-      question,
-      messages: updatedMessages,
-      skipFrameTypes: SKIP_TYPES,
-      createSessionId: () => crypto.randomUUID(),
-    });
-
-    sessionIdsRef.current = {
-      ...sessionIdsRef.current,
-      draftSessionId: pendingSave.request.sessionId,
-    };
-
-    await persistSession({
-      message: "",
-      request: pendingSave.request,
-      shouldNavigateOnSuccess: pendingSave.shouldNavigateOnSuccess,
+    void persistSession(retryableSave).then((saved) => {
+      if (saved) {
+        continueQueuedQuestions();
+      }
     });
   };
 
@@ -160,11 +218,13 @@ export default function ChatPage() {
         streamingFrames={streaming ? frames : []}
         scrollContainerRef={messageScrollRef}
       />
+
       {error && (
         <p className="mx-4 mb-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
+
       {saveError && (
         <div className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <p>{saveError}</p>
@@ -172,7 +232,7 @@ export default function ChatPage() {
             <button
               type="button"
               className="shrink-0 rounded border border-destructive/40 px-2 py-1 text-xs font-medium hover:bg-destructive/10"
-              onClick={() => void persistSession(retryableSave)}
+              onClick={handleRetrySave}
               disabled={persisting}
             >
               다시 저장
@@ -180,7 +240,20 @@ export default function ChatPage() {
           )}
         </div>
       )}
-      <ChatInput onSubmit={handleSubmit} disabled={streaming || persisting} />
+
+      <ChatInput
+        onSubmit={(question) => {
+          void runQuestion(question);
+        }}
+        onQueue={(question) => {
+          enqueueQuestion(question);
+        }}
+        queuedQuestions={queuedQuestions}
+        onRemoveQueuedQuestion={removeQueuedQuestion}
+        onClearQueuedQuestions={clearQueuedQuestions}
+        busy={submitting}
+        queuePaused={Boolean(saveError)}
+      />
     </div>
   );
 }

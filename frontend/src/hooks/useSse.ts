@@ -3,7 +3,6 @@
 import { useCallback, useRef, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
 
-import { readAgentAutoApproveSetting } from "@/lib/agentApprovalSetting";
 import { getResponseErrorMessage } from "@/lib/httpError";
 
 export interface SseFrame {
@@ -78,7 +77,6 @@ export function useSse(): UseSseResult {
       const collected: SseFrame[] = [];
 
       const idToken = await getIdToken();
-      const autoApproveActions = readAgentAutoApproveSetting();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -91,7 +89,7 @@ export function useSse(): UseSseResult {
         const res = await fetch(ORCHESTRATOR_PATH, {
           method: "POST",
           headers,
-          body: JSON.stringify({ question, autoApproveActions }),
+          body: JSON.stringify({ question, autoApproveActions: true }),
           signal: controller.signal,
         });
 

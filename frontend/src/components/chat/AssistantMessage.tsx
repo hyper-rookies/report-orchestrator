@@ -37,6 +37,7 @@ export default function AssistantMessage({ frames, streaming, prompt }: Props) {
       "")
       .toString()
       .trim();
+  const visibleSummary = (streamingText || finalSummary).trim();
   const tableRows = ((tableFrame?.data.rows as Record<string, unknown>[] | undefined) ?? []).filter(
     (row) => typeof row === "object" && row !== null
   );
@@ -79,6 +80,10 @@ export default function AssistantMessage({ frames, streaming, prompt }: Props) {
     showTable && currentChartFrameIndex >= 0 && selectedChartFrameIndex === currentChartFrameIndex;
   const showStandaloneTable = Boolean(tableFrame) && (!hasChart || streaming);
   const showBookmarkAction = !streaming && Boolean(finalFrame) && Boolean(prompt);
+  const errorMessage = ((errorFrame?.data.message as string | undefined) ?? "").trim();
+  const shouldShowError =
+    errorMessage.length > 0 &&
+    errorMessage.replace(/\s+/g, " ") !== visibleSummary.replace(/\s+/g, " ");
 
   return (
     <div className="flex justify-start">
@@ -152,9 +157,9 @@ export default function AssistantMessage({ frames, streaming, prompt }: Props) {
             )}
           </div>
         )}
-        {errorFrame && (
+        {shouldShowError && (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {errorFrame.data.message as string}
+            {errorMessage}
           </p>
         )}
       </div>

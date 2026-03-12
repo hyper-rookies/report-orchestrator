@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 import ChatInput from "@/components/chat/ChatInput";
 import MessageList from "@/components/chat/MessageList";
 import { useSessionContext } from "@/context/SessionContext";
+import { useQuestionQueue } from "@/hooks/useQuestionQueue";
 import { useSse, type SseFrame } from "@/hooks/useSse";
 import {
   createSaveFailure,
@@ -18,6 +19,16 @@ import type { StoredMessage } from "@/types/session";
 
 const USE_MOCK_AUTH = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
 const SKIP_TYPES = new Set(["chunk", "status", "delta"]);
+
+const EMPTY_RESPONSE_FRAME: SseFrame = {
+  type: "error",
+  data: {
+    version: "v1",
+    code: "EMPTY_RESPONSE",
+    message: "응답이 비어 있습니다.",
+    retryable: false,
+  },
+};
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   if (USE_MOCK_AUTH) {
@@ -37,6 +48,23 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   }
 }
 
+function hasRenderableFrame(allFrames: SseFrame[]) {
+  return allFrames.some((frame) => {
+    if (["chunk", "table", "chart", "error"].includes(frame.type)) {
+      return true;
+    }
+
+    if (frame.type !== "final") {
+      return false;
+    }
+
+    const summary =
+      (frame.data.agentSummary as string | undefined) ??
+      (frame.data.summary as string | undefined);
+    return typeof summary === "string" && summary.trim().length > 0;
+  });
+}
+
 export default function SessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const router = useRouter();
@@ -47,6 +75,7 @@ export default function SessionPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [retryableSave, setRetryableSave] = useState<FailedSessionSave | null>(null);
   const [persisting, setPersisting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { frames, streaming, error, ask } = useSse();
   const messageScrollRef = useRef<HTMLDivElement>(null);
 
@@ -80,90 +109,126 @@ export default function SessionPage() {
     void load();
   }, [sessionId]);
 
+  const persistMessages = useCallback(
+    async (failedSave: FailedSessionSave) => {
+      setPersisting(true);
+      setSaveError(null);
+
+      try {
+        await saveSession(failedSave.request);
+        setRetryableSave(null);
+        return true;
+      } catch (saveFailureError) {
+        const nextFailure = createSaveFailure(
+          failedSave.request,
+          failedSave.shouldNavigateOnSuccess,
+          saveFailureError
+        );
+        setRetryableSave(nextFailure);
+        setSaveError(nextFailure.message);
+        return false;
+      } finally {
+        setPersisting(false);
+      }
+    },
+    [saveSession]
+  );
+
+  const {
+    queuedQuestions,
+    enqueueQuestion,
+    removeQueuedQuestion,
+    clearQueuedQuestions,
+    takeNextQueuedQuestion,
+  } = useQuestionQueue();
+
+  const runQuestionRef = useRef<(question: string) => void>(() => undefined);
+
+  const continueQueuedQuestions = useCallback(() => {
+    const nextQuestion = takeNextQueuedQuestion();
+    if (nextQuestion) {
+      runQuestionRef.current(nextQuestion.question);
+    }
+  }, [takeNextQueuedQuestion]);
+
+  const runQuestion = useCallback(
+    async (question: string) => {
+      setSubmitting(true);
+      setSaveError(null);
+      setRetryableSave(null);
+      let saveSucceeded = false;
+
+      try {
+        const userMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "user",
+          content: question,
+        };
+        const nextMessages = [...messages, userMessage];
+        setMessages(nextMessages);
+
+        const completedFrames = await ask(question);
+        const normalizedFrames = hasRenderableFrame(completedFrames)
+          ? completedFrames
+          : [EMPTY_RESPONSE_FRAME];
+
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "",
+          frames: normalizedFrames,
+        };
+
+        const updatedMessages = [...nextMessages, assistantMessage];
+        setMessages(updatedMessages);
+
+        const pendingSave = prepareSessionSave({
+          persistedSessionId: sessionId,
+          draftSessionId: sessionId,
+          persistedTitle,
+          loadedTitle,
+          question,
+          messages: updatedMessages,
+          skipFrameTypes: SKIP_TYPES,
+          createSessionId: () => sessionId,
+        });
+
+        saveSucceeded = await persistMessages({
+          message: "",
+          request: pendingSave.request,
+          shouldNavigateOnSuccess: pendingSave.shouldNavigateOnSuccess,
+        });
+      } finally {
+        setSubmitting(false);
+      }
+
+      if (saveSucceeded) {
+        continueQueuedQuestions();
+      }
+    },
+    [ask, continueQueuedQuestions, loadedTitle, messages, persistMessages, persistedTitle, sessionId]
+  );
+
+  runQuestionRef.current = (question: string) => {
+    void runQuestion(question);
+  };
+
   useEffect(() => {
     messageScrollRef.current?.scrollTo({
-      top: messageScrollRef.current.scrollHeight,
+      top: messageScrollRef.current?.scrollHeight ?? 0,
       behavior: "smooth",
     });
   }, [messages, frames]);
 
-  const hasRenderableFrame = (allFrames: SseFrame[]) =>
-    allFrames.some(
-      (frame) =>
-        ["chunk", "table", "chart", "error"].includes(frame.type) ||
-        (frame.type === "final" &&
-          typeof ((frame.data.agentSummary ?? frame.data.summary) as string | undefined) ===
-            "string")
-    );
-
-  const persistMessages = async (failedSave: FailedSessionSave) => {
-    setPersisting(true);
-    setSaveError(null);
-
-    try {
-      await saveSession(failedSave.request);
-      setRetryableSave(null);
-    } catch (saveFailureError) {
-      const nextFailure = createSaveFailure(
-        failedSave.request,
-        failedSave.shouldNavigateOnSuccess,
-        saveFailureError
-      );
-      setRetryableSave(nextFailure);
-      setSaveError(nextFailure.message);
-    } finally {
-      setPersisting(false);
+  const handleRetrySave = () => {
+    if (!retryableSave) {
+      return;
     }
-  };
 
-  const handleSubmit = async (question: string) => {
-    setSaveError(null);
-    setRetryableSave(null);
-
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: question };
-    const nextMessages = [...messages, userMsg];
-    setMessages(nextMessages);
-
-    const completedFrames = await ask(question);
-    const normalizedFrames = hasRenderableFrame(completedFrames)
-      ? completedFrames
-      : [
-          {
-            type: "error",
-            data: {
-              version: "v1",
-              code: "EMPTY_RESPONSE",
-              message: "응답이 비어 있습니다.",
-              retryable: false,
-            },
-          } satisfies SseFrame,
-        ];
-
-    const assistantMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: "",
-      frames: normalizedFrames,
-    };
-
-    const updatedMessages = [...nextMessages, assistantMsg];
-    setMessages(updatedMessages);
-
-    const pendingSave = prepareSessionSave({
-      persistedSessionId: sessionId,
-      draftSessionId: sessionId,
-      persistedTitle,
-      loadedTitle,
-      question,
-      messages: updatedMessages,
-      skipFrameTypes: SKIP_TYPES,
-      createSessionId: () => sessionId,
-    });
-
-    await persistMessages({
-      message: "",
-      request: pendingSave.request,
-      shouldNavigateOnSuccess: pendingSave.shouldNavigateOnSuccess,
+    void persistMessages(retryableSave).then((saved) => {
+      if (saved) {
+        continueQueuedQuestions();
+      }
     });
   };
 
@@ -187,11 +252,13 @@ export default function SessionPage() {
         streamingFrames={streaming ? frames : []}
         scrollContainerRef={messageScrollRef}
       />
+
       {error && (
         <p className="mx-4 mb-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
+
       {saveError && (
         <div className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <p>{saveError}</p>
@@ -199,7 +266,7 @@ export default function SessionPage() {
             <button
               type="button"
               className="shrink-0 rounded border border-destructive/40 px-2 py-1 text-xs font-medium hover:bg-destructive/10"
-              onClick={() => void persistMessages(retryableSave)}
+              onClick={handleRetrySave}
               disabled={persisting}
             >
               다시 저장
@@ -207,7 +274,20 @@ export default function SessionPage() {
           )}
         </div>
       )}
-      <ChatInput onSubmit={handleSubmit} disabled={streaming || persisting} />
+
+      <ChatInput
+        onSubmit={(question) => {
+          void runQuestion(question);
+        }}
+        onQueue={(question) => {
+          enqueueQuestion(question);
+        }}
+        queuedQuestions={queuedQuestions}
+        onRemoveQueuedQuestion={removeQueuedQuestion}
+        onClearQueuedQuestions={clearQueuedQuestions}
+        busy={submitting}
+        queuePaused={Boolean(saveError)}
+      />
     </div>
   );
 }
