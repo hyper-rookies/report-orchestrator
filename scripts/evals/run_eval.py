@@ -18,7 +18,7 @@ from scripts.evals.eval_runner import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the agent Q&A benchmark suite.")
-    parser.add_argument("--suite", default="v1", help="Benchmark suite name. Default: v1")
+    parser.add_argument("--suite", default="v1", help="Benchmark suite name. Default: v1. Supported: v1, v1_holdout_20")
     parser.add_argument(
         "--case-id",
         action="append",
@@ -68,7 +68,7 @@ def main() -> int:
     if args.preflight_only:
         return 0
 
-    cases = load_cases(case_ids=args.case_ids, limit=args.limit, smoke=args.smoke)
+    cases = load_cases(suite_name=suite_name, case_ids=args.case_ids, limit=args.limit, smoke=args.smoke)
     if not cases:
         raise SystemExit("No cases selected.")
 

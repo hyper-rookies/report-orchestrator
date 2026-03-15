@@ -12,6 +12,7 @@ from scripts.evals.eval_runner import (
     extract_sse_frames,
     fetch_latest_dates,
     is_correct_refusal,
+    load_cases,
     looks_like_refusal,
     resolve_date_range,
     resolve_runtime_settings,
@@ -22,6 +23,25 @@ from scripts.evals.eval_runner import (
 
 def _case(case_id: str) -> dict:
     return next(case for case in ALL_CASES if case["id"] == case_id)
+
+
+def test_load_cases_supports_holdout_suite() -> None:
+    cases = load_cases(suite_name="v1_holdout_20")
+
+    assert len(cases) == 20
+    assert cases[0]["id"] == "HGA4A-01"
+    assert sum(1 for case in cases if case["expectation"] == "supported") == 14
+    assert sum(1 for case in cases if case["expectation"] == "unsupported") == 6
+
+
+def test_load_cases_supports_holdout_smoke_subset() -> None:
+    cases = load_cases(suite_name="v1_holdout_20_smoke", smoke=True)
+
+    assert len(cases) == 10
+    assert {case["id"] for case in cases} == {
+        "HGA4A-01", "HGA4A-02", "HGA4E-01", "HAFI-02", "HAFE-01",
+        "HAFE-02", "HAFC-01", "HUNS-01", "HUNS-03", "HUNS-06",
+    }
 
 
 def test_resolve_date_range_fixed_month() -> None:
@@ -219,7 +239,7 @@ def test_score_case_result_treats_empty_final_as_answered_for_supported_no_data(
 
     actual = {
         "table_rows": [],
-        "chart_type": "bar",
+        "chart_type": None,
         "error_code": None,
         "last_event": "final",
     }
@@ -229,7 +249,7 @@ def test_score_case_result_treats_empty_final_as_answered_for_supported_no_data(
 
     assert scored["answered"] is True
     assert scored["data_correct"] is True
-    assert scored["chart_match"] is True
+    assert scored["chart_match"] is None
     assert scored["overall_pass"] is True
 
 
@@ -309,3 +329,44 @@ def test_build_aggregate_summary_includes_baseline_deltas() -> None:
     assert comparison["supported_success_delta"] == pytest.approx(1.0)
     assert comparison["correct_refusal_delta"] == pytest.approx(1.0)
     assert comparison["chart_selection_accuracy_delta"] == pytest.approx(1.0)
+
+
+def test_build_aggregate_summary_excludes_supported_no_data_cases_from_chart_accuracy() -> None:
+    aggregate = build_aggregate_summary(
+        [
+            {
+                "id": "ND-01",
+                "expectation": "supported",
+                "answered": True,
+                "data_correct": True,
+                "correct_refusal": False,
+                "expected_chart_type": "bar",
+                "chart_match": None,
+                "time_to_first_chunk_ms": 100,
+                "time_to_final_ms": 200,
+                "error_code": None,
+                "view": "v_latest_appsflyer_cohort_daily",
+                "intent": "retention_cohort",
+                "overall_pass": True,
+                "failure_taxonomy": None,
+            },
+            {
+                "id": "OK-01",
+                "expectation": "supported",
+                "answered": True,
+                "data_correct": True,
+                "correct_refusal": False,
+                "expected_chart_type": "line",
+                "chart_match": True,
+                "time_to_first_chunk_ms": 150,
+                "time_to_final_ms": 250,
+                "error_code": None,
+                "view": "v_latest_ga4_acquisition_daily",
+                "intent": "time_series",
+                "overall_pass": True,
+                "failure_taxonomy": None,
+            },
+        ]
+    )
+
+    assert aggregate["chart_selection_accuracy"] == pytest.approx(1.0)

@@ -468,6 +468,88 @@ test("deterministic fallback fulfills install single KPI requests", async () => 
   expect(result?.rowCount).toBe(1);
   expect(result?.chartSpec).toBeUndefined();
 });
+test("deterministic fallback fulfills acquisition source ranking requests", async () => {
+  const invoker: IActionLambdaInvoker = {
+    invoke: jest.fn(async (invocation) => {
+      if (invocation.actionGroup === "query") {
+        return {
+          actionGroup: "query",
+          functionName: "executeAthenaQuery",
+          result: {
+            rows: [
+              { source: "google", total_users: 58391 },
+              { source: "facebook", total_users: 17363 },
+            ],
+            rowCount: 2,
+            truncated: false,
+          },
+        };
+      }
+      return {
+        actionGroup: "viz",
+        functionName: "buildChartSpec",
+        result: { spec: { type: "bar", xAxis: "source", series: [{ metric: "total_users", label: "Total Users" }], data: [] } },
+      };
+    }),
+  };
+  setDeterministicFallbackInvoker(invoker);
+
+  const result = await tryDeterministicFulfillment(
+    "2024\uB144 11\uC6D4 \uC720\uC785\uC6D0\uBCC4 \uC0AC\uC6A9\uC790 \uC218 \uC21C\uC704 \uC815\uB9AC\uD574\uC918",
+    preprocessQuestion("2024\uB144 11\uC6D4 \uC720\uC785\uC6D0\uBCC4 \uC0AC\uC6A9\uC790 \uC218 \uC21C\uC704 \uC815\uB9AC\uD574\uC918")
+  );
+
+  expect(result?.rowCount).toBe(2);
+  expect((result?.chartSpec as { type: string }).type).toBe("bar");
+});
+
+test("deterministic fallback fulfills acquisition medium share requests", async () => {
+  const invoker: IActionLambdaInvoker = {
+    invoke: jest.fn(async (invocation) => {
+      if (invocation.actionGroup === "query") {
+        const sql = invocation.parameters?.find((parameter: { name?: string; value?: string }) => parameter.name === "sql")?.value ?? "";
+        if (sql.includes("SELECT dt, MAX(sessions) AS sessions")) {
+          return {
+            actionGroup: "query",
+            functionName: "executeAthenaQuery",
+            result: {
+              rows: [{ dt: "2024-11-30", sessions: 100161 }],
+              rowCount: 1,
+              truncated: false,
+            },
+          };
+        }
+        return {
+          actionGroup: "query",
+          functionName: "executeAthenaQuery",
+          result: {
+            rows: [
+              { medium: "cpc", total_revenue: 4503663.87 },
+              { medium: "organic", total_revenue: 3743094.95 },
+            ],
+            rowCount: 2,
+            truncated: false,
+          },
+        };
+      }
+      return {
+        actionGroup: "viz",
+        functionName: "buildChartSpec",
+        result: { spec: { type: "pie", xAxis: "medium", series: [{ metric: "total_revenue", label: "Total Revenue" }], data: [] } },
+      };
+    }),
+  };
+  setDeterministicFallbackInvoker(invoker);
+
+  const result = await tryDeterministicFulfillment(
+    "\uC9C0\uB09C\uC8FC \uB9E4\uCCB4\uBCC4 \uB9E4\uCD9C \uAD6C\uC131\uBE44\uB97C \uB3C4\uB11B\uCC28\uD2B8\uB85C \uD55C\uB208\uC5D0 \uBCF4\uACE0 \uC2F6\uC5B4",
+    preprocessQuestion("\uC9C0\uB09C\uC8FC \uB9E4\uCCB4\uBCC4 \uB9E4\uCD9C \uAD6C\uC131\uBE44\uB97C \uB3C4\uB11B\uCC28\uD2B8\uB85C \uD55C\uB208\uC5D0 \uBCF4\uACE0 \uC2F6\uC5B4")
+  );
+
+  expect(result?.rowCount).toBe(2);
+  expect((result?.chartSpec as { type: string }).type).toBe("pie");
+});
+
 
 test("deterministic fallback fulfills purchase event ranking requests", async () => {
   const invoker: IActionLambdaInvoker = {
@@ -504,7 +586,7 @@ test("deterministic fallback fulfills purchase event ranking requests", async ()
   expect((result?.chartSpec as { type: string }).type).toBe("bar");
 });
 
-test("deterministic fallback can emit empty cohort retention chart results", async () => {
+test("deterministic fallback suppresses chart generation for empty cohort retention results", async () => {
   const invoker: IActionLambdaInvoker = {
     invoke: jest.fn(async (invocation) => {
       if (invocation.actionGroup === "query") {
@@ -514,22 +596,78 @@ test("deterministic fallback can emit empty cohort retention chart results", asy
           result: { rows: [], rowCount: 0, truncated: false },
         };
       }
+      throw new Error("viz should not be called for empty cohort no-data fallback");
+    }),
+  };
+  setDeterministicFallbackInvoker(invoker);
+
+  const result = await tryDeterministicFulfillment(
+    "2024\uB144 11\uC6D4 \uB9E4\uCCB4 \uC18C\uC2A4\uBCC4 Day 7 retention \uBE44\uC728\uC744 \uBCF4\uC5EC\uC918",
+    preprocessQuestion("2024\uB144 11\uC6D4 \uB9E4\uCCB4 \uC18C\uC2A4\uBCC4 Day 7 retention \uBE44\uC728\uC744 \uBCF4\uC5EC\uC918")
+  );
+
+  expect(result?.rowCount).toBe(0);
+  expect(result?.chartSpec).toBeUndefined();
+  const queryCall = (invoker.invoke as jest.Mock).mock.calls.find(([invocation]) => invocation.actionGroup === "query");
+  expect(queryCall?.[0].parameters?.find((parameter: { name?: string; value?: string }) => parameter.name === "sql")?.value).toContain("cohort_day = 7");
+});
+
+test("deterministic fallback normalizes null-only cohort trend rows into no-data", async () => {
+  const invoker: IActionLambdaInvoker = {
+    invoke: jest.fn(async (invocation) => {
+      if (invocation.actionGroup === "query") {
+        return {
+          actionGroup: "query",
+          functionName: "executeAthenaQuery",
+          result: { rows: [{ cohort_day: null, retention_rate: null }], rowCount: 1, truncated: false },
+        };
+      }
+      throw new Error("viz should not be called for null-only cohort trend fallback");
+    }),
+  };
+  setDeterministicFallbackInvoker(invoker);
+
+  const result = await tryDeterministicFulfillment(
+    "2024\uB144 11\uC6D4 \uCF54\uD638\uD2B8 \uB370\uC774\uBCC4 retention \uD750\uB984\uC744 \uB77C\uC778\uCC28\uD2B8\uB85C \uBCF4\uC5EC\uC918",
+    preprocessQuestion("2024\uB144 11\uC6D4 \uCF54\uD638\uD2B8 \uB370\uC774\uBCC4 retention \uD750\uB984\uC744 \uB77C\uC778\uCC28\uD2B8\uB85C \uBCF4\uC5EC\uC918")
+  );
+
+  expect(result?.rowCount).toBe(0);
+  expect(result?.rows).toEqual([]);
+  expect(result?.chartSpec).toBeUndefined();
+});
+
+test("deterministic fallback fulfills purchase event revenue trend requests", async () => {
+  const invoker: IActionLambdaInvoker = {
+    invoke: jest.fn(async (invocation) => {
+      if (invocation.actionGroup === "query") {
+        return {
+          actionGroup: "query",
+          functionName: "executeAthenaQuery",
+          result: {
+            rows: [
+              { dt: "2024-11-29", event_revenue: 2890000 },
+              { dt: "2024-11-30", event_revenue: 1785000 },
+            ],
+            rowCount: 2,
+            truncated: false,
+          },
+        };
+      }
       return {
         actionGroup: "viz",
         functionName: "buildChartSpec",
-        result: { spec: { type: "bar", xAxis: "media_source", series: [{ metric: "retention_rate", label: "Retention Rate" }], data: [] } },
+        result: { spec: { type: "line", xAxis: "dt", series: [{ metric: "event_revenue", label: "Event Revenue" }], data: [] } },
       };
     }),
   };
   setDeterministicFallbackInvoker(invoker);
 
   const result = await tryDeterministicFulfillment(
-    "2024\uB144 11\uC6D4 \uB9E4\uCCB4 \uC18C\uC2A4\uBCC4 Day 7 \uB9AC\uD150\uC158\uC744 \uB9C9\uB300\uCC28\uD2B8\uB85C \uBCF4\uC5EC\uC918",
-    preprocessQuestion("2024\uB144 11\uC6D4 \uB9E4\uCCB4 \uC18C\uC2A4\uBCC4 Day 7 \uB9AC\uD150\uC158\uC744 \uB9C9\uB300\uCC28\uD2B8\uB85C \uBCF4\uC5EC\uC918")
+    "2024\uB144 11\uC6D4 purchase \uC774\uBCA4\uD2B8 \uB9E4\uCD9C \uCD94\uC774\uB97C \uB77C\uC778\uCC28\uD2B8\uB85C \uC54C\uB824\uC918",
+    preprocessQuestion("2024\uB144 11\uC6D4 purchase \uC774\uBCA4\uD2B8 \uB9E4\uCD9C \uCD94\uC774\uB97C \uB77C\uC778\uCC28\uD2B8\uB85C \uC54C\uB824\uC918")
   );
 
-  expect(result?.rowCount).toBe(0);
-  expect((result?.chartSpec as { type: string }).type).toBe("bar");
-  const queryCall = (invoker.invoke as jest.Mock).mock.calls.find(([invocation]) => invocation.actionGroup === "query");
-  expect(queryCall?.[0].parameters?.find((parameter: { name?: string; value?: string }) => parameter.name === "sql")?.value).toContain("cohort_day = 7");
+  expect(result?.rowCount).toBe(2);
+  expect((result?.chartSpec as { type: string }).type).toBe("line");
 });

@@ -4,7 +4,7 @@ import {
 } from "../src/question-preprocessor";
 
 test("preprocessQuestion short-circuits unsupported OS questions", () => {
-  const result = preprocessQuestion("\uC9C0\uB09C\uC8FC OS\uBCC4 \uC124\uCE58 \uBE44\uC911\uC744 \uBCF4\uC5EC\uC918");
+  const result = preprocessQuestion("지난주 OS별 설치 비중을 보여줘");
 
   expect(result.unsupported).toMatchObject({
     category: "os_platform",
@@ -14,7 +14,7 @@ test("preprocessQuestion short-circuits unsupported OS questions", () => {
 });
 
 test("preprocessQuestion detects cross-view requests", () => {
-  const result = preprocessQuestion("\uC9C0\uB09C\uC8FC \uC138\uC158 \uC218\uC640 \uC124\uCE58 \uC218 \uAD6C\uC131\uC744 \uBCF4\uC5EC\uC918");
+  const result = preprocessQuestion("지난주 세션 수와 설치 수 구성을 보여줘");
 
   expect(result.unsupported).toMatchObject({
     category: "cross_view_join",
@@ -23,7 +23,7 @@ test("preprocessQuestion detects cross-view requests", () => {
 });
 
 test("preprocessQuestion keeps channel_group requests supported", () => {
-  const result = preprocessQuestion("11\uC6D4 channel group\uBCC4 \uC138\uC158 \uC218 \uBCF4\uC5EC\uC918");
+  const result = preprocessQuestion("11월 channel group별 세션 수 보여줘");
 
   expect(result.unsupported).toBeUndefined();
   expect(result.likelyView).toBe("v_latest_ga4_acquisition_daily");
@@ -31,7 +31,7 @@ test("preprocessQuestion keeps channel_group requests supported", () => {
 });
 
 test("preprocessQuestion augments supported session trend questions with schema guidance", () => {
-  const question = "\uCD5C\uADFC 4\uC8FC\uAC04 \uC804\uCCB4 \uC138\uC158 \uCD94\uC774\uB97C \uBCF4\uC5EC\uC918";
+  const question = "최근 4주간 전체 세션 추이를 보여줘";
   const result = preprocessQuestion(question);
 
   expect(result.unsupported).toBeUndefined();
@@ -45,7 +45,7 @@ test("preprocessQuestion augments supported session trend questions with schema 
 });
 
 test("preprocessQuestion injects single KPI and media source filter hints", () => {
-  const result = preprocessQuestion("\uCD5C\uC2E0 \uB0A0\uC9DC Google Ads \uC124\uCE58 \uC218 \uC54C\uB824\uC918");
+  const result = preprocessQuestion("최신 날짜 Google Ads 설치 수 알려줘");
 
   expect(result.unsupported).toBeUndefined();
   expect(result.likelyView).toBe("v_latest_appsflyer_installs_daily");
@@ -54,17 +54,26 @@ test("preprocessQuestion injects single KPI and media source filter hints", () =
   expect(result.agentInputText).toContain("single_kpi=true");
 });
 
-test("preprocessQuestion keeps purchase as an event_name filter", () => {
-  const result = preprocessQuestion("11\uC6D4 media source\uBCC4 purchase \uC774\uBCA4\uD2B8 \uC218 \uBCF4\uC5EC\uC918");
+test("preprocessQuestion maps source-like requests to source instead of channel_group", () => {
+  const result = preprocessQuestion("2024년 11월 유입원별 사용자 수 순위 정리해줘");
 
   expect(result.unsupported).toBeUndefined();
-  expect(result.likelyView).toBe("v_latest_appsflyer_events_daily");
-  expect(result.agentInputText).toContain("event_name='purchase'");
-  expect(result.agentInputText).toContain("keep event_name in WHERE");
+  expect(result.likelyView).toBe("v_latest_ga4_acquisition_daily");
+  expect(result.agentInputText).toContain("dimensions=source");
+  expect(result.agentInputText).not.toContain("dimensions=channel_group");
+});
+
+test("preprocessQuestion keeps medium requests on medium when channel_group is not explicit", () => {
+  const result = preprocessQuestion("지난주 매체별 매출 구성비를 한눈에 보고 싶어");
+
+  expect(result.unsupported).toBeUndefined();
+  expect(result.likelyView).toBe("v_latest_ga4_acquisition_daily");
+  expect(result.agentInputText).toContain("dimensions=medium");
+  expect(result.agentInputText).not.toContain("dimensions=channel_group");
 });
 
 test("preprocessQuestion normalizes cohort day retention requests", () => {
-  const result = preprocessQuestion("11\uC6D4 media source\uBCC4 7\uC77C\uCC28 retention \uBCF4\uC5EC\uC918");
+  const result = preprocessQuestion("11월 media source별 7일차 retention 보여줘");
 
   expect(result.unsupported).toBeUndefined();
   expect(result.likelyView).toBe("v_latest_appsflyer_cohort_daily");
@@ -73,7 +82,7 @@ test("preprocessQuestion normalizes cohort day retention requests", () => {
 });
 
 test("preprocessQuestion prefers AppsFlyer events for purchase revenue questions", () => {
-  const result = preprocessQuestion("\uC9C0\uB09C\uB2EC \uB9E4\uCCB4\uBCC4 \uAD6C\uB9E4 \uB9E4\uCD9C\uC744 \uBCF4\uC5EC\uC918");
+  const result = preprocessQuestion("지난달 매체별 구매 매출을 보여줘");
 
   expect(result.unsupported).toBeUndefined();
   expect(result.likelyView).toBe("v_latest_appsflyer_events_daily");
@@ -81,11 +90,11 @@ test("preprocessQuestion prefers AppsFlyer events for purchase revenue questions
 
 test("normalizeNoTableCompletion rewrites schema ask-back into dt guidance", () => {
   const normalized = normalizeNoTableCompletion(
-    "\uCD5C\uADFC 4\uC8FC\uAC04 \uC804\uCCB4 \uC138\uC158 \uCD94\uC774\uB97C \uBCF4\uC5EC\uC918",
-    "\uC8C4\uC1A1\uD569\uB2C8\uB2E4. \uB0A0\uC9DC \uAD00\uB828 \uCEEC\uB7FC \uC774\uB984\uC744 \uC815\uD655\uD788 \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC815\uD655\uD55C \uCEEC\uB7FC\uBA85\uC744 \uC54C\uB824\uC8FC\uC138\uC694."
+    "최근 4주간 전체 세션 추이를 보여줘",
+    "죄송합니다. 날짜 관련 컬럼 이름을 정확히 찾지 못했습니다. 정확한 컬럼명을 알려주세요."
   );
 
   expect(normalized?.code).toBe("UNSUPPORTED_METRIC");
   expect(normalized?.message).toContain("dt");
-  expect(normalized?.message).toContain("\uCEEC\uB7FC");
+  expect(normalized?.message).toContain("컬럼");
 });

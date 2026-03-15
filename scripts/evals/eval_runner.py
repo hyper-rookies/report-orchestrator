@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 from typing import Any, Iterable, Mapping, Sequence
 
+from scripts.evals.cases_holdout import HOLDOUT_CASES, HOLDOUT_SMOKE_CASE_IDS
 from scripts.evals.cases_v1 import ALL_CASES, Case, TARGET_VIEWS
 
 
@@ -28,7 +29,7 @@ DOTENV_FILES = (
     (REPO_ROOT / ".env.local", "root:.env.local"),
     (REPO_ROOT / "frontend" / ".env.local", "frontend:.env.local"),
 )
-SMOKE_CASE_IDS = (
+V1_SMOKE_CASE_IDS = (
     "GA4A-01",
     "GA4A-03",
     "GA4E-01",
@@ -73,6 +74,17 @@ FUNCTION_URL_RE = re.compile(r"^https://[A-Za-z0-9-]+\.lambda-url\.[a-z0-9-]+\.o
 PLACEHOLDER_RE = re.compile(r"<[^>]+>")
 
 
+SUITE_CASES: dict[str, list[Case]] = {
+    "v1": ALL_CASES,
+    "v1_holdout_20": HOLDOUT_CASES,
+}
+
+SMOKE_CASE_IDS_BY_SUITE: dict[str, tuple[str, ...]] = {
+    "v1": V1_SMOKE_CASE_IDS,
+    "v1_holdout_20": HOLDOUT_SMOKE_CASE_IDS,
+}
+
+
 @dataclass(frozen=True)
 class EvalConfig:
     orchestrator_url: str
@@ -111,15 +123,21 @@ class PreflightError(RuntimeError):
 
 def load_cases(
     *,
+    suite_name: str = "v1",
     case_ids: Sequence[str] | None = None,
     limit: int | None = None,
     smoke: bool = False,
 ) -> list[Case]:
+    base_suite_name = suite_name[:-6] if suite_name.endswith("_smoke") else suite_name
+    try:
+        cases = list(SUITE_CASES[base_suite_name])
+    except KeyError as exc:
+        raise ValueError(f"Unknown benchmark suite '{suite_name}'.") from exc
+
     selected_case_ids = list(case_ids or [])
     if smoke and not selected_case_ids:
-        selected_case_ids = list(SMOKE_CASE_IDS)
+        selected_case_ids = list(SMOKE_CASE_IDS_BY_SUITE.get(base_suite_name, ()))
 
-    cases = ALL_CASES
     if selected_case_ids:
         case_id_set = {case_id.strip() for case_id in selected_case_ids if case_id.strip()}
         cases = [case for case in cases if case["id"] in case_id_set]
@@ -425,7 +443,14 @@ def execute_reference_query(sql: str, config: EvalConfig) -> tuple[str, list[dic
         raise RuntimeError("Eval reference API did not return rows.")
     if not isinstance(truncated, bool):
         raise RuntimeError("Eval reference API did not return truncated.")
-    return query_id, [row for row in rows if isinstance(row, dict)], truncated
+    normalized_rows = normalize_empty_aggregate_rows([row for row in rows if isinstance(row, dict)])
+    return query_id, normalized_rows, truncated
+
+
+def normalize_empty_aggregate_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if rows and all(all(value is None for value in row.values()) for row in rows):
+        return []
+    return rows
 
 
 def parse_sse_block(block: str) -> dict[str, Any] | None:
@@ -511,7 +536,7 @@ def stream_orchestrator(question: str, config: EvalConfig) -> dict[str, Any]:
                     elif frame["type"] == "table":
                         maybe_rows = data.get("rows")
                         if isinstance(maybe_rows, list):
-                            table_rows = [row for row in maybe_rows if isinstance(row, dict)]
+                            table_rows = normalize_empty_aggregate_rows([row for row in maybe_rows if isinstance(row, dict)])
                     elif frame["type"] == "chart":
                         spec = data.get("spec")
                         if isinstance(spec, dict):
@@ -697,22 +722,22 @@ def score_case_result(
     compare_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     expected_chart_type = case.get("expected_chart_type")
-    chart_match = expected_chart_type is None or actual.get("chart_type") == expected_chart_type
 
     if case["expectation"] == "supported":
-        actual_rows = list(actual.get("table_rows") or [])
+        actual_rows = normalize_empty_aggregate_rows(list(actual.get("table_rows") or []))
         gold_row_count = len(gold_rows or [])
+        chart_match = None if expected_chart_type is None or gold_row_count == 0 else actual.get("chart_type") == expected_chart_type
         answered = (
             actual.get("error_code") not in INFRA_FAILURE_CODES
             and (bool(actual_rows) or (actual.get("last_event") == "final" and gold_row_count == 0))
         )
         data_correct = bool(compare_result and compare_result["matched"])
-        overall_pass = answered and data_correct and chart_match
+        overall_pass = answered and data_correct and chart_match is not False
         return {
             "answered": answered,
             "data_correct": data_correct,
             "correct_refusal": False,
-            "chart_match": chart_match if expected_chart_type else None,
+            "chart_match": chart_match,
             "overall_pass": overall_pass,
             "failure_taxonomy": _classify_supported_failure(actual, data_correct, chart_match) if not overall_pass else None,
             "gold_row_count": gold_row_count,
@@ -848,7 +873,7 @@ def build_aggregate_summary(
     supported = [result for result in results if result["expectation"] == "supported"]
     unsupported = [result for result in results if result["expectation"] == "unsupported"]
     answered_supported = [result for result in supported if result["answered"]]
-    chart_cases = [result for result in supported if result.get("expected_chart_type")]
+    chart_cases = [result for result in supported if result.get("expected_chart_type") and result.get("chart_match") is not None]
     improvement_candidates = build_improvement_candidates(results)
 
     summary = {
@@ -1020,6 +1045,7 @@ def build_baseline_report(
             f"- Data correctness rate: `{aggregate['data_correctness_rate']:.1%}`",
             f"- Correct refusal rate: `{aggregate['correct_refusal_rate']:.1%}`",
             f"- Chart selection accuracy: `{aggregate['chart_selection_accuracy']:.1%}`",
+            "- Chart no-data policy: `neutral (supported cases with gold_row_count = 0 are excluded from chart accuracy)`",
             f"- p50 TTFC: `{aggregate['p50_ttfc_ms']}` ms",
             f"- p95 TTFC: `{aggregate['p95_ttfc_ms']}` ms",
             f"- p50 TTFinal: `{aggregate['p50_ttfinal_ms']}` ms",

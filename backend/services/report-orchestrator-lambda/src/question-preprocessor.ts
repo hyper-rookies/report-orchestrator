@@ -166,7 +166,7 @@ const DIMENSION_HINTS: Array<{
 }> = [
   {
     semantic: "source_like",
-    patterns: [/\bsource\b/i, /\uC18C\uC2A4/i, /\bmedia\s*source\b/i, /\uB9E4\uCCB4\s*\uC18C\uC2A4/i, /\uBBF8\uB514\uC5B4\s*\uC18C\uC2A4/i],
+    patterns: [/\bsource\b/i, /\uC18C\uC2A4/i, /\uC720\uC785\uC6D0/i, /\bmedia\s*source\b/i, /\uB9E4\uCCB4\s*\uC18C\uC2A4/i, /\uBBF8\uB514\uC5B4\s*\uC18C\uC2A4/i],
     views: {
       v_latest_ga4_acquisition_daily: "source",
       v_latest_ga4_engagement_daily: "source",
@@ -672,9 +672,16 @@ function detectDimensionHints(
     return [{ column: dimension, semantic: entry.semantic }];
   });
 
+  const explicitChannelGroup = /\bchannel\s*group\b/i.test(question) || /\uCC44\uB110\s*\uADF8\uB8F9/i.test(question);
+  const hasSourceLike = matches.some((entry) => entry.semantic === "source_like");
+  const hasMedium = matches.some((entry) => entry.semantic === "medium");
+  const filtered = !explicitChannelGroup && (hasSourceLike || hasMedium)
+    ? matches.filter((entry) => entry.semantic !== "channel_group")
+    : matches;
+
   return {
-    columns: uniqueStrings(matches.map((entry) => entry.column)),
-    semantics: uniqueStrings(matches.map((entry) => entry.semantic)),
+    columns: uniqueStrings(filtered.map((entry) => entry.column)),
+    semantics: uniqueStrings(filtered.map((entry) => entry.semantic)),
   };
 }
 
@@ -718,7 +725,10 @@ function detectSingleKpiIntent(question: string, metrics: string[], dimensions: 
 
 function detectRelativeDateHint(question: string): string | null {
   if (/\uC9C0\uB09C\uC8FC/i.test(question)) {
-    return "Use the latest available completed 7-day window in the chosen view for '\uC9C0\uB09C\uC8FC'. Do not anchor '\uC9C0\uB09C\uC8FC' to today's calendar week.";
+    return "Use the latest available trailing 7-day window ending at MAX(dt) in the chosen view for '\uC9C0\uB09C\uC8FC'.";
+  }
+  if (/\uCD5C\uADFC\s*7\uC77C/i.test(question) || /last\s*7\s*days?/i.test(question)) {
+    return "Use the latest available trailing 7-day window ending at MAX(dt) in the chosen view for 'recent 7 days'.";
   }
   if (/\uCD5C\uADFC\s*4\uC8FC/i.test(question) || /last\s*4\s*weeks?/i.test(question)) {
     return "Use the latest available 28-day window ending at MAX(dt) in the chosen view for 'recent 4 weeks'.";

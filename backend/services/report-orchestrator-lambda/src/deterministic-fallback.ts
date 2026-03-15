@@ -66,7 +66,7 @@ export async function tryDeterministicFulfillment(
     return null;
   }
 
-  const chartSpec = plan.xAxis && plan.yAxis && plan.yAxis.length > 0
+  const chartSpec = queryResult.rowCount > 0 && plan.xAxis && plan.yAxis && plan.yAxis.length > 0
     ? await buildChart(invoker, question, queryResult.rows, plan.chartType ?? "auto", plan.xAxis, plan.yAxis)
     : null;
 
@@ -93,6 +93,27 @@ async function buildPlan(
     return null;
   }
 
+  if (likelyView === "v_latest_ga4_acquisition_daily") {
+    const metric = pickFirst(normalized.metrics, ["sessions", "total_users", "conversions", "total_revenue"]);
+    const dimension = pickFirst(normalized.dimensions, ["source", "medium", "channel_group"]);
+    if (metric && dimension) {
+      return {
+        sql: buildGroupedMetricSql({
+          view: likelyView,
+          dimension,
+          metricSql: `SUM(${metric})`,
+          metricAlias: metric,
+          dateRange,
+          filters: [],
+        }),
+        chartType: normalizeChartType(normalized.chartPreference),
+        xAxis: dimension,
+        yAxis: [metric],
+        summary: "Queried GA4 acquisition metrics directly for the requested grouping.",
+      };
+    }
+  }
+
   if (
     likelyView === "v_latest_appsflyer_installs_daily" &&
     normalized.singleKpi &&
@@ -117,9 +138,29 @@ async function buildPlan(
 
   if (likelyView === "v_latest_appsflyer_events_daily") {
     const metric = pickFirst(normalized.metrics, ["event_revenue", "event_count"]);
-    const dimension = pickFirst(normalized.dimensions, ["media_source", "campaign", "event_name"]);
     const eventName = getFilterValue(normalized.filters, "event_name");
-    if (!metric || !dimension || !eventName) {
+    if (!metric || !eventName) {
+      return null;
+    }
+    if (looksLikeTimeSeriesQuestion(question) && normalized.dimensions.length === 0) {
+      return {
+        sql: buildTrendMetricSql({
+          view: likelyView,
+          dimension: "dt",
+          metricSql: `SUM(${metric})`,
+          metricAlias: metric,
+          dateRange,
+          filters: [{ key: "event_name", value: eventName }],
+        }),
+        chartType: normalizeChartType(normalized.chartPreference),
+        xAxis: "dt",
+        yAxis: [metric],
+        summary: "Queried the requested event metric trend with the event_name filter preserved.",
+      };
+    }
+
+    const dimension = pickFirst(normalized.dimensions, ["media_source", "campaign", "event_name"]);
+    if (!dimension) {
       return null;
     }
     return {
@@ -134,19 +175,16 @@ async function buildPlan(
       chartType: normalizeChartType(normalized.chartPreference),
       xAxis: dimension,
       yAxis: [metric],
-      summary: "\uC694\uCCAD\uD55C event_name \uD544\uD130\uB97C \uC720\uC9C0\uD55C \uCC44 \uACB0\uACFC\uB97C \uC9C1\uC811 \uC870\uD68C\uD588\uC2B5\uB2C8\uB2E4.",
+      summary: "Queried the requested event metric with the event_name filter preserved.",
     };
   }
 
   if (likelyView === "v_latest_appsflyer_cohort_daily" && normalized.metrics.includes("retention_rate")) {
     const cohortDay = getFilterValue(normalized.filters, "cohort_day");
-    if (!cohortDay) {
-      return null;
-    }
 
     if (normalized.singleKpi) {
       const mediaSource = getFilterValue(normalized.filters, "media_source");
-      if (!mediaSource) {
+      if (!cohortDay || !mediaSource) {
         return null;
       }
       return {
@@ -161,12 +199,33 @@ async function buildPlan(
           ],
           limit: 1,
         }),
-        summary: "\uC694\uCCAD\uD55C cohort_day / media_source \uC870\uAC74\uC73C\uB85C retention rate\uB97C \uC9C1\uC811 \uC870\uD68C\uD588\uC2B5\uB2C8\uB2E4.",
+        summary: "Queried retention rate directly for the requested cohort day and media source.",
       };
     }
 
     const dimension = pickFirst(normalized.dimensions, ["media_source", "campaign", "cohort_date", "cohort_day"]);
     if (!dimension) {
+      return null;
+    }
+
+    if (!cohortDay && dimension === "cohort_day") {
+      return {
+        sql: buildTrendMetricSql({
+          view: likelyView,
+          dimension,
+          metricSql: "ROUND(SUM(retained_users) * 1.0 / NULLIF(SUM(cohort_size), 0), 4)",
+          metricAlias: "retention_rate",
+          dateRange,
+          filters: [],
+        }),
+        chartType: normalizeChartType(normalized.chartPreference),
+        xAxis: dimension,
+        yAxis: ["retention_rate"],
+        summary: "Queried cohort retention trend directly for the requested range.",
+      };
+    }
+
+    if (!cohortDay) {
       return null;
     }
 
@@ -182,7 +241,7 @@ async function buildPlan(
       chartType: normalizeChartType(normalized.chartPreference),
       xAxis: dimension,
       yAxis: ["retention_rate"],
-      summary: "\uC694\uCCAD\uD55C cohort_day \uD544\uD130\uB97C \uC720\uC9C0\uD55C \uCC44 retention rate\uB97C \uC9C1\uC811 \uC870\uD68C\uD588\uC2B5\uB2C8\uB2E4.",
+      summary: "Queried retention rate directly for the requested cohort day grouping.",
     };
   }
 
@@ -280,11 +339,27 @@ async function executeQuery(
     return null;
   }
 
-  return {
+  return normalizeQuerySuccess({
     rows: rows as Array<Record<string, unknown>>,
     rowCount,
     truncated,
+  });
+}
+
+function normalizeQuerySuccess(result: QuerySuccess): QuerySuccess {
+  const rows = normalizeEmptyAggregateRows(result.rows);
+  return {
+    rows,
+    rowCount: rows.length,
+    truncated: result.truncated,
   };
+}
+
+function normalizeEmptyAggregateRows(rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  if (rows.length > 0 && rows.every((row) => Object.values(row).every((value) => value == null))) {
+    return [];
+  }
+  return rows;
 }
 
 async function buildChart(
@@ -338,6 +413,29 @@ function buildSingleMetricSql(options: {
     "ORDER BY dt DESC",
     `LIMIT ${options.limit}`,
   ].join("\n");
+}
+
+function buildTrendMetricSql(options: {
+  view: string;
+  dimension: string;
+  metricSql: string;
+  metricAlias: string;
+  dateRange: DateRange;
+  filters: Array<{ key: string; value: string | number }>;
+}): string {
+  return [
+    `SELECT ${options.dimension}, ${options.metricSql} AS ${options.metricAlias}`,
+    `FROM ${DEFAULT_DATABASE}.${options.view}`,
+    `WHERE dt BETWEEN '${options.dateRange.startDate}' AND '${options.dateRange.endDate}'`,
+    ...options.filters.map((filter) => `  AND ${filter.key} = ${formatSqlLiteral(filter.value)}`),
+    "GROUP BY 1",
+    `ORDER BY ${options.dimension} ASC`,
+    "LIMIT 500",
+  ].join("\n");
+}
+
+function looksLikeTimeSeriesQuestion(question: string): boolean {
+  return /(추이|흐름|일간|주간|월간|trend|over\s*time|daily|weekly|monthly)/i.test(question);
 }
 
 function buildGroupedMetricSql(options: {

@@ -67,6 +67,7 @@ Unsupported categories:
 - cross-view joins
 
 The smoke suite is a fixed 10-case subset with both supported and unsupported prompts.
+A separate holdout suite `v1_holdout_20` is used to measure generalization and overfitting risk on fresh phrasing.
 
 Current regression prompts include:
 
@@ -114,6 +115,7 @@ PowerShell:
 .\.venv\Scripts\python.exe -m scripts.evals.run_eval --preflight-only
 .\.venv\Scripts\python.exe -m scripts.evals.run_eval --smoke
 .\.venv\Scripts\python.exe -m scripts.evals.run_eval --suite v1
+.\.venv\Scripts\python.exe -m scripts.evals.run_eval --suite v1_holdout_20
 ```
 
 Specific cases:
@@ -127,6 +129,20 @@ Compare against a previous run:
 ```powershell
 .\.venv\Scripts\python.exe -m scripts.evals.run_eval --smoke --baseline-dir tmp/evals/20260312-230456_v1_smoke
 ```
+
+Holdout overfitting check:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.evals.run_eval --suite v1_holdout_20
+```
+
+Recommended interpretation:
+
+- keep `v1_smoke` as regression coverage
+- use `v1_holdout_20` as generalization coverage
+- treat a large gap between the two as overfitting risk
+- current holdout target: supported success `>= 80%`, data correctness `>= 80%`, correct refusal `>= 95%`, chart selection accuracy `>= 75%`
+- supported no-data cases with `gold_row_count = 0` are treated as chart-neutral and excluded from chart accuracy
 
 Custom output directory:
 
