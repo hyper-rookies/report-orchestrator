@@ -4,6 +4,9 @@ import {
   resolveAutoApproveActions,
 } from "../src/lambda-handler";
 import { AgentEvent, IBedrockAgentClient } from "../src/bedrock-agent-client";
+import type { IActionLambdaInvoker } from "../src/action-lambda-invoker";
+import { setDeterministicFallbackInvoker, tryDeterministicFulfillment } from "../src/deterministic-fallback";
+import { preprocessQuestion } from "../src/question-preprocessor";
 
 async function collect(
   question: string,
@@ -26,6 +29,11 @@ async function collect(
   return frames;
 }
 
+afterEach(() => {
+  setDeterministicFallbackInvoker(null);
+});
+
+
 const FULL_MOCK_EVENTS: AgentEvent[] = [
   { type: "step", step: "agentThinking" },
   {
@@ -47,7 +55,7 @@ const FULL_MOCK_EVENTS: AgentEvent[] = [
   { type: "chunk", text: "Here are your results." },
 ];
 
-// query result + finalResponse step (no viz — chart not required for success)
+// query result + finalResponse step (no viz ??chart not required for success)
 const MOCK_WITH_FINAL_RESPONSE: AgentEvent[] = [
   { type: "step", step: "agentThinking" },
   {
@@ -119,7 +127,7 @@ test("final completedAt is UTC ISO8601", async () => {
   expect(final?.data.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 });
 
-// ── Bug fixes ────────────────────────────────────────────────────────────────
+// ???? Bug fixes ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 test("finalResponse step emits progress with step 'finalizing'", async () => {
   const frames = await collect("q", MOCK_WITH_FINAL_RESPONSE);
@@ -302,7 +310,7 @@ test("returnControl with auto-approve emits approval progress and succeeds", asy
 });
 
 test("SCHEMA_VIOLATION from query emits progress and does NOT terminate stream", async () => {
-  // Simulates: buildSQL called with malformed filters → SCHEMA_VIOLATION
+  // Simulates: buildSQL called with malformed filters ??SCHEMA_VIOLATION
   // Bedrock receives the error and responds with an explanation (chunk text)
   const frames = await collect("q", [
     {
@@ -318,7 +326,7 @@ test("SCHEMA_VIOLATION from query emits progress and does NOT terminate stream",
         },
       }),
     },
-    { type: "chunk", text: "필터 형식이 올바르지 않아 조회할 수 없습니다." },
+    { type: "chunk", text: "??ш낄援???嶺뚮Ĳ?뉛쭛??????筌?? ????깅떋 ?釉뚰?????????⑤８?????덊렡." },
   ]);
 
   // 1. SCHEMA_VIOLATION must NOT appear as an SSE error event
@@ -399,4 +407,127 @@ test("resolveAutoApproveActions reads explicit false env", () => {
   process.env.BEDROCK_AUTO_APPROVE_ACTIONS = "false";
   expect(resolveAutoApproveActions()).toBe(false);
   delete process.env.BEDROCK_AUTO_APPROVE_ACTIONS;
+});
+
+test("unsupported questions short-circuit before Bedrock stream", async () => {
+  const stream = jest.fn(async function* () {
+    yield { type: "chunk", text: "should not run" } as AgentEvent;
+  });
+  const mockClient: IBedrockAgentClient = { stream };
+
+  const frames: Array<{ type: string; data: Record<string, unknown> }> = [];
+  for await (const raw of buildSseEvents("\uC9C0\uB09C\uC8FC OS\uBCC4 \uC124\uCE58 \uBE44\uC911\uC744 \uBCF4\uC5EC\uC918", "rpt-unsupported-000000", mockClient)) {
+    const lines = raw.trimEnd().split("\n");
+    frames.push({
+      type: lines[0].replace("event: ", ""),
+      data: JSON.parse(lines[1].replace("data: ", "")) as Record<string, unknown>,
+    });
+  }
+
+  expect(stream).not.toHaveBeenCalled();
+  expect(frames[frames.length - 1]).toMatchObject({
+    type: "error",
+    data: { code: "UNSUPPORTED_METRIC" },
+  });
+});
+
+test("schema ask-back chunk is rewritten into dt guidance", async () => {
+  const frames = await collect("\uCD5C\uADFC 4\uC8FC\uAC04 \uC804\uCCB4 \uC138\uC158 \uCD94\uC774\uB97C \uBCF4\uC5EC\uC918", [
+    {
+      type: "chunk",
+      text: "\uC8C4\uC1A1\uD569\uB2C8\uB2E4. \uB0A0\uC9DC \uAD00\uB828 \uCEEC\uB7FC \uC774\uB984\uC744 \uC815\uD655\uD788 \uC54C\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC815\uD655\uD55C \uCEEC\uB7FC\uBA85\uC744 \uC54C\uB824\uC8FC\uC138\uC694.",
+    },
+  ]);
+
+  const lastFrame = frames[frames.length - 1];
+  expect(lastFrame.type).toBe("error");
+  expect(lastFrame.data.code).toBe("UNSUPPORTED_METRIC");
+  expect(lastFrame.data.message).toContain("dt");
+});
+
+test("deterministic fallback fulfills install single KPI requests", async () => {
+  const invoker: IActionLambdaInvoker = {
+    invoke: jest.fn(async (invocation) => {
+      if (invocation.actionGroup === "query") {
+        return {
+          actionGroup: "query",
+          functionName: "executeAthenaQuery",
+          result: { rows: [{ dt: "2024-11-30", installs: 59 }], rowCount: 1, truncated: false },
+        };
+      }
+      throw new Error("viz should not be called for single KPI fallback");
+    }),
+  };
+  setDeterministicFallbackInvoker(invoker);
+
+  const result = await tryDeterministicFulfillment(
+    "\uCD5C\uADFC \uC9D1\uACC4\uC77C Google Ads \uC124\uCE58 \uC218\uB97C \uBCF4\uC5EC\uC918",
+    preprocessQuestion("\uCD5C\uADFC \uC9D1\uACC4\uC77C Google Ads \uC124\uCE58 \uC218\uB97C \uBCF4\uC5EC\uC918")
+  );
+
+  expect(result?.rowCount).toBe(1);
+  expect(result?.chartSpec).toBeUndefined();
+});
+
+test("deterministic fallback fulfills purchase event ranking requests", async () => {
+  const invoker: IActionLambdaInvoker = {
+    invoke: jest.fn(async (invocation) => {
+      if (invocation.actionGroup === "query") {
+        return {
+          actionGroup: "query",
+          functionName: "executeAthenaQuery",
+          result: {
+            rows: [
+              { media_source: "Organic", event_count: 129 },
+              { media_source: "Google Ads", event_count: 97 },
+            ],
+            rowCount: 2,
+            truncated: false,
+          },
+        };
+      }
+      return {
+        actionGroup: "viz",
+        functionName: "buildChartSpec",
+        result: { spec: { type: "bar", xAxis: "media_source", series: [{ metric: "event_count", label: "Event Count" }], data: [] } },
+      };
+    }),
+  };
+  setDeterministicFallbackInvoker(invoker);
+
+  const result = await tryDeterministicFulfillment(
+    "2024\uB144 11\uC6D4 \uB9E4\uCCB4 \uC18C\uC2A4\uBCC4 purchase \uC774\uBCA4\uD2B8 \uC218\uB97C \uB9C9\uB300\uCC28\uD2B8\uB85C \uBCF4\uC5EC\uC918",
+    preprocessQuestion("2024\uB144 11\uC6D4 \uB9E4\uCCB4 \uC18C\uC2A4\uBCC4 purchase \uC774\uBCA4\uD2B8 \uC218\uB97C \uB9C9\uB300\uCC28\uD2B8\uB85C \uBCF4\uC5EC\uC918")
+  );
+
+  expect(result?.rowCount).toBe(2);
+  expect((result?.chartSpec as { type: string }).type).toBe("bar");
+});
+
+test("deterministic fallback can emit empty cohort retention chart results", async () => {
+  const invoker: IActionLambdaInvoker = {
+    invoke: jest.fn(async (invocation) => {
+      if (invocation.actionGroup === "query") {
+        return {
+          actionGroup: "query",
+          functionName: "executeAthenaQuery",
+          result: { rows: [], rowCount: 0, truncated: false },
+        };
+      }
+      return {
+        actionGroup: "viz",
+        functionName: "buildChartSpec",
+        result: { spec: { type: "bar", xAxis: "media_source", series: [{ metric: "retention_rate", label: "Retention Rate" }], data: [] } },
+      };
+    }),
+  };
+  setDeterministicFallbackInvoker(invoker);
+
+  const result = await tryDeterministicFulfillment(
+    "2024\uB144 11\uC6D4 \uB9E4\uCCB4 \uC18C\uC2A4\uBCC4 Day 7 \uB9AC\uD150\uC158\uC744 \uB9C9\uB300\uCC28\uD2B8\uB85C \uBCF4\uC5EC\uC918",
+    preprocessQuestion("2024\uB144 11\uC6D4 \uB9E4\uCCB4 \uC18C\uC2A4\uBCC4 Day 7 \uB9AC\uD150\uC158\uC744 \uB9C9\uB300\uCC28\uD2B8\uB85C \uBCF4\uC5EC\uC918")
+  );
+
+  expect(result?.rowCount).toBe(0);
+  expect((result?.chartSpec as { type: string }).type).toBe("bar");
 });

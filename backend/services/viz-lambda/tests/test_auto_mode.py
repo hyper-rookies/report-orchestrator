@@ -121,6 +121,45 @@ def test_auto_generic_composition_without_share_mode_returns_bar() -> None:
     assert result["spec"]["type"] == "bar"
 
 
+def test_auto_multi_metric_composition_returns_stacked_bar() -> None:
+    result = build_chart_spec(
+        {
+            "version": "v1",
+            "chartType": "auto",
+            "rows": [
+                {"source": "Organic", "sessions": 100, "installs": 50},
+                {"source": "Paid", "sessions": 80, "installs": 40},
+            ],
+            "xAxis": "source",
+            "yAxis": ["sessions", "installs"],
+            "compositionMode": True,
+            "shareMode": False,
+        }
+    )
+
+    assert result["spec"]["type"] == "stackedBar"
+
+
+def test_auto_share_mode_beats_generic_composition_for_small_category_sets() -> None:
+    result = build_chart_spec(
+        {
+            "version": "v1",
+            "chartType": "auto",
+            "rows": [
+                {"source": "Organic", "sessions": 100},
+                {"source": "Paid", "sessions": 80},
+                {"source": "Referral", "sessions": 20},
+            ],
+            "xAxis": "source",
+            "yAxis": ["sessions"],
+            "compositionMode": True,
+            "shareMode": True,
+        }
+    )
+
+    assert result["spec"]["type"] == "pie"
+
+
 def test_auto_string_false_hint_does_not_enable_time_series_mode() -> None:
     result = build_chart_spec(
         {

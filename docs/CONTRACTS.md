@@ -38,14 +38,10 @@ The orchestrator emits the following SSE event types:
 When the orchestrator invokes the viz action group, it may rewrite the outgoing
 viz parameters using the original user question:
 
-- Explicit user requests such as pie, line, bar, table, or stacked bar override
-  the agent-provided `chartType`.
-- When the user does not explicitly request a chart type, the orchestrator forces
-  `chartType: "auto"` and injects prompt-derived hints such as `questionIntent`,
-  `compositionMode`, `shareMode`, `comparisonMode`, and `isTimeSeries`.
-- `compositionMode` is broader than `shareMode`: generic "composition" questions
-  may still render as bar or stacked bar, while share / proportion / ratio
-  questions are the primary path that prefers pie charts in auto mode.
+- Explicit user requests such as pie, line, bar, table, or stacked bar override the agent-provided `chartType`.
+- When the user does not explicitly request a chart type, the orchestrator forces `chartType: "auto"` and injects prompt-derived hints such as `questionIntent`, `compositionMode`, `shareMode`, `comparisonMode`, and `isTimeSeries`.
+- `compositionMode` is broader than `shareMode`: generic composition questions may still render as bar or stacked bar, while share / proportion / ratio questions are the primary path that prefers pie charts in auto mode.
+- `single_kpi` questions should prefer a number-like or table-like answer shape and should not be forced into a chart unless the user explicitly asks for one.
 
 ### Optional Request Hint Fields
 
@@ -164,6 +160,30 @@ Rules:
 - `autoApproveActions` is optional and must be a boolean when present.
 - If the client omits `autoApproveActions`, the server falls back to `BEDROCK_AUTO_APPROVE_ACTIONS` and defaults to `true` when the env is unset.
 - The current web client always sends `autoApproveActions: true`; manual approve / reject continuation is not exposed in the frontend yet.
+- Before Bedrock is called, the orchestrator may preprocess the question against the shared reporting policy and catalog.
+- Obvious unsupported questions such as `Airbridge`, `OS/platform`, phase-deferred dimensions, raw row-level asks, cross-view joins, or ranges beyond the `90` day policy may be rejected before Bedrock execution.
+- `channel_group` is an allowed curated dimension and must not be short-circuited as an unsupported `channel` request.
+- Prompt augmentation must tell the agent that internal date handling uses `dt` and that it must not ask the user for schema or column names.
+- For relative-date asks like `지난주`, `최근 4주`, or `지난달`, prompt augmentation should anchor the request to the latest available `dt` in the selected curated view rather than blindly using the wall-clock date.
+- Event-like terms such as `purchase`, `sign_up`, `af_purchase`, and `first_open` should be preserved as filters when the user asks for a specific event, unless the user explicitly asks for an event-name breakdown.
+- Cohort asks such as `day 7`, `D7`, and `7일차 retention` should be normalized to `cohort_day = 7` and should prefer a derived retention-rate answer shape when possible.
+- Single KPI asks such as `최신 날짜 Google Ads 설치 수 알려줘` should preserve the requested filter and should avoid unnecessary grouped breakdowns.
+
+## Eval Reference API Contract
+
+The orchestrator Lambda also exposes a read-only eval helper route for the local benchmark runner.
+
+Rules:
+
+- Route: `POST /eval/reference`
+- This route must return `404` unless `DISABLE_AUTH=true`.
+- Supported request payloads are:
+  - `{ "operation": "latestDates" }`
+  - `{ "operation": "executeQuery", "sql": "...", "maxRows"?: number, "timeoutSeconds"?: number, "caseId"?: string }`
+- `latestDates` returns `{ version, operation, latestDates }`, where `latestDates` contains one `YYYY-MM-DD` value per allowed curated view.
+- `executeQuery` returns `{ version, operation, rows, rowCount, truncated, queryId }` and may echo `caseId` when provided.
+- The route must not execute arbitrary unsafe SQL. It must reuse the existing `query-lambda` `executeAthenaQuery` validation path, so only buildSQL-compatible read-only queries are allowed.
+- This route exists only for short-lived benchmark automation and should not be treated as a permanent public product API.
 
 ## Session Storage Contract
 
@@ -226,4 +246,3 @@ Rules:
 - `POST /api/sessions/[id]/share` requires an authenticated caller.
 - Shared read routes remain public and enforce expiry on lookup.
 - Expired share entries may be deleted opportunistically during lookup.
-

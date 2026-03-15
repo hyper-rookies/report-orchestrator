@@ -8,6 +8,7 @@
     "target_views": [
       "v_latest_appsflyer_installs_daily",
       "v_latest_appsflyer_events_daily",
+      "v_latest_appsflyer_cohort_daily",
       "v_latest_ga4_acquisition_daily",
       "v_latest_ga4_engagement_daily"
     ]
@@ -87,6 +88,22 @@
         { "name": "dt",              "type": "string", "role": "partition" },
         { "name": "run_id",          "type": "string", "role": "internal"  },
         { "name": "_run_rank",       "type": "bigint", "role": "internal"  }
+      ]
+    },
+    "v_latest_appsflyer_cohort_daily": {
+      "view_name": "v_latest_appsflyer_cohort_daily",
+      "base_table": "appsflyer_cohort_daily",
+      "source": "appsflyer",
+      "columns": [
+        { "name": "media_source",    "type": "string",  "role": "dimension" },
+        { "name": "campaign",        "type": "string",  "role": "dimension" },
+        { "name": "cohort_date",     "type": "string",  "role": "dimension" },
+        { "name": "cohort_day",      "type": "integer", "role": "dimension" },
+        { "name": "retained_users",  "type": "bigint",  "role": "metric"    },
+        { "name": "cohort_size",     "type": "bigint",  "role": "metric"    },
+        { "name": "dt",              "type": "string",  "role": "partition" },
+        { "name": "run_id",          "type": "string",  "role": "internal"  },
+        { "name": "_run_rank",       "type": "bigint",  "role": "internal"  }
       ]
     }
   }

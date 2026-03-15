@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "test": "jest",
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-shared-assets.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

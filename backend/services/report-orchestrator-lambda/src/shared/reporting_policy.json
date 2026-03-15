@@ -8,6 +8,7 @@
   "allowed_views": [
     "v_latest_appsflyer_installs_daily",
     "v_latest_appsflyer_events_daily",
+    "v_latest_appsflyer_cohort_daily",
     "v_latest_ga4_acquisition_daily",
     "v_latest_ga4_engagement_daily"
   ],
@@ -27,21 +28,25 @@
 
   "dimensions": {
     "v_latest_ga4_acquisition_daily": {
-      "allowed": ["channel_group", "source", "medium"],
+      "allowed": ["channel_group", "source", "medium", "dt"],
       "phase_deferred": []
     },
     "v_latest_ga4_engagement_daily": {
-      "allowed": ["channel_group", "source", "medium"],
+      "allowed": ["channel_group", "source", "medium", "dt"],
       "phase_deferred": []
     },
     "v_latest_appsflyer_installs_daily": {
-      "allowed": ["media_source", "campaign", "store_reinstall"],
+      "allowed": ["media_source", "campaign", "store_reinstall", "dt"],
       "phase_deferred": ["keyword", "adset", "ad", "channel", "app_version", "campaign_type", "match_type"],
       "note_store_reinstall": "Primary guardrail for installs_new_like KPI. Value is string 'true'/'false', not boolean."
     },
     "v_latest_appsflyer_events_daily": {
-      "allowed": ["media_source", "campaign", "event_name", "store_reinstall"],
+      "allowed": ["media_source", "campaign", "event_name", "store_reinstall", "dt"],
       "phase_deferred": ["keyword", "adset", "ad", "channel", "app_version", "campaign_type", "match_type"]
+    },
+    "v_latest_appsflyer_cohort_daily": {
+      "allowed": ["media_source", "campaign", "cohort_date", "cohort_day", "dt"],
+      "phase_deferred": []
     }
   },
 
@@ -63,6 +68,15 @@
     },
     "v_latest_appsflyer_events_daily": {
       "allowed": ["event_count", "event_revenue"]
+    },
+    "v_latest_appsflyer_cohort_daily": {
+      "allowed": ["retained_users", "cohort_size"],
+      "derived": {
+        "retention_rate": {
+          "definition": "CAST(retained_users AS DOUBLE) / NULLIF(cohort_size, 0)",
+          "note": "Orchestrator injects as a computed expression, not a column reference."
+        }
+      }
     }
   },
 

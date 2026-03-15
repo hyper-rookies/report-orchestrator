@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { BedrockAgentClient, IBedrockAgentClient } from "./bedrock-agent-client";
+import { handleEvalRoute, isEvalReferencePath } from "./eval-api";
 import { verifyIdToken } from "./auth";
+import { tryDeterministicFulfillment } from "./deterministic-fallback";
+import { normalizeNoTableCompletion, preprocessQuestion } from "./question-preprocessor";
 import {
   getHttpMethod,
   getRawPath,
@@ -37,6 +40,8 @@ export async function* buildSseEvents(
   client: IBedrockAgentClient,
   autoApproveActions = false
 ): AsyncGenerator<string> {
+  const analysis = preprocessQuestion(question);
+
   // meta - always first, unconditional
   yield formatSseEvent("meta", {
     version: "v1",
@@ -49,8 +54,47 @@ export async function* buildSseEvents(
     yield formatSseEvent("progress", {
       version: "v1",
       step: "buildSQL",
-      message: "Starting Bedrock Agent...",
+      message: analysis.unsupported ? "Request classified as unsupported." : "Starting Bedrock Agent...",
     });
+
+    if (analysis.unsupported) {
+      yield formatSseEvent("error", {
+        version: "v1",
+        code: analysis.unsupported.code,
+        message: analysis.unsupported.message,
+        retryable: false,
+      });
+      return;
+    }
+
+    const deterministic = await tryDeterministicFulfillment(question, analysis);
+    if (deterministic) {
+      yield formatSseEvent("progress", {
+        version: "v1",
+        step: "buildSQL",
+        message: "Resolved via deterministic fallback query.",
+      });
+      yield formatSseEvent("table", {
+        version: "v1",
+        rows: deterministic.rows,
+        rowCount: deterministic.rowCount,
+        truncated: deterministic.truncated,
+      });
+      if (deterministic.chartSpec) {
+        yield formatSseEvent("chart", {
+          version: "v1",
+          spec: deterministic.chartSpec,
+        });
+      }
+      yield formatSseEvent("final", {
+        version: "v1",
+        reportId,
+        totalRows: deterministic.rowCount,
+        completedAt: utcNow(),
+        agentSummary: deterministic.summary,
+      });
+      return;
+    }
 
     let tableEmitted = false;
     let chartEmitted = false;
@@ -68,7 +112,7 @@ export async function* buildSseEvents(
       agentId: AGENT_ID,
       agentAliasId: AGENT_ALIAS_ID,
       sessionId,
-      inputText: question,
+      inputText: analysis.agentInputText,
       autoApproveActions,
     })) {
       if (agentEvent.type === "chunk") {
@@ -145,9 +189,9 @@ export async function* buildSseEvents(
         }
 
         // Surface structured errors from action group Lambdas.
-        // SCHEMA_VIOLATION = Bedrock sent invalid params → emit as progress and let
+        // SCHEMA_VIOLATION = Bedrock sent invalid params ??emit as progress and let
         // Bedrock see the error and retry or respond naturally.
-        // All other errors (ATHENA_ERROR, UNKNOWN, DML_REJECTED …) = hard failure →
+        // All other errors (ATHENA_ERROR, UNKNOWN, DML_REJECTED ?? = hard failure ??
         // terminate immediately so the user gets a clear infra error.
         if ((ag.includes("query") || ag.includes("analysis")) && parsed.error) {
           const err = parsed.error as Record<string, unknown>;
@@ -162,7 +206,7 @@ export async function* buildSseEvents(
               step: "actionError",
               message: `Query validation error: ${errMessage}`,
             });
-            // Do NOT return — Bedrock will receive this error response and can
+            // Do NOT return ??Bedrock will receive this error response and can
             // retry with corrected parameters or provide a natural-language explanation.
           } else {
             yield formatSseEvent("error", {
@@ -201,12 +245,17 @@ export async function* buildSseEvents(
       }
     }
 
-    // Agent completed without ever emitting query results — report is incomplete.
+    // Agent completed without ever emitting query results ??report is incomplete.
     if (!tableEmitted) {
-      const code = agentSummary ? "UNSUPPORTED_METRIC" : "NO_DATA";
-      const message = agentSummary
-        ? agentSummary.trim().slice(0, 200)
-        : "Agent completed without returning query results.";
+      const normalizedNoTable = agentSummary
+        ? normalizeNoTableCompletion(question, agentSummary)
+        : null;
+      const code = normalizedNoTable?.code ?? (agentSummary ? "UNSUPPORTED_METRIC" : "NO_DATA");
+      const message =
+        normalizedNoTable?.message ??
+        (agentSummary
+          ? agentSummary.trim().slice(0, 200)
+          : "Agent completed without returning query results.");
       yield formatSseEvent("error", {
         version: "v1",
         code,
@@ -352,8 +401,19 @@ export const handler =
       const headers = (event as { headers?: Record<string, string | undefined> })?.headers ?? {};
       const authHeader = headers.authorization ?? headers.Authorization;
 
-      const route = resolveRoute(getRawPath(event as Parameters<typeof getRawPath>[0]));
+      const rawPath = getRawPath(event as Parameters<typeof getRawPath>[0]);
       const method = getHttpMethod(event as Parameters<typeof getHttpMethod>[0]);
+
+      if (isEvalReferencePath(rawPath)) {
+        const response = await handleEvalRoute(
+          method,
+          event as Parameters<typeof handleEvalRoute>[1]
+        );
+        writeJsonResponse(responseStream, response.statusCode, response.body);
+        return;
+      }
+
+      const route = resolveRoute(rawPath);
 
       if (route.type !== "stream") {
         if (route.type === "notFound") {
