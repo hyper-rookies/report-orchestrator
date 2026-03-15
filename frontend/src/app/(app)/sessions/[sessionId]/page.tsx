@@ -143,6 +143,11 @@ export default function SessionPage() {
   } = useQuestionQueue();
 
   const runQuestionRef = useRef<(question: string) => void>(() => undefined);
+  const messagesRef = useRef<ChatMessage[]>(messages);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const continueQueuedQuestions = useCallback(() => {
     const nextQuestion = takeNextQueuedQuestion();
@@ -164,7 +169,8 @@ export default function SessionPage() {
           role: "user",
           content: question,
         };
-        const nextMessages = [...messages, userMessage];
+        const nextMessages = [...messagesRef.current, userMessage];
+        messagesRef.current = nextMessages;
         setMessages(nextMessages);
 
         const completedFrames = await ask(question);
@@ -180,6 +186,7 @@ export default function SessionPage() {
         };
 
         const updatedMessages = [...nextMessages, assistantMessage];
+        messagesRef.current = updatedMessages;
         setMessages(updatedMessages);
 
         const pendingSave = prepareSessionSave({
@@ -206,7 +213,7 @@ export default function SessionPage() {
         continueQueuedQuestions();
       }
     },
-    [ask, continueQueuedQuestions, loadedTitle, messages, persistMessages, persistedTitle, sessionId]
+    [ask, continueQueuedQuestions, loadedTitle, persistMessages, persistedTitle, sessionId]
   );
 
   runQuestionRef.current = (question: string) => {
