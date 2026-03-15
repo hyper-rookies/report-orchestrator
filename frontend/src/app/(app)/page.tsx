@@ -23,7 +23,7 @@ const EMPTY_RESPONSE_FRAME: SseFrame = {
   data: {
     version: "v1",
     code: "EMPTY_RESPONSE",
-    message: "응답이 비어 있습니다. 인증 상태 또는 SSE 연결 상태를 확인해 주세요.",
+    message: "??? ?? ????. ?? ?? ?? SSE ?? ??? ??? ???.",
     retryable: false,
   },
 };
@@ -60,12 +60,25 @@ export default function ChatPage() {
   const [submitting, setSubmitting] = useState(false);
   const { frames, streaming, error, ask } = useSse();
   const messageScrollRef = useRef<HTMLDivElement>(null);
-  const sessionIdsRef = useRef<{ persistedSessionId: string | null; draftSessionId: string | null }>(
-    {
-      persistedSessionId: null,
-      draftSessionId: null,
-    }
-  );
+  const sessionIdsRef = useRef<{ persistedSessionId: string | null; draftSessionId: string | null }>({
+    persistedSessionId: null,
+    draftSessionId: null,
+  });
+  const runQuestionRef = useRef<(question: string) => void>(() => undefined);
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  const queueDispatchingRef = useRef(false);
+
+  const {
+    queuedQuestions,
+    enqueueQuestion,
+    removeQueuedQuestion,
+    clearQueuedQuestions,
+    takeNextQueuedQuestion,
+  } = useQuestionQueue();
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const persistSession = useCallback(
     async (failedSave: FailedSessionSave) => {
@@ -99,34 +112,11 @@ export default function ChatPage() {
     [router, saveSession]
   );
 
-  const {
-    queuedQuestions,
-    enqueueQuestion,
-    removeQueuedQuestion,
-    clearQueuedQuestions,
-    takeNextQueuedQuestion,
-  } = useQuestionQueue();
-
-  const runQuestionRef = useRef<(question: string) => void>(() => undefined);
-  const messagesRef = useRef<ChatMessage[]>(messages);
-
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  const continueQueuedQuestions = useCallback(() => {
-    const nextQuestion = takeNextQueuedQuestion();
-    if (nextQuestion) {
-      runQuestionRef.current(nextQuestion.question);
-    }
-  }, [takeNextQueuedQuestion]);
-
   const runQuestion = useCallback(
     async (question: string) => {
       setSubmitting(true);
       setSaveError(null);
       setRetryableSave(null);
-      let saveSucceeded = false;
 
       try {
         const userMessage: ChatMessage = {
@@ -170,7 +160,7 @@ export default function ChatPage() {
           draftSessionId: pendingSave.request.sessionId,
         };
 
-        saveSucceeded = await persistSession({
+        await persistSession({
           message: "",
           request: pendingSave.request,
           shouldNavigateOnSuccess: pendingSave.shouldNavigateOnSuccess,
@@ -178,17 +168,35 @@ export default function ChatPage() {
       } finally {
         setSubmitting(false);
       }
-
-      if (saveSucceeded) {
-        continueQueuedQuestions();
-      }
     },
-    [ask, continueQueuedQuestions, persistSession]
+    [ask, persistSession]
   );
 
   runQuestionRef.current = (question: string) => {
     void runQuestion(question);
   };
+
+  useEffect(() => {
+    if (!submitting) {
+      queueDispatchingRef.current = false;
+    }
+  }, [submitting]);
+
+  useEffect(() => {
+    if (submitting || persisting || saveError || queueDispatchingRef.current) {
+      return;
+    }
+
+    const nextQuestion = takeNextQueuedQuestion();
+    if (!nextQuestion) {
+      return;
+    }
+
+    queueDispatchingRef.current = true;
+    queueMicrotask(() => {
+      void runQuestionRef.current(nextQuestion.question);
+    });
+  }, [persisting, queuedQuestions.length, saveError, submitting, takeNextQueuedQuestion]);
 
   useEffect(() => {
     if (messages.length === 0 && frames.length === 0) {
@@ -211,11 +219,7 @@ export default function ChatPage() {
       return;
     }
 
-    void persistSession(retryableSave).then((saved) => {
-      if (saved) {
-        continueQueuedQuestions();
-      }
-    });
+    void persistSession(retryableSave);
   };
 
   return (
@@ -242,7 +246,7 @@ export default function ChatPage() {
               onClick={handleRetrySave}
               disabled={persisting}
             >
-              다시 저장
+              ?? ??
             </button>
           )}
         </div>
@@ -258,7 +262,7 @@ export default function ChatPage() {
         queuedQuestions={queuedQuestions}
         onRemoveQueuedQuestion={removeQueuedQuestion}
         onClearQueuedQuestions={clearQueuedQuestions}
-        busy={submitting}
+        busy={submitting || persisting}
         queuePaused={Boolean(saveError)}
       />
     </div>

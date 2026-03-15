@@ -1,11 +1,13 @@
-﻿"use client";
+"use client";
 
 import {
   Bar,
   BarChart,
-  Cell,
   CartesianGrid,
+  Cell,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -88,6 +90,7 @@ export default function ReportBarChart(props: Props) {
   if (!normalized.xAxis) return null;
 
   const isStacked = normalized.type === "stackedBar";
+  const isLine = normalized.type === "line";
   const isSingleSeries = series.length === 1;
   const primaryMetricKey = series[0].dataKey;
   const chartData =
@@ -136,48 +139,86 @@ export default function ReportBarChart(props: Props) {
     <div className="space-y-2 rounded-xl border border-border/90 bg-background p-3 shadow-[0_12px_30px_-22px_rgba(25,25,25,0.45)]">
       {normalized.title && <p className="text-sm font-semibold text-foreground">{normalized.title}</p>}
       <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis
-            dataKey={normalized.xAxis}
-            tick={{ fontSize: 11, fill: "var(--foreground)" }}
-            tickLine={{ stroke: "var(--border)" }}
-            axisLine={{ stroke: "var(--border)" }}
-          />
-          <YAxis
-            tick={{ fontSize: 11, fill: "var(--foreground)" }}
-            tickLine={{ stroke: "var(--border)" }}
-            axisLine={{ stroke: "var(--border)" }}
-          />
-          <Tooltip
-            contentStyle={{
-              borderRadius: 12,
-              border: "1px solid var(--border)",
-              background: "var(--card)",
-              color: "var(--foreground)",
-            }}
-          />
-          <Legend />
-          {series.map((item, idx) => (
-            <Bar
-              key={item.dataKey}
-              dataKey={item.dataKey}
-              name={item.label}
-              fill={seriesColors[idx % seriesColors.length]}
-              radius={[4, 4, 0, 0]}
-              stackId={isStacked ? "stack" : undefined}
-            >
-              {!isStacked &&
-                isSingleSeries &&
-                chartData.map((row, rowIdx) => (
-                  <Cell
-                    key={`${item.dataKey}-${rowIdx}`}
-                    fill={categoryColorByX.get(String(row[normalized.xAxis] ?? "Unknown")) ?? "#0F172A"}
-                  />
-                ))}
-            </Bar>
-          ))}
-        </BarChart>
+        {isLine ? (
+          <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis
+              dataKey={normalized.xAxis}
+              tick={{ fontSize: 11, fill: "var(--foreground)" }}
+              tickLine={{ stroke: "var(--border)" }}
+              axisLine={{ stroke: "var(--border)" }}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "var(--foreground)" }}
+              tickLine={{ stroke: "var(--border)" }}
+              axisLine={{ stroke: "var(--border)" }}
+            />
+            <Tooltip
+              contentStyle={{
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+                color: "var(--foreground)",
+              }}
+            />
+            <Legend />
+            {series.map((item, idx) => (
+              <Line
+                key={item.dataKey}
+                type="monotone"
+                dataKey={item.dataKey}
+                name={item.label}
+                stroke={seriesColors[idx % seriesColors.length]}
+                strokeWidth={3}
+                dot={{ r: 3 }}
+                activeDot={{ r: 5 }}
+              />
+            ))}
+          </LineChart>
+        ) : (
+          <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis
+              dataKey={normalized.xAxis}
+              tick={{ fontSize: 11, fill: "var(--foreground)" }}
+              tickLine={{ stroke: "var(--border)" }}
+              axisLine={{ stroke: "var(--border)" }}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "var(--foreground)" }}
+              tickLine={{ stroke: "var(--border)" }}
+              axisLine={{ stroke: "var(--border)" }}
+            />
+            <Tooltip
+              contentStyle={{
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+                color: "var(--foreground)",
+              }}
+            />
+            <Legend />
+            {series.map((item, idx) => (
+              <Bar
+                key={item.dataKey}
+                dataKey={item.dataKey}
+                name={item.label}
+                fill={seriesColors[idx % seriesColors.length]}
+                radius={[4, 4, 0, 0]}
+                stackId={isStacked ? "stack" : undefined}
+              >
+                {!isStacked &&
+                  isSingleSeries &&
+                  chartData.map((row, rowIdx) => (
+                    <Cell
+                      key={`${item.dataKey}-${rowIdx}`}
+                      fill={categoryColorByX.get(String(row[normalized.xAxis] ?? "Unknown")) ?? "#0F172A"}
+                    />
+                  ))}
+              </Bar>
+            ))}
+          </BarChart>
+        )}
       </ResponsiveContainer>
     </div>
   );

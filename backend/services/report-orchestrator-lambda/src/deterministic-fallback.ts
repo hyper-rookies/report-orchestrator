@@ -109,7 +109,7 @@ async function buildPlan(
         chartType: normalizeChartType(normalized.chartPreference),
         xAxis: dimension,
         yAxis: [metric],
-        summary: "Queried GA4 acquisition metrics directly for the requested grouping.",
+        summary: "??? ?? ???? GA4 ?? ??? ?? ??????.",
       };
     }
   }
@@ -155,7 +155,7 @@ async function buildPlan(
         chartType: normalizeChartType(normalized.chartPreference),
         xAxis: "dt",
         yAxis: [metric],
-        summary: "Queried the requested event metric trend with the event_name filter preserved.",
+        summary: "event_name ??? ??? ? ??? ??? ?? ??? ?? ??????.",
       };
     }
 
@@ -175,7 +175,7 @@ async function buildPlan(
       chartType: normalizeChartType(normalized.chartPreference),
       xAxis: dimension,
       yAxis: [metric],
-      summary: "Queried the requested event metric with the event_name filter preserved.",
+      summary: "event_name ??? ??? ? ??? ??? ??? ?? ??????.",
     };
   }
 
@@ -199,7 +199,7 @@ async function buildPlan(
           ],
           limit: 1,
         }),
-        summary: "Queried retention rate directly for the requested cohort day and media source.",
+        summary: "??? ??? ??? media_source ???? ??? ??? ?? ??????.",
       };
     }
 
@@ -221,7 +221,7 @@ async function buildPlan(
         chartType: normalizeChartType(normalized.chartPreference),
         xAxis: dimension,
         yAxis: ["retention_rate"],
-        summary: "Queried cohort retention trend directly for the requested range.",
+        summary: "??? ??? ??? ??? ??? ?? ??????.",
       };
     }
 
@@ -241,7 +241,7 @@ async function buildPlan(
       chartType: normalizeChartType(normalized.chartPreference),
       xAxis: dimension,
       yAxis: ["retention_rate"],
-      summary: "Queried retention rate directly for the requested cohort day grouping.",
+      summary: "??? ??? ?? ???? ??? ??? ?? ??????.",
     };
   }
 

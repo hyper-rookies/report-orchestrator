@@ -25,7 +25,7 @@ const EMPTY_RESPONSE_FRAME: SseFrame = {
   data: {
     version: "v1",
     code: "EMPTY_RESPONSE",
-    message: "응답이 비어 있습니다.",
+    message: "??? ?? ????.",
     retryable: false,
   },
 };
@@ -78,8 +78,23 @@ export default function SessionPage() {
   const [submitting, setSubmitting] = useState(false);
   const { frames, streaming, error, ask } = useSse();
   const messageScrollRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  const runQuestionRef = useRef<(question: string) => void>(() => undefined);
+  const queueDispatchingRef = useRef(false);
 
   const persistedTitle = getSessionTitle(sessionId);
+
+  const {
+    queuedQuestions,
+    enqueueQuestion,
+    removeQueuedQuestion,
+    clearQueuedQuestions,
+    takeNextQueuedQuestion,
+  } = useQuestionQueue();
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     const load = async () => {
@@ -90,7 +105,7 @@ export default function SessionPage() {
       const headers = await getAuthHeaders();
       const response = await fetch(`/api/sessions/${sessionId}`, { headers });
       if (!response.ok) {
-        setLoadError("세션을 불러오지 못했습니다.");
+        setLoadError("??? ???? ?????.");
         return;
       }
 
@@ -134,34 +149,11 @@ export default function SessionPage() {
     [saveSession]
   );
 
-  const {
-    queuedQuestions,
-    enqueueQuestion,
-    removeQueuedQuestion,
-    clearQueuedQuestions,
-    takeNextQueuedQuestion,
-  } = useQuestionQueue();
-
-  const runQuestionRef = useRef<(question: string) => void>(() => undefined);
-  const messagesRef = useRef<ChatMessage[]>(messages);
-
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  const continueQueuedQuestions = useCallback(() => {
-    const nextQuestion = takeNextQueuedQuestion();
-    if (nextQuestion) {
-      runQuestionRef.current(nextQuestion.question);
-    }
-  }, [takeNextQueuedQuestion]);
-
   const runQuestion = useCallback(
     async (question: string) => {
       setSubmitting(true);
       setSaveError(null);
       setRetryableSave(null);
-      let saveSucceeded = false;
 
       try {
         const userMessage: ChatMessage = {
@@ -200,7 +192,7 @@ export default function SessionPage() {
           createSessionId: () => sessionId,
         });
 
-        saveSucceeded = await persistMessages({
+        await persistMessages({
           message: "",
           request: pendingSave.request,
           shouldNavigateOnSuccess: pendingSave.shouldNavigateOnSuccess,
@@ -208,17 +200,35 @@ export default function SessionPage() {
       } finally {
         setSubmitting(false);
       }
-
-      if (saveSucceeded) {
-        continueQueuedQuestions();
-      }
     },
-    [ask, continueQueuedQuestions, loadedTitle, persistMessages, persistedTitle, sessionId]
+    [ask, loadedTitle, persistMessages, persistedTitle, sessionId]
   );
 
   runQuestionRef.current = (question: string) => {
     void runQuestion(question);
   };
+
+  useEffect(() => {
+    if (!submitting) {
+      queueDispatchingRef.current = false;
+    }
+  }, [submitting]);
+
+  useEffect(() => {
+    if (submitting || persisting || saveError || queueDispatchingRef.current) {
+      return;
+    }
+
+    const nextQuestion = takeNextQueuedQuestion();
+    if (!nextQuestion) {
+      return;
+    }
+
+    queueDispatchingRef.current = true;
+    queueMicrotask(() => {
+      void runQuestionRef.current(nextQuestion.question);
+    });
+  }, [persisting, queuedQuestions.length, saveError, submitting, takeNextQueuedQuestion]);
 
   useEffect(() => {
     messageScrollRef.current?.scrollTo({
@@ -232,11 +242,7 @@ export default function SessionPage() {
       return;
     }
 
-    void persistMessages(retryableSave).then((saved) => {
-      if (saved) {
-        continueQueuedQuestions();
-      }
-    });
+    void persistMessages(retryableSave);
   };
 
   if (loadError) {
@@ -245,7 +251,7 @@ export default function SessionPage() {
         <div className="space-y-2 text-center">
           <p className="text-destructive">{loadError}</p>
           <button className="text-sm underline" onClick={() => router.push("/")}>
-            홈으로 돌아가기
+            ??? ????
           </button>
         </div>
       </div>
@@ -276,7 +282,7 @@ export default function SessionPage() {
               onClick={handleRetrySave}
               disabled={persisting}
             >
-              다시 저장
+              ?? ??
             </button>
           )}
         </div>
@@ -292,7 +298,7 @@ export default function SessionPage() {
         queuedQuestions={queuedQuestions}
         onRemoveQueuedQuestion={removeQueuedQuestion}
         onClearQueuedQuestions={clearQueuedQuestions}
-        busy={submitting}
+        busy={submitting || persisting}
         queuePaused={Boolean(saveError)}
       />
     </div>
