@@ -325,7 +325,7 @@ function buildSingleMetricSql(options: {
   metricSql: string;
   metricAlias: string;
   dateRange: DateRange;
-  filters: Array<{ key: string; value: string }>;
+  filters: Array<{ key: string; value: string | number }>;
   limit: number;
 }): string {
   return [
@@ -333,7 +333,7 @@ function buildSingleMetricSql(options: {
     `FROM ${DEFAULT_DATABASE}.${options.view}`,
     `WHERE dt BETWEEN '${options.dateRange.startDate}' AND '${options.dateRange.endDate}'`,
     `  AND dt = '${options.dateRange.endDate}'`,
-    ...options.filters.map((filter) => `  AND ${filter.key} = '${escapeSqlLiteral(filter.value)}'`),
+    ...options.filters.map((filter) => `  AND ${filter.key} = ${formatSqlLiteral(filter.value)}`),
     "GROUP BY 1",
     "ORDER BY dt DESC",
     `LIMIT ${options.limit}`,
@@ -346,13 +346,13 @@ function buildGroupedMetricSql(options: {
   metricSql: string;
   metricAlias: string;
   dateRange: DateRange;
-  filters: Array<{ key: string; value: string }>;
+  filters: Array<{ key: string; value: string | number }>;
 }): string {
   return [
     `SELECT ${options.dimension}, ${options.metricSql} AS ${options.metricAlias}`,
     `FROM ${DEFAULT_DATABASE}.${options.view}`,
     `WHERE dt BETWEEN '${options.dateRange.startDate}' AND '${options.dateRange.endDate}'`,
-    ...options.filters.map((filter) => `  AND ${filter.key} = '${escapeSqlLiteral(filter.value)}'`),
+    ...options.filters.map((filter) => `  AND ${filter.key} = ${formatSqlLiteral(filter.value)}`),
     "GROUP BY 1",
     `ORDER BY ${options.metricAlias} DESC`,
     "LIMIT 20",
@@ -360,9 +360,9 @@ function buildGroupedMetricSql(options: {
 }
 
 function getFilterValue(
-  filters: Array<{ key: string; value: string }>,
+  filters: Array<{ key: string; value: string | number }>,
   key: string
-): string | null {
+): string | number | null {
   return filters.find((filter) => filter.key === key)?.value ?? null;
 }
 
@@ -404,6 +404,9 @@ function formatDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''");
+function formatSqlLiteral(value: string | number): string {
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return `'${value.replace(/'/g, "''")}'`;
 }

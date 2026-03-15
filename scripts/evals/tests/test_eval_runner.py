@@ -15,6 +15,7 @@ from scripts.evals.eval_runner import (
     looks_like_refusal,
     resolve_date_range,
     resolve_runtime_settings,
+    score_case_result,
     validate_runtime_config,
 )
 
@@ -207,6 +208,29 @@ def test_execute_reference_query_uses_eval_reference_api(monkeypatch: pytest.Mon
     assert query_id == "query-123"
     assert rows == [{"source": "google", "sessions": 123}]
     assert truncated is False
+
+
+def test_score_case_result_treats_empty_final_as_answered_for_supported_no_data() -> None:
+    case = {
+        "id": "AFC-01",
+        "expectation": "supported",
+        "expected_chart_type": "bar",
+    }
+
+    actual = {
+        "table_rows": [],
+        "chart_type": "bar",
+        "error_code": None,
+        "last_event": "final",
+    }
+    compare_result = {"matched": True}
+
+    scored = score_case_result(case, actual=actual, gold_rows=[], compare_result=compare_result)
+
+    assert scored["answered"] is True
+    assert scored["data_correct"] is True
+    assert scored["chart_match"] is True
+    assert scored["overall_pass"] is True
 
 
 def test_build_aggregate_summary_includes_baseline_deltas() -> None:

@@ -225,7 +225,7 @@ const DIMENSION_HINTS: Array<{
 
 const FILTER_HINTS: Array<{
   key: string;
-  value: string;
+  value: string | number;
   patterns: RegExp[];
   views?: string[];
   unlessDimensionSemantic?: string;
@@ -276,19 +276,19 @@ const FILTER_HINTS: Array<{
   },
   {
     key: "cohort_day",
-    value: "1",
+    value: 1,
     patterns: [/\bday\s*1\b/i, /\bd1\b/i, /1\uC77C\uCC28/i, /1\s*day/i],
     views: ["v_latest_appsflyer_cohort_daily"],
   },
   {
     key: "cohort_day",
-    value: "7",
+    value: 7,
     patterns: [/\bday\s*7\b/i, /\bd7\b/i, /7\uC77C\uCC28/i, /7\s*day/i],
     views: ["v_latest_appsflyer_cohort_daily"],
   },
   {
     key: "cohort_day",
-    value: "30",
+    value: 30,
     patterns: [/\bday\s*30\b/i, /\bd30\b/i, /30\uC77C\uCC28/i, /30\s*day/i],
     views: ["v_latest_appsflyer_cohort_daily"],
   },
@@ -325,7 +325,7 @@ type UnsupportedCategory =
   | "raw_row_level"
   | "cross_view_join";
 
-export type FilterHint = { key: string; value: string };
+export type FilterHint = { key: string; value: string | number };
 
 export type NormalizedQuestionHint = {
   metrics: string[];
@@ -493,7 +493,7 @@ function buildNormalizedRequestHints(likelyView: string, normalized: NormalizedQ
     requestContractParts.push(`dimensions=${normalized.dimensions.join("|")}`);
   }
   if (normalized.filters.length > 0) {
-    const rendered = normalized.filters.map((filter) => `${filter.key}='${filter.value}'`);
+    const rendered = normalized.filters.map((filter) => renderFilterHint(filter));
     hints.push(`Required filters for this question: ${rendered.join(", ")}.`);
     requestContractParts.push(`filters=${rendered.join("|")}`);
   }
@@ -739,6 +739,13 @@ function detectChartPreference(question: string): string | null {
     }
   }
   return null;
+}
+
+function renderFilterHint(filter: FilterHint): string {
+  if (typeof filter.value === "number") {
+    return `${filter.key}=${filter.value}`;
+  }
+  return `${filter.key}='${filter.value}'`;
 }
 
 function uniqueStrings(values: string[]): string[] {

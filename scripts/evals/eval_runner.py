@@ -700,7 +700,12 @@ def score_case_result(
     chart_match = expected_chart_type is None or actual.get("chart_type") == expected_chart_type
 
     if case["expectation"] == "supported":
-        answered = bool(actual.get("table_rows")) and actual.get("error_code") not in INFRA_FAILURE_CODES
+        actual_rows = list(actual.get("table_rows") or [])
+        gold_row_count = len(gold_rows or [])
+        answered = (
+            actual.get("error_code") not in INFRA_FAILURE_CODES
+            and (bool(actual_rows) or (actual.get("last_event") == "final" and gold_row_count == 0))
+        )
         data_correct = bool(compare_result and compare_result["matched"])
         overall_pass = answered and data_correct and chart_match
         return {
@@ -710,8 +715,8 @@ def score_case_result(
             "chart_match": chart_match if expected_chart_type else None,
             "overall_pass": overall_pass,
             "failure_taxonomy": _classify_supported_failure(actual, data_correct, chart_match) if not overall_pass else None,
-            "gold_row_count": len(gold_rows or []),
-            "actual_row_count": len(actual.get("table_rows") or []),
+            "gold_row_count": gold_row_count,
+            "actual_row_count": len(actual_rows),
         }
 
     correct_refusal = is_correct_refusal(case, actual)

@@ -18,6 +18,7 @@ The benchmark scope is limited to these curated views:
 - `v_latest_appsflyer_cohort_daily`
 
 Unsupported questions are scored as `correct refusal` instead of failure when the system cleanly refuses them.
+Supported no-data cases are scored as answered when the stream reaches `final` without an error and the gold query also returns zero rows.
 
 ## Current Baseline And Targets
 

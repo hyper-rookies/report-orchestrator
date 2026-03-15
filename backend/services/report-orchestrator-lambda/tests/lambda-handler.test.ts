@@ -530,4 +530,6 @@ test("deterministic fallback can emit empty cohort retention chart results", asy
 
   expect(result?.rowCount).toBe(0);
   expect((result?.chartSpec as { type: string }).type).toBe("bar");
+  const queryCall = (invoker.invoke as jest.Mock).mock.calls.find(([invocation]) => invocation.actionGroup === "query");
+  expect(queryCall?.[0].parameters?.find((parameter: { name?: string; value?: string }) => parameter.name === "sql")?.value).toContain("cohort_day = 7");
 });

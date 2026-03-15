@@ -68,7 +68,7 @@ test("preprocessQuestion normalizes cohort day retention requests", () => {
 
   expect(result.unsupported).toBeUndefined();
   expect(result.likelyView).toBe("v_latest_appsflyer_cohort_daily");
-  expect(result.agentInputText).toContain("cohort_day='7'");
+  expect(result.agentInputText).toContain("cohort_day=7");
   expect(result.agentInputText).toContain("retention_rate");
 });
 
