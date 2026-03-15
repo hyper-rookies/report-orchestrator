@@ -429,7 +429,7 @@ function buildTrendMetricSql(options: {
     `WHERE dt BETWEEN '${options.dateRange.startDate}' AND '${options.dateRange.endDate}'`,
     ...options.filters.map((filter) => `  AND ${filter.key} = ${formatSqlLiteral(filter.value)}`),
     "GROUP BY 1",
-    `ORDER BY ${options.dimension} ASC`,
+    `ORDER BY ${options.dimension} DESC`,
     "LIMIT 500",
   ].join("\n");
 }
