@@ -111,7 +111,7 @@ export default function AssistantMessage({ frames, streaming, prompt, messageId,
 
   return (
     <div className="flex justify-start">
-      <div className="nhn-panel max-w-[88%] space-y-3 px-4 py-3">
+      <div className="nhn-panel w-full max-w-[88%] space-y-3 px-4 py-3">
         {streaming && progressFrames.length > 0 && <ProgressIndicator frames={progressFrames} />}
         {showBookmarkAction && (
           <div className="flex justify-end">
