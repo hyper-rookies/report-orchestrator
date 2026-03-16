@@ -95,6 +95,23 @@ async function buildPlan(
 
   if (likelyView === "v_latest_ga4_acquisition_daily") {
     const metric = pickFirst(normalized.metrics, ["sessions", "total_users", "conversions", "total_revenue"]);
+    if (metric && looksLikeTimeSeriesQuestion(question) && normalized.dimensions.length === 0) {
+      return {
+        sql: buildTrendMetricSql({
+          view: likelyView,
+          dimension: "dt",
+          metricSql: `SUM(${metric})`,
+          metricAlias: metric,
+          dateRange,
+          filters: [],
+        }),
+        chartType: normalizeChartType(normalized.chartPreference),
+        xAxis: "dt",
+        yAxis: [metric],
+        summary: `\uC694\uCCAD\uD55C \uC870\uAC74\uC73C\uB85C GA4 ${describeMetric(metric)} \uCD94\uC774\uB97C \uC870\uD68C\uD588\uC2B5\uB2C8\uB2E4.`,
+      };
+    }
+
     const dimension = pickFirst(normalized.dimensions, ["source", "medium", "channel_group"]);
     if (metric && dimension) {
       return {
@@ -109,7 +126,7 @@ async function buildPlan(
         chartType: normalizeChartType(normalized.chartPreference),
         xAxis: dimension,
         yAxis: [metric],
-        summary: "??? ?? ???? GA4 ?? ??? ?? ??????.",
+        summary: `\uC694\uCCAD\uD55C \uC870\uAC74\uC73C\uB85C GA4 ${describeMetric(metric)}\uB97C \uC870\uD68C\uD588\uC2B5\uB2C8\uB2E4.`,
       };
     }
   }
@@ -155,7 +172,7 @@ async function buildPlan(
         chartType: normalizeChartType(normalized.chartPreference),
         xAxis: "dt",
         yAxis: [metric],
-        summary: "event_name ??? ??? ? ??? ??? ?? ??? ?? ??????.",
+        summary: `\uC694\uCCAD\uD55C event_name \uC870\uAC74\uC73C\uB85C ${describeMetric(metric)} \uCD94\uC774\uB97C \uC870\uD68C\uD588\uC2B5\uB2C8\uB2E4.`,
       };
     }
 
@@ -175,7 +192,7 @@ async function buildPlan(
       chartType: normalizeChartType(normalized.chartPreference),
       xAxis: dimension,
       yAxis: [metric],
-      summary: "event_name ??? ??? ? ??? ??? ??? ?? ??????.",
+      summary: `\uC694\uCCAD\uD55C event_name \uC870\uAC74\uC73C\uB85C ${describeMetric(metric)}\uB97C \uC870\uD68C\uD588\uC2B5\uB2C8\uB2E4.`,
     };
   }
 
@@ -199,7 +216,7 @@ async function buildPlan(
           ],
           limit: 1,
         }),
-        summary: "??? ??? ??? media_source ???? ??? ??? ?? ??????.",
+        summary: "요청한 media_source 조건으로 리텐션율을 직접 조회했습니다.",
       };
     }
 
@@ -221,7 +238,7 @@ async function buildPlan(
         chartType: normalizeChartType(normalized.chartPreference),
         xAxis: dimension,
         yAxis: ["retention_rate"],
-        summary: "??? ??? ??? ??? ??? ?? ??????.",
+        summary: "요청한 조건으로 코호트 데이별 리텐션율 추이를 조회했습니다.",
       };
     }
 
@@ -241,7 +258,7 @@ async function buildPlan(
       chartType: normalizeChartType(normalized.chartPreference),
       xAxis: dimension,
       yAxis: ["retention_rate"],
-      summary: "??? ??? ?? ???? ??? ??? ?? ??????.",
+      summary: "요청한 조건으로 코호트 리텐션율을 조회했습니다.",
     };
   }
 
@@ -276,7 +293,8 @@ async function resolveDateRange(
   }
   if (/\uC9C0\uB09C\uB2EC/i.test(question) || /last\s*month/i.test(question)) {
     const latest = new Date(`${latestDate}T00:00:00Z`);
-    return buildMonthRange(latest.getUTCFullYear(), latest.getUTCMonth() + 1);
+    const previousMonth = new Date(Date.UTC(latest.getUTCFullYear(), latest.getUTCMonth() - 1, 1));
+    return buildMonthRange(previousMonth.getUTCFullYear(), previousMonth.getUTCMonth() + 1);
   }
 
   return null;
@@ -429,13 +447,13 @@ function buildTrendMetricSql(options: {
     `WHERE dt BETWEEN '${options.dateRange.startDate}' AND '${options.dateRange.endDate}'`,
     ...options.filters.map((filter) => `  AND ${filter.key} = ${formatSqlLiteral(filter.value)}`),
     "GROUP BY 1",
-    `ORDER BY ${options.dimension} DESC`,
+    `ORDER BY ${options.dimension} ASC`,
     "LIMIT 500",
   ].join("\n");
 }
 
 function looksLikeTimeSeriesQuestion(question: string): boolean {
-  return /(추이|흐름|일간|주간|월간|trend|over\s*time|daily|weekly|monthly)/i.test(question);
+  return /(?:\uCD94\uC774|\uD750\uB984|\uC77C\uAC04|\uC8FC\uAC04|\uC6D4\uAC04|trend|over\s*time|daily|weekly|monthly)/i.test(question);
 }
 
 function buildGroupedMetricSql(options: {
@@ -478,6 +496,29 @@ function normalizeChartType(value: string | null): "auto" | "bar" | "line" | "ta
     return value;
   }
   return "auto";
+}
+
+function describeMetric(metric: string): string {
+  switch (metric) {
+    case "sessions":
+      return "\uC138\uC158 \uC218";
+    case "total_users":
+      return "\uC0AC\uC6A9\uC790 \uC218";
+    case "conversions":
+      return "\uC804\uD658 \uC218";
+    case "total_revenue":
+      return "\uB9E4\uCD9C";
+    case "installs":
+      return "\uC124\uCE58 \uC218";
+    case "event_count":
+      return "\uC774\uBCA4\uD2B8 \uC218";
+    case "event_revenue":
+      return "\uC774\uBCA4\uD2B8 \uB9E4\uCD9C";
+    case "retention_rate":
+      return "\uB9AC\uD150\uC158\uC728";
+    default:
+      return metric;
+  }
 }
 
 function buildMonthRange(year: number, month: number): DateRange {

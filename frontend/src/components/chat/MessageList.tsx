@@ -9,6 +9,7 @@ interface Props {
   messages: ChatMessage[];
   streamingFrames: SseFrame[];
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  onAssistantRendered?: (messageId: string) => void;
 }
 
 function findPromptForAssistant(
@@ -25,7 +26,12 @@ function findPromptForAssistant(
   return undefined;
 }
 
-export default function MessageList({ messages, streamingFrames, scrollContainerRef }: Props) {
+export default function MessageList({
+  messages,
+  streamingFrames,
+  scrollContainerRef,
+  onAssistantRendered,
+}: Props) {
   return (
     <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -39,8 +45,10 @@ export default function MessageList({ messages, streamingFrames, scrollContainer
           ) : (
             <AssistantMessage
               key={msg.id}
+              messageId={msg.id}
               frames={msg.frames ?? []}
               prompt={findPromptForAssistant(messages, idx)}
+              onRendered={onAssistantRendered}
             />
           )
         )}
@@ -49,4 +57,3 @@ export default function MessageList({ messages, streamingFrames, scrollContainer
     </div>
   );
 }
-

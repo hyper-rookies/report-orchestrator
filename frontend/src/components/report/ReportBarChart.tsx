@@ -38,6 +38,8 @@ interface NormalizedSeries {
   label: string;
 }
 
+const DATE_LIKE_VALUE = /^\d{4}-\d{2}(?:-\d{2})?$/;
+
 function isBackendChartSpec(spec: ChartSpec | LegacyChartSpec): spec is ChartSpec {
   return "xAxis" in spec && Array.isArray((spec as ChartSpec).series) && Array.isArray((spec as ChartSpec).data);
 }
@@ -51,6 +53,21 @@ function toNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function sortByDateLikeXAxis(rows: Record<string, unknown>[], xAxis: string): Record<string, unknown>[] {
+  if (!Array.isArray(rows) || rows.length < 2) {
+    return rows;
+  }
+
+  const values = rows.map((row) => String(row[xAxis] ?? "").trim());
+  if (!values.every((value) => DATE_LIKE_VALUE.test(value))) {
+    return rows;
+  }
+
+  return [...rows].sort((left, right) =>
+    String(left[xAxis] ?? "").localeCompare(String(right[xAxis] ?? ""))
+  );
 }
 
 export default function ReportBarChart(props: Props) {
@@ -93,7 +110,7 @@ export default function ReportBarChart(props: Props) {
   const isLine = normalized.type === "line";
   const isSingleSeries = series.length === 1;
   const primaryMetricKey = series[0].dataKey;
-  const chartData =
+  const rawChartData =
     !isStacked && isSingleSeries
       ? Array.from(
           normalized.data.reduce((acc, row) => {
@@ -112,6 +129,7 @@ export default function ReportBarChart(props: Props) {
           }, new Map<string, Record<string, unknown>>())
         ).map(([, row]) => row)
       : normalized.data;
+  const chartData = sortByDateLikeXAxis(rawChartData, normalized.xAxis);
 
   const seriesColors = [
     "#0F172A",

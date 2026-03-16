@@ -8,6 +8,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import MessageList from "@/components/chat/MessageList";
 import { useSessionContext } from "@/context/SessionContext";
 import { useQuestionQueue } from "@/hooks/useQuestionQueue";
+import { useSequentialQuestionRunner } from "@/hooks/useSequentialQuestionRunner";
 import { useSse, type SseFrame } from "@/hooks/useSse";
 import {
   createSaveFailure,
@@ -19,6 +20,11 @@ import type { StoredMessage } from "@/types/session";
 
 const USE_MOCK_AUTH = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
 const SKIP_TYPES = new Set(["chunk", "status", "delta"]);
+
+type ActiveQueuedAssistant = {
+  queueItemId: string;
+  assistantMessageId: string;
+} | null;
 
 const EMPTY_RESPONSE_FRAME: SseFrame = {
   type: "error",
@@ -79,8 +85,8 @@ export default function SessionPage() {
   const { frames, streaming, error, ask } = useSse();
   const messageScrollRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
-  const runQuestionRef = useRef<(question: string) => void>(() => undefined);
-  const queueDispatchingRef = useRef(false);
+  const activeQueuedAssistantRef = useRef<ActiveQueuedAssistant>(null);
+  const runQueuedQuestionRef = useRef<(question: string, queueItemId: string) => void>(() => undefined);
 
   const persistedTitle = getSessionTitle(sessionId);
 
@@ -149,8 +155,23 @@ export default function SessionPage() {
     [saveSession]
   );
 
+  const {
+    activeQueueItemId,
+    registerQueuedAssistantMessage,
+    markQueuedQuestionAwaitingRender,
+    acknowledgeRenderedAssistantMessage,
+  } = useSequentialQuestionRunner({
+    queuedQuestionsLength: queuedQuestions.length,
+    busy: submitting || persisting,
+    queuePaused: Boolean(saveError),
+    takeNextQueuedQuestion,
+    onRunQueuedQuestion: (queuedQuestion) => {
+      runQueuedQuestionRef.current(queuedQuestion.question, queuedQuestion.id);
+    },
+  });
+
   const runQuestion = useCallback(
-    async (question: string) => {
+    async (question: string, queueItemId?: string) => {
       setSubmitting(true);
       setSaveError(null);
       setRetryableSave(null);
@@ -181,6 +202,14 @@ export default function SessionPage() {
         messagesRef.current = updatedMessages;
         setMessages(updatedMessages);
 
+        if (queueItemId) {
+          activeQueuedAssistantRef.current = {
+            queueItemId,
+            assistantMessageId: assistantMessage.id,
+          };
+          registerQueuedAssistantMessage(queueItemId, assistantMessage.id);
+        }
+
         const pendingSave = prepareSessionSave({
           persistedSessionId: sessionId,
           draftSessionId: sessionId,
@@ -192,43 +221,25 @@ export default function SessionPage() {
           createSessionId: () => sessionId,
         });
 
-        await persistMessages({
+        const saved = await persistMessages({
           message: "",
           request: pendingSave.request,
           shouldNavigateOnSuccess: pendingSave.shouldNavigateOnSuccess,
         });
+
+        if (saved && queueItemId) {
+          markQueuedQuestionAwaitingRender(queueItemId);
+        }
       } finally {
         setSubmitting(false);
       }
     },
-    [ask, loadedTitle, persistMessages, persistedTitle, sessionId]
+    [ask, loadedTitle, markQueuedQuestionAwaitingRender, persistMessages, persistedTitle, registerQueuedAssistantMessage, sessionId]
   );
 
-  runQuestionRef.current = (question: string) => {
-    void runQuestion(question);
+  runQueuedQuestionRef.current = (question: string, queueItemId: string) => {
+    void runQuestion(question, queueItemId);
   };
-
-  useEffect(() => {
-    if (!submitting) {
-      queueDispatchingRef.current = false;
-    }
-  }, [submitting]);
-
-  useEffect(() => {
-    if (submitting || persisting || saveError || queueDispatchingRef.current) {
-      return;
-    }
-
-    const nextQuestion = takeNextQueuedQuestion();
-    if (!nextQuestion) {
-      return;
-    }
-
-    queueDispatchingRef.current = true;
-    queueMicrotask(() => {
-      void runQuestionRef.current(nextQuestion.question);
-    });
-  }, [persisting, queuedQuestions.length, saveError, submitting, takeNextQueuedQuestion]);
 
   useEffect(() => {
     messageScrollRef.current?.scrollTo({
@@ -242,7 +253,17 @@ export default function SessionPage() {
       return;
     }
 
-    void persistMessages(retryableSave);
+    void (async () => {
+      const saved = await persistMessages(retryableSave);
+      const activeQueuedAssistant = activeQueuedAssistantRef.current;
+      if (
+        saved &&
+        activeQueuedAssistant &&
+        activeQueuedAssistant.queueItemId === activeQueueItemId
+      ) {
+        markQueuedQuestionAwaitingRender(activeQueuedAssistant.queueItemId);
+      }
+    })();
   };
 
   if (loadError) {
@@ -264,6 +285,7 @@ export default function SessionPage() {
         messages={messages}
         streamingFrames={streaming ? frames : []}
         scrollContainerRef={messageScrollRef}
+        onAssistantRendered={acknowledgeRenderedAssistantMessage}
       />
 
       {error && (

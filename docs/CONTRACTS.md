@@ -246,3 +246,18 @@ Rules:
 - `POST /api/sessions/[id]/share` requires an authenticated caller.
 - Shared read routes remain public and enforce expiry on lookup.
 - Expired share entries may be deleted opportunistically during lookup.
+## Frontend Queued Question Contract
+
+Queued chat questions are executed sequentially within the current browser tab and current chat screen only.
+
+Rules:
+
+- Only one queued question may be in flight at a time for a given chat page instance.
+- The next queued question must not start until the current queued question has:
+  - finished SSE streaming,
+  - finished session persistence successfully, and
+  - rendered a committed assistant message after at least one animation frame.
+- The render gate applies only to committed assistant messages in the message list. Streaming placeholder messages must not release the queue.
+- Assistant responses that end in a rendered `error` frame or `EMPTY_RESPONSE` fallback still count as queue-complete once the committed assistant card renders.
+- Session save failures pause queued execution until the same save succeeds on retry.
+- Removing or clearing queued items only affects pending items; the current in-flight queued item continues to completion.

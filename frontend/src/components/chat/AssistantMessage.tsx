@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SseFrame } from "@/hooks/useSse";
 import BookmarkButton from "@/components/bookmark/BookmarkButton";
 import DataTable from "@/components/report/DataTable";
@@ -12,15 +12,18 @@ interface Props {
   frames: SseFrame[];
   streaming?: boolean;
   prompt?: string;
+  messageId?: string;
+  onRendered?: (messageId: string) => void;
 }
 
 type ChartSpec = Parameters<typeof ReportBarChart>[0]["spec"];
 const ACTION_BUTTON_CLASS =
   "rounded-md border border-input/80 px-2 py-1 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:bg-muted";
 
-export default function AssistantMessage({ frames, streaming, prompt }: Props) {
+export default function AssistantMessage({ frames, streaming, prompt, messageId, onRendered }: Props) {
   const [showTable, setShowTable] = useState(false);
   const [selectedChartFrameIndex, setSelectedChartFrameIndex] = useState<number | null>(null);
+  const renderedMessageIdRef = useRef<string | null>(null);
   const currentChartFrameIndex = frames.findLastIndex((f) => f.type === "chart");
   const currentChartFrame = currentChartFrameIndex >= 0 ? frames[currentChartFrameIndex] : undefined;
   const progressFrames = frames.filter((f) => f.type === "progress");
@@ -84,6 +87,27 @@ export default function AssistantMessage({ frames, streaming, prompt }: Props) {
   const shouldShowError =
     errorMessage.length > 0 &&
     errorMessage.replace(/\s+/g, " ") !== visibleSummary.replace(/\s+/g, " ");
+  const hasRenderableContent =
+    visibleSummary.length > 0 || showStandaloneTable || Boolean(hasChart) || shouldShowError;
+
+  useEffect(() => {
+    if (streaming || !messageId || !onRendered || !hasRenderableContent) {
+      return;
+    }
+
+    if (renderedMessageIdRef.current === messageId) {
+      return;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      renderedMessageIdRef.current = messageId;
+      onRendered(messageId);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [hasRenderableContent, messageId, onRendered, streaming]);
 
   return (
     <div className="flex justify-start">
@@ -166,4 +190,3 @@ export default function AssistantMessage({ frames, streaming, prompt }: Props) {
     </div>
   );
 }
-
