@@ -29,7 +29,7 @@ const EMPTY_RESPONSE_FRAME: SseFrame = {
   data: {
     version: "v1",
     code: "EMPTY_RESPONSE",
-    message: "??? ?? ????. ?? ?? ?? SSE ?? ??? ??? ???.",
+    message: "응답이 비어 있습니다. 인증 상태 또는 SSE 연결 상태를 확인해 주세요.",
     retryable: false,
   },
 };

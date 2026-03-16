@@ -31,7 +31,7 @@ const EMPTY_RESPONSE_FRAME: SseFrame = {
   data: {
     version: "v1",
     code: "EMPTY_RESPONSE",
-    message: "??? ?? ????.",
+    message: "응답이 비어 있습니다.",
     retryable: false,
   },
 };
@@ -111,7 +111,7 @@ export default function SessionPage() {
       const headers = await getAuthHeaders();
       const response = await fetch(`/api/sessions/${sessionId}`, { headers });
       if (!response.ok) {
-        setLoadError("??? ???? ?????.");
+        setLoadError("세션을 불러오지 못했습니다.");
         return;
       }
 
